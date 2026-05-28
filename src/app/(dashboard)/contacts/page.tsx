@@ -37,6 +37,7 @@ import {
   buildVisibilityScope,
   canCreateContact,
   canEditContact,
+  canExportImport,
   canViewContact,
 } from '@/lib/utils/permissions';
 import {
@@ -333,31 +334,37 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setImportOpen(true)}
-            className="gap-1.5"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {t('btn.import')}
-          </Button>
-          {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
-          <Select
-            onValueChange={(v) => {
-              if (v === 'current') doExport(filtered);
-              else if (v === 'all') doExport(visibleContacts);
-            }}
-          >
-            <SelectTrigger className="w-[150px] h-8 text-xs">
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              <SelectValue placeholder={t('btn.export')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="current">Export current view</SelectItem>
-              <SelectItem value="all">Export all I can see</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Import + export are admin-tier only unless canExportImport's
+              feature flag is enabled. */}
+          {canExportImport(viewer) && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {t('btn.import')}
+              </Button>
+              {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
+              <Select
+                onValueChange={(v) => {
+                  if (v === 'current') doExport(filtered);
+                  else if (v === 'all') doExport(visibleContacts);
+                }}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <SelectValue placeholder={t('btn.export')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Export current view</SelectItem>
+                  <SelectItem value="all">Export all I can see</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           <Button
             variant={selectMode ? 'secondary' : 'outline'}
             size="sm"
@@ -434,9 +441,11 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={handleExportSelected} className="gap-1 h-8 text-xs">
-            <Download className="h-3 w-3" /> {t('btn.export')}
-          </Button>
+          {canExportImport(viewer) && (
+            <Button variant="outline" size="sm" onClick={handleExportSelected} className="gap-1 h-8 text-xs">
+              <Download className="h-3 w-3" /> {t('btn.export')}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={selectAll} className="h-8 text-xs">{t('btn.selectAll')}</Button>
           <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8 text-xs">{t('btn.clear')}</Button>
         </motion.div>

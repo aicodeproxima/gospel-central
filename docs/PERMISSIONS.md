@@ -170,6 +170,22 @@ explicit assigned-owner / assigned-team / assigned-group fields.
 | Export CSV (global) | ❌ | ❌ | ❌ | branch-scoped | all | all |
 | View Audit Log | ❌ | ❌ | ❌ | branch-scoped | all | all |
 
+### Data export / import (CSV)
+
+The CSV affordances on the **shared** pages — calendar booking export, and the
+contacts import + export buttons. (Export buttons *inside* `/admin` tabs are
+already gated by the admin page; the Reports-dashboard export keeps its own
+`canExportReports` gate.)
+
+| Action | Member | Team L | Group L | Branch L | Overseer | Dev |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Export / import CSV (calendar, contacts) | flag | flag | flag | ✓ | ✓ | ✓ |
+
+> `flag` = governed by `EXPORT_IMPORT_FOR_NON_ADMINS` in
+> `src/lib/utils/permissions.ts`. **Default OFF**, so non-admins effectively
+> get ❌ until it is flipped on (or later wired to the System Config tab).
+> Admin-tier (Branch Leader+) always has access regardless of the flag.
+
 ### Admin page (`/admin`)
 
 | Tab | Member | Team L | Group L | Branch L | Overseer | Dev |
@@ -233,6 +249,7 @@ canEditBooking(viewer, booking)
 
 canAccessReports(viewer)
 canExportReports(viewer)
+canExportImport(viewer)                // CSV export/import on shared pages; admin-tier + EXPORT_IMPORT_FOR_NON_ADMINS flag
 
 canSeeAdminPage(viewer)
 canSeeAdminTab(viewer, tab)            // 'users' | 'groups' | 'rooms' | 'blocked' | 'contacts' | 'audit' | 'tags' | 'permissions' | 'system'

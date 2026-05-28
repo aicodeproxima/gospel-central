@@ -552,6 +552,35 @@ export function canExportReports(viewerOrRole: User | UserRole): boolean {
   return canAccessReports(viewerOrRole);
 }
 
+// =============================================================================
+// Data export / import (CSV affordances on non-admin pages)
+// =============================================================================
+
+/**
+ * Feature flag — when true, NON-admin roles also see the CSV export/import
+ * affordances that live on shared pages (calendar booking export, contacts
+ * import + export). Default OFF: export/import is admin-tier (Branch Leader+)
+ * only for now. Flip to true — or later wire this to the admin System Config
+ * tab — to roll it out to every role without touching any call site.
+ */
+export const EXPORT_IMPORT_FOR_NON_ADMINS = false;
+
+/**
+ * canExportImport — single gate for every CSV export/import affordance that
+ * is exposed on pages non-admins can reach (calendar export, contacts
+ * import + export). Admin-tier always has it; everyone else follows
+ * EXPORT_IMPORT_FOR_NON_ADMINS.
+ *
+ * NOTE: the export buttons inside `/admin` tabs (Users / Groups / Contacts /
+ * Audit) are already gated by canSeeAdminPage, so they do NOT call this. The
+ * Reports-dashboard export keeps its own canExportReports gate.
+ */
+export function canExportImport(viewer: User | null | undefined): boolean {
+  if (!viewer) return false;
+  if (isAdminTier(viewer)) return true;
+  return EXPORT_IMPORT_FOR_NON_ADMINS;
+}
+
 /**
  * @deprecated Use `canConvertContact(viewer, contact, ...)` for new code.
  * Kept for backwards-compat with the contacts page header gate. (PERM-4.)

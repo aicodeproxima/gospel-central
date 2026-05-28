@@ -22,6 +22,8 @@ import { BookingWizard } from '@/components/booking/BookingWizard';
 import { ExportDropdown } from '@/components/shared/ExportDropdown';
 import { useTopbarSlot } from '@/components/layout/TopbarSlot';
 import { useBookingStore } from '@/lib/stores/booking-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { canExportImport } from '@/lib/utils/permissions';
 import { bookingsApi } from '@/lib/api/bookings';
 import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
@@ -45,6 +47,7 @@ import {
 
 export default function CalendarPage() {
   const { tBookingType } = useTranslation();
+  const viewer = useAuthStore((s) => s.user);
   const { selectedDate, view, selectedAreaId, setDate, setView, setAreaId, openBookingModal, openEditModal } = useBookingStore();
   const [areas, setAreas] = useState<Area[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -336,15 +339,18 @@ export default function CalendarPage() {
 
         {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
              area + date-range slice on screen. All = wider 5-year window
-             across all branches. */}
-        <ExportDropdown
-          currentRows={bookings}
-          loadAll={loadAllBookings}
-          columns={bookingColumns}
-          toRow={bookingToRow}
-          filenamePrefix="diamond-bookings"
-          allLabel="All bookings (5-year window)"
-        />
+             across all branches. Admin-tier only unless canExportImport's
+             feature flag is enabled. */}
+        {canExportImport(viewer) && (
+          <ExportDropdown
+            currentRows={bookings}
+            loadAll={loadAllBookings}
+            columns={bookingColumns}
+            toRow={bookingToRow}
+            filenamePrefix="diamond-bookings"
+            allLabel="All bookings (5-year window)"
+          />
+        )}
 
         <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
           <TabsList>

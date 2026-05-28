@@ -30,6 +30,7 @@ import {
   canEditSystemConfig,
   canEditUser,
   canEditUserField,
+  canExportImport,
   canExportReports,
   canManageArea,
   canManageBlockedSlot,
@@ -50,6 +51,7 @@ import {
   isAdminTier,
   isLeader,
   scopeForRole,
+  EXPORT_IMPORT_FOR_NON_ADMINS,
 } from './permissions';
 import type { Booking, Contact, User } from '../types';
 import { UserRole } from '../types';
@@ -699,6 +701,30 @@ describe('reports', () => {
   test('legacy role-string overload still works', () => {
     expect(canAccessReports(UserRole.BRANCH_LEADER)).toBe(true);
     expect(canAccessReports(UserRole.MEMBER)).toBe(false);
+  });
+});
+
+// ===========================================================================
+// Data export / import (CSV affordances on shared pages)
+// ===========================================================================
+
+describe('export / import (CSV)', () => {
+  test('feature flag defaults OFF (export/import is admin-only for now)', () => {
+    expect(EXPORT_IMPORT_FOR_NON_ADMINS).toBe(false);
+  });
+  test('admin-tier (Branch Leader+) always has export/import', () => {
+    expect(canExportImport(branchA)).toBe(true);
+    expect(canExportImport(overseer)).toBe(true);
+    expect(canExportImport(dev1)).toBe(true);
+  });
+  test('non-admins are denied while the flag is off', () => {
+    expect(canExportImport(memberA)).toBe(false);
+    expect(canExportImport(teamA)).toBe(false);
+    expect(canExportImport(groupA)).toBe(false);
+  });
+  test('null / undefined viewer denied (deny-by-default)', () => {
+    expect(canExportImport(null)).toBe(false);
+    expect(canExportImport(undefined)).toBe(false);
   });
 });
 
