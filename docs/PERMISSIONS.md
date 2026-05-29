@@ -179,12 +179,26 @@ already gated by the admin page; the Reports-dashboard export keeps its own
 
 | Action | Member | Team L | Group L | Branch L | Overseer | Dev |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
-| Export / import CSV (calendar, contacts) | flag | flag | flag | ✓ | ✓ | ✓ |
+| Export / import CSV (calendar, contacts) | per-group | per-group | per-group | ✓ | ✓ | ✓ |
 
-> `flag` = governed by `EXPORT_IMPORT_FOR_NON_ADMINS` in
-> `src/lib/utils/permissions.ts`. **Default OFF**, so non-admins effectively
-> get ❌ until it is flipped on (or later wired to the System Config tab).
-> Admin-tier (Branch Leader+) always has access regardless of the flag.
+> **Admin-tier (Branch Leader+) always has access** regardless of any setting.
+>
+> For everyone else (Group Leader, Team Leader, Member) access is resolved
+> **per group, at every org level**:
+>
+> - Admins set an **On / Off / Inherit** switch on any Branch, Group, or Team
+>   node from the **Export / Import** admin tab.
+> - A node with no explicit switch **inherits** the nearest ancestor's setting
+>   (Team → Group → Branch), falling back to the global
+>   `EXPORT_IMPORT_FOR_NON_ADMINS` default (**OFF**) when nothing above it is
+>   set. Members inherit from their Team.
+> - The server resolves this chain with `resolveExportImportEnabled(...)` and
+>   stamps the effective boolean onto the user as `user.exportImportEnabled`
+>   at `/login` + `/me`; `canExportImport(viewer)` then reads that flag (after
+>   the admin short-circuit), so the call sites never change.
+> - **Edit scope:** a Branch Leader may toggle only nodes inside their **own
+>   branch** (own-subtree); Overseer / Dev may toggle any node. Out-of-scope
+>   nodes render read-only. Every change writes a `permission` audit entry.
 
 ### Admin page (`/admin`)
 
@@ -199,6 +213,7 @@ already gated by the admin page; the Reports-dashboard export keeps its own
 | Audit Log tab | — | — | — | branch-scoped | all | all |
 | Tags tab (manage tag definitions) | — | — | — | view only | full | full |
 | Permissions tab (read-only display of this matrix) | — | — | — | view only | view only | view only |
+| Export / Import tab (per-group CSV toggles) | — | — | — | own branch | all | all |
 | System Config tab (env, theme defaults, etc.) | — | — | — | — | — | ✓ |
 
 > **Group / Team Leaders manage their people via the existing `/groups` org-tree's "Add User" button** — they don't need a separate /admin tab for the small surface they control.
@@ -249,14 +264,25 @@ canEditBooking(viewer, booking)
 
 canAccessReports(viewer)
 canExportReports(viewer)
-canExportImport(viewer)                // CSV export/import on shared pages; admin-tier + EXPORT_IMPORT_FOR_NON_ADMINS flag
+canExportImport(viewer)                // CSV export/import on shared pages; admin-tier OR viewer.exportImportEnabled (per-group)
+resolveExportImportEnabled(userId, users, overrides)   // walk parentId; nearest On/Off override wins, else EXPORT_IMPORT_FOR_NON_ADMINS
+resolveExportImportDetailed(userId, users, overrides)  // same, but also returns which node decided it (for the admin tab's "inheriting from X")
 
 canSeeAdminPage(viewer)
-canSeeAdminTab(viewer, tab)            // 'users' | 'groups' | 'rooms' | 'blocked' | 'contacts' | 'audit' | 'tags' | 'permissions' | 'system'
+canSeeAdminTab(viewer, tab)            // 'users' | 'groups' | 'rooms' | 'blocked' | 'contacts' | 'audit' | 'tags' | 'permissions' | 'export-import' | 'system'
 canEditSystemConfig(viewer)
 
 scopeForRole(viewer)                   // returns { kind, branchIds, groupIds, teamIds, userIds }
+buildVisibilityScope(viewer, users)    // what a viewer can SEE — Branch L+ => kind 'all' (whole org)
+buildManageableScope(viewer, users)    // what a viewer can ADMINISTER/toggle — Branch L => OWN branch subtree (NOT 'all'); only Overseer/Dev => 'all'
 ```
+
+> **Visibility ≠ edit authority.** A Branch Leader can *see* the whole org
+> (`buildVisibilityScope` → `'all'`) but may only *toggle* settings inside
+> their own branch (`buildManageableScope` → own subtree). Admin edit gates
+> (e.g. the Export / Import tab + its server endpoint) MUST use
+> `buildManageableScope`; using `buildVisibilityScope` would silently let a
+> Branch Leader edit every branch.
 
 Every helper is pure `(viewer, target?) => boolean` so it's testable without DOM, store, or network.
 

@@ -11,6 +11,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   assignableRoles,
+  buildManageableScope,
   buildVisibilityScope,
   canAccessReports,
   canChangeOwnPassword,
@@ -50,6 +51,8 @@ import {
   getRoleLevel,
   isAdminTier,
   isLeader,
+  resolveExportImportDetailed,
+  resolveExportImportEnabled,
   scopeForRole,
   EXPORT_IMPORT_FOR_NON_ADMINS,
 } from './permissions';
@@ -726,6 +729,85 @@ describe('export / import (CSV)', () => {
     expect(canExportImport(null)).toBe(false);
     expect(canExportImport(undefined)).toBe(false);
   });
+  test('non-admin honors the server-computed effective flag', () => {
+    expect(canExportImport(mkUser('m', UserRole.MEMBER, { exportImportEnabled: true }))).toBe(true);
+    expect(canExportImport(mkUser('g', UserRole.GROUP_LEADER, { exportImportEnabled: true }))).toBe(true);
+    expect(canExportImport(mkUser('m2', UserRole.MEMBER, { exportImportEnabled: false }))).toBe(false);
+  });
+  test('admin-tier ignores the flag (always allowed)', () => {
+    expect(canExportImport(mkUser('b', UserRole.BRANCH_LEADER, { exportImportEnabled: false }))).toBe(true);
+    expect(canExportImport(mkUser('o', UserRole.OVERSEER, { exportImportEnabled: false }))).toBe(true);
+  });
+  test('missing flag falls back to the global default', () => {
+    // mkUser leaves exportImportEnabled undefined → EXPORT_IMPORT_FOR_NON_ADMINS (OFF)
+    expect(canExportImport(mkUser('m3', UserRole.MEMBER))).toBe(EXPORT_IMPORT_FOR_NON_ADMINS);
+  });
+});
+
+// ===========================================================================
+// Per-group export/import resolution (every-org-level inheritance)
+// ===========================================================================
+
+describe('resolveExportImportEnabled — per-group inheritance', () => {
+  // A linear org: branch → group → team → member.
+  const eBranch = mkUser('eBranch', UserRole.BRANCH_LEADER);
+  const eGroup = mkUser('eGroup', UserRole.GROUP_LEADER, { parentId: 'eBranch' });
+  const eTeam = mkUser('eTeam', UserRole.TEAM_LEADER, { parentId: 'eGroup' });
+  const eMember = mkUser('eMember', UserRole.MEMBER, { parentId: 'eTeam' });
+  const org = [eBranch, eGroup, eTeam, eMember];
+
+  test('no overrides → everyone resolves to the global default', () => {
+    for (const u of org) {
+      expect(resolveExportImportEnabled(u.id, org, {})).toBe(EXPORT_IMPORT_FOR_NON_ADMINS);
+    }
+  });
+
+  test('a Branch override cascades to the whole subtree', () => {
+    const ov = { eBranch: true };
+    expect(resolveExportImportEnabled(eMember.id, org, ov)).toBe(true);
+    expect(resolveExportImportEnabled(eTeam.id, org, ov)).toBe(true);
+    expect(resolveExportImportEnabled(eGroup.id, org, ov)).toBe(true);
+    expect(resolveExportImportEnabled(eBranch.id, org, ov)).toBe(true);
+  });
+
+  test('nearest override wins over a higher one', () => {
+    // Branch On, but Group Off → group + team + member are Off; branch stays On.
+    const ov = { eBranch: true, eGroup: false };
+    expect(resolveExportImportEnabled(eBranch.id, org, ov)).toBe(true);
+    expect(resolveExportImportEnabled(eGroup.id, org, ov)).toBe(false);
+    expect(resolveExportImportEnabled(eTeam.id, org, ov)).toBe(false);
+    expect(resolveExportImportEnabled(eMember.id, org, ov)).toBe(false);
+  });
+
+  test('a Team override only affects the team + its members', () => {
+    const ov = { eGroup: false, eTeam: true };
+    expect(resolveExportImportEnabled(eGroup.id, org, ov)).toBe(false);
+    expect(resolveExportImportEnabled(eTeam.id, org, ov)).toBe(true);
+    expect(resolveExportImportEnabled(eMember.id, org, ov)).toBe(true);
+  });
+
+  test('detailed result reports which node decided it', () => {
+    expect(resolveExportImportDetailed(eMember.id, org, { eGroup: true })).toEqual({
+      enabled: true,
+      sourceNodeId: 'eGroup',
+    });
+    expect(resolveExportImportDetailed(eMember.id, org, {})).toEqual({
+      enabled: EXPORT_IMPORT_FOR_NON_ADMINS,
+      sourceNodeId: null,
+    });
+  });
+
+  test('a malformed parentId cycle does not hang and falls back to default', () => {
+    const a = mkUser('cycA', UserRole.TEAM_LEADER, { parentId: 'cycB' });
+    const b = mkUser('cycB', UserRole.TEAM_LEADER, { parentId: 'cycA' });
+    expect(resolveExportImportEnabled('cycA', [a, b], {})).toBe(EXPORT_IMPORT_FOR_NON_ADMINS);
+  });
+
+  test('unknown user id falls back to the global default', () => {
+    expect(resolveExportImportEnabled('ghost', org, { eBranch: true })).toBe(
+      EXPORT_IMPORT_FOR_NON_ADMINS,
+    );
+  });
 });
 
 // ===========================================================================
@@ -855,5 +937,85 @@ describe('buildVisibilityScope', () => {
     expect(s.userIds).toEqual([]);
     const so = buildVisibilityScope(_overseer, all);
     expect(so.kind).toBe('all');
+  });
+});
+
+// ===========================================================================
+// buildManageableScope — EDIT authority (own-subtree), distinct from
+// buildVisibilityScope. The Branch Leader is the load-bearing case: they can
+// SEE everything but may MANAGE only their own branch.
+// ===========================================================================
+
+describe('buildManageableScope', () => {
+  // Two sibling branches under the overseer:
+  //   overseer (root)
+  //     branchA → groupA → teamA → memberA
+  //     branchB → groupB → teamB → memberB
+  const _overseer = { ...overseer, parentId: undefined };
+  const _branchA  = { ...branchA,  parentId: _overseer.id };
+  const _groupA   = { ...groupA,   parentId: _branchA.id  };
+  const _teamA    = { ...teamA,    parentId: _groupA.id   };
+  const _memberA  = { ...memberA,  parentId: _teamA.id    };
+  const _branchB  = { ...branchB,  parentId: _overseer.id };
+  const _groupB   = { ...groupB,   parentId: _branchB.id  };
+  const _teamB    = { ...teamB,    parentId: _groupB.id   };
+  const _memberB  = { ...memberB,  parentId: _teamB.id    };
+  const all = [
+    _overseer, _branchA, _groupA, _teamA, _memberA,
+    _branchB, _groupB, _teamB, _memberB,
+  ];
+
+  test('null viewer returns empty self scope', () => {
+    const s = buildManageableScope(null, all);
+    expect(s.kind).toBe('self');
+    expect(s.userIds).toEqual([]);
+  });
+
+  test('Overseer and Dev manage everything (kind="all")', () => {
+    expect(buildManageableScope(_overseer, all).kind).toBe('all');
+    expect(buildManageableScope({ ...dev1, parentId: undefined }, all).kind).toBe('all');
+  });
+
+  test('Branch Leader is NOT "all" — manages own branch subtree only', () => {
+    const s = buildManageableScope(_branchA, all);
+    // The defining contrast with buildVisibilityScope (which returns 'all').
+    expect(buildVisibilityScope(_branchA, all).kind).toBe('all');
+    expect(s.kind).toBe('branch');
+    // Reaches own subtree, including own node.
+    expect(s.userIds).toContain(_branchA.id);
+    expect(s.userIds).toContain(_groupA.id);
+    expect(s.userIds).toContain(_teamA.id);
+    expect(s.userIds).toContain(_memberA.id);
+    expect(s.branchIds).toContain(_branchA.id);
+    // Does NOT reach the sibling branch.
+    expect(s.userIds).not.toContain(_branchB.id);
+    expect(s.userIds).not.toContain(_groupB.id);
+    expect(s.userIds).not.toContain(_teamB.id);
+    expect(s.userIds).not.toContain(_memberB.id);
+  });
+
+  test('canEdit convention gates a Branch Leader to their own branch', () => {
+    const s = buildManageableScope(_branchA, all);
+    const canEdit = (id: string) => s.kind === 'all' || s.userIds.includes(id);
+    expect(canEdit(_branchA.id)).toBe(true);
+    expect(canEdit(_groupA.id)).toBe(true);
+    expect(canEdit(_branchB.id)).toBe(false); // sibling branch → locked
+    expect(canEdit(_groupB.id)).toBe(false);
+  });
+
+  test('Group Leader manages own group subtree only', () => {
+    const s = buildManageableScope(_groupA, all);
+    expect(s.kind).toBe('group');
+    expect(s.userIds).toContain(_groupA.id);
+    expect(s.userIds).toContain(_teamA.id);
+    expect(s.userIds).toContain(_memberA.id);
+    expect(s.userIds).not.toContain(_groupB.id);
+    expect(s.userIds).not.toContain(_branchA.id);
+  });
+
+  test('Member manages just self', () => {
+    const s = buildManageableScope(_memberA, all);
+    expect(s.kind).toBe('self');
+    expect(s.userIds).toEqual([_memberA.id]);
   });
 });

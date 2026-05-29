@@ -568,8 +568,14 @@ export const EXPORT_IMPORT_FOR_NON_ADMINS = false;
 /**
  * canExportImport — single gate for every CSV export/import affordance that
  * is exposed on pages non-admins can reach (calendar export, contacts
- * import + export). Admin-tier always has it; everyone else follows
- * EXPORT_IMPORT_FOR_NON_ADMINS.
+ * import + export). Admin-tier always has it; everyone else follows their
+ * server-computed effective per-group flag (`viewer.exportImportEnabled`),
+ * falling back to EXPORT_IMPORT_FOR_NON_ADMINS when the flag is absent
+ * (e.g. a user object cached before the per-group system shipped).
+ *
+ * The effective flag is resolved server-side via resolveExportImportEnabled
+ * and attached on /login + /me, so this gate stays a pure field read and the
+ * call sites (calendar, contacts) never change.
  *
  * NOTE: the export buttons inside `/admin` tabs (Users / Groups / Contacts /
  * Audit) are already gated by canSeeAdminPage, so they do NOT call this. The
@@ -578,7 +584,59 @@ export const EXPORT_IMPORT_FOR_NON_ADMINS = false;
 export function canExportImport(viewer: User | null | undefined): boolean {
   if (!viewer) return false;
   if (isAdminTier(viewer)) return true;
-  return EXPORT_IMPORT_FOR_NON_ADMINS;
+  return viewer.exportImportEnabled ?? EXPORT_IMPORT_FOR_NON_ADMINS;
+}
+
+/**
+ * resolveExportImportDetailed — walk a user's parentId chain and return the
+ * nearest explicit per-node override, plus which node decided it.
+ *
+ * Override keys are node ids = the Branch / Group / Team *leader's* user id
+ * (in Diamond's model a "group" IS its leader's User record). So a Member
+ * inherits from their Team leader, a Team leader from their Group leader, a
+ * Group leader from their Branch leader, and a Branch leader from the global
+ * default. The FIRST explicit override encountered walking up wins ("nearest
+ * override"); if none is found we fall back to EXPORT_IMPORT_FOR_NON_ADMINS.
+ *
+ * `sourceNodeId` is the id whose override decided the result, or null when it
+ * fell through to the global default. Pure; the caller supplies the user list
+ * and the overrides map (no I/O). A `seen` set guards against a malformed
+ * parentId cycle.
+ */
+export interface ExportImportResolution {
+  enabled: boolean;
+  sourceNodeId: string | null;
+}
+
+export function resolveExportImportDetailed(
+  userId: string,
+  users: User[],
+  overrides: Record<string, boolean>,
+): ExportImportResolution {
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const seen = new Set<string>();
+  let cur: User | undefined = byId.get(userId);
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    if (Object.prototype.hasOwnProperty.call(overrides, cur.id)) {
+      return { enabled: overrides[cur.id], sourceNodeId: cur.id };
+    }
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return { enabled: EXPORT_IMPORT_FOR_NON_ADMINS, sourceNodeId: null };
+}
+
+/**
+ * resolveExportImportEnabled — boolean-only convenience wrapper around
+ * resolveExportImportDetailed. Used by the mock backend to stamp the
+ * effective `exportImportEnabled` flag onto a user at /login + /me.
+ */
+export function resolveExportImportEnabled(
+  userId: string,
+  users: User[],
+  overrides: Record<string, boolean>,
+): boolean {
+  return resolveExportImportDetailed(userId, users, overrides).enabled;
 }
 
 /**
@@ -606,6 +664,7 @@ export type AdminTab =
   | 'audit'
   | 'tags'
   | 'permissions'
+  | 'export-import'
   | 'system';
 
 /**
@@ -627,6 +686,9 @@ export function canSeeAdminTab(viewer: User, tab: AdminTab): boolean {
       return true;          // visibility for all admin-tier; canManageTagDefinitions gates edit
     case 'permissions':
       return true;          // read-only matrix viewer for all admin-tier
+    case 'export-import':
+      return true;          // all admin-tier; per-node EDIT is scoped to the
+                            // viewer's own subtree inside the tab
     case 'system':
       return viewer.role === UserRole.DEV;
   }
@@ -724,6 +786,85 @@ export function buildVisibilityScope(
       }
     }
   }
+  return {
+    kind,
+    userIds: Array.from(reach),
+    branchIds: Array.from(branchIds),
+    groupIds: Array.from(groupIds),
+    teamIds: Array.from(teamIds),
+  };
+}
+
+/**
+ * buildManageableScope — the subtree a viewer may *administer* (edit settings
+ * / toggles for), as opposed to merely SEE (`buildVisibilityScope`).
+ *
+ * The crucial difference is the Branch Leader: a Branch Leader can SEE the
+ * whole org (visibility scope `all`, relied on by EditUserDialog, contacts,
+ * booking, etc.) but may MANAGE only their own branch subtree. So here a
+ * Branch Leader gets `kind: 'branch'` with a populated `userIds` set — NOT
+ * `all`. Only Overseer / Dev manage everything (`all`). Group / Team Leaders
+ * and Members resolve to their own subtree (they don't reach admin tabs, but
+ * the function stays total and safe to call anywhere).
+ *
+ * Callers gate with the same convention as visibility:
+ *   const canEdit = scope.kind === 'all' || scope.userIds.includes(nodeId);
+ */
+export function buildManageableScope(
+  viewer: User | null | undefined,
+  allUsers: User[],
+): VisibilityScope {
+  const empty: VisibilityScope = {
+    kind: 'self',
+    userIds: [],
+    branchIds: [],
+    groupIds: [],
+    teamIds: [],
+  };
+  if (!viewer) return empty;
+
+  // Only Overseer / Dev administer the entire org.
+  if (viewer.role === UserRole.OVERSEER || viewer.role === UserRole.DEV) {
+    return { kind: 'all', userIds: [], branchIds: [], groupIds: [], teamIds: [] };
+  }
+
+  // Everyone else manages only their own reachable subtree. Branch Leaders
+  // land here too — that is the whole point: own branch only, never 'all'.
+  const reach = new Set<string>([viewer.id]);
+  const branchIds = new Set<string>();
+  const groupIds = new Set<string>();
+  const teamIds = new Set<string>();
+
+  const bucket = (u: User) => {
+    if (u.role === UserRole.BRANCH_LEADER) branchIds.add(u.id);
+    else if (u.role === UserRole.GROUP_LEADER) groupIds.add(u.id);
+    else if (u.role === UserRole.TEAM_LEADER) teamIds.add(u.id);
+  };
+  // Seed the viewer's own node into the right bucket so a Branch Leader's
+  // own branch row counts as manageable.
+  bucket(viewer);
+
+  let added = true;
+  while (added) {
+    added = false;
+    for (const u of allUsers) {
+      if (u.parentId && reach.has(u.parentId) && !reach.has(u.id)) {
+        reach.add(u.id);
+        added = true;
+        bucket(u);
+      }
+    }
+  }
+
+  const kind: ScopeKind =
+    viewer.role === UserRole.BRANCH_LEADER
+      ? 'branch'
+      : viewer.role === UserRole.GROUP_LEADER
+        ? 'group'
+        : viewer.role === UserRole.TEAM_LEADER
+          ? 'team'
+          : 'self';
+
   return {
     kind,
     userIds: Array.from(reach),

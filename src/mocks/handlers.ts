@@ -11,6 +11,7 @@ import {
 } from './data';
 import {
   buildVisibilityScope,
+  buildManageableScope,
   canChangeRole,
   canCreateArea,
   canCreateRoom,
@@ -22,8 +23,12 @@ import {
   canManageRoom,
   canManageTags,
   canResetPassword,
+  isAdminTier,
+  resolveExportImportEnabled,
+  EXPORT_IMPORT_FOR_NON_ADMINS,
 } from '../lib/utils/permissions';
-import type { User, UserRole } from '../lib/types/user';
+import type { User } from '../lib/types/user';
+import { UserRole } from '../lib/types/user';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
@@ -48,6 +53,37 @@ const blockedSlotsState = [...mockBlockedSlots];
 // Areas state — deep-cloned so room mutations don't leak into mockAreas.
 const areasState = mockAreas.map((a) => ({ ...a, rooms: a.rooms.map((r) => ({ ...r })) }));
 const initialAuditLogLength = mockAuditLog.length;
+
+/**
+ * Per-group CSV export/import overrides, keyed by org-node id (the Branch /
+ * Group / Team leader's user id). Value true = On, false = Off; an absent
+ * key = "inherit from the parent node, else the global
+ * EXPORT_IMPORT_FOR_NON_ADMINS default". Resolved per user by
+ * resolveExportImportEnabled and stamped onto the user at /login + /me.
+ *
+ * DELIBERATELY NOT cleared by resetMockState(): this models server-side org
+ * configuration, not per-demo-session data, so an admin can set a toggle,
+ * log out, and log back in as an affected member to see the effect. It still
+ * resets on a full page reload (module scope). The seed re-inserts the SAME
+ * user objects on reset, so these node-id keys stay valid across a reset.
+ */
+let orgExportImportOverrides: Record<string, boolean> = {};
+
+/**
+ * Stamp the server-computed effective `exportImportEnabled` flag onto a user
+ * before returning it (login / me). Keeps the User record itself clean — the
+ * flag is derived, never stored.
+ */
+function withEffectiveFlags(user: User): User {
+  return {
+    ...user,
+    exportImportEnabled: resolveExportImportEnabled(
+      user.id,
+      usersState as User[],
+      orgExportImportOverrides,
+    ),
+  };
+}
 
 /**
  * Error-log buffer for the per-user audit's recommended insurance:
@@ -345,7 +381,7 @@ export const handlers = [
       timestamp: now,
     });
 
-    return HttpResponse.json({ token: 'mock-jwt-token-' + user.id, user });
+    return HttpResponse.json({ token: 'mock-jwt-token-' + user.id, user: withEffectiveFlags(user) });
   }),
 
   // §7 SHIM (M-07): resolve viewer from the mock JWT in the Authorization
@@ -354,8 +390,83 @@ export const handlers = [
   // got Michael (Dev). Mike's backend will JWT-resolve the same way.
   http.get(`${API}/me`, ({ request }) => {
     const viewer = resolveViewer(request);
-    if (!viewer) return HttpResponse.json(mockUsers[0]);
-    return HttpResponse.json(viewer);
+    if (!viewer) return HttpResponse.json(withEffectiveFlags(mockUsers[0]));
+    return HttpResponse.json(withEffectiveFlags(viewer));
+  }),
+
+  // Per-group export/import settings.
+  // GET → the current override map + the global default. Visible to any
+  // admin-tier viewer (the tab is admin-only); the FE scopes which nodes
+  // are *editable* to the viewer's own subtree.
+  http.get(`${API}/settings/export-import`, ({ request }) => {
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    if (!isAdminTier(viewer)) return permissionDenied('Admin access required');
+    return HttpResponse.json({
+      overrides: orgExportImportOverrides,
+      default: EXPORT_IMPORT_FOR_NON_ADMINS,
+    });
+  }),
+
+  // PUT → set or clear one node's override.
+  //   body: { nodeId: string, value: boolean | null }
+  //   value true/false = explicit On/Off; null = clear (inherit from parent).
+  // Scoping: Overseer/Dev (scope 'all') may toggle any node; a Branch Leader
+  // may only toggle nodes inside their own subtree (matrix: own-branch only).
+  http.put(`${API}/settings/export-import`, async ({ request }) => {
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    if (!isAdminTier(viewer)) return permissionDenied('Admin access required');
+
+    const body = (await request.json()) as { nodeId?: string; value?: boolean | null };
+    const nodeId = body?.nodeId;
+    if (!nodeId) return validationError('nodeId is required');
+
+    const node = usersState.find((u) => u.id === nodeId) as User | undefined;
+    if (!node) return HttpResponse.json({ message: 'Node not found', code: 'NOT_FOUND' }, { status: 404 });
+    if (node.role === UserRole.MEMBER) {
+      return validationError('Members are not togglable nodes — toggle their Team / Group / Branch');
+    }
+
+    // Own-subtree EDIT-authority check (Branch Leaders); Overseer/Dev get
+    // kind 'all'. Must use buildManageableScope, not buildVisibilityScope —
+    // the latter returns 'all' for Branch Leaders (they can SEE everything),
+    // which would silently skip this guard and let a Branch Leader toggle
+    // any branch.
+    const scope = buildManageableScope(viewer, usersState as User[]);
+    if (scope.kind !== 'all' && !scope.userIds.includes(nodeId)) {
+      return permissionDenied('That group is outside your branch');
+    }
+
+    const prev = Object.prototype.hasOwnProperty.call(orgExportImportOverrides, nodeId)
+      ? orgExportImportOverrides[nodeId]
+      : undefined;
+    const clearing = body.value === null || body.value === undefined;
+    if (clearing) {
+      delete orgExportImportOverrides[nodeId];
+    } else {
+      orgExportImportOverrides[nodeId] = !!body.value;
+    }
+    const label = (v: boolean | undefined) => (v === undefined ? 'Inherit' : v ? 'On' : 'Off');
+    const nodeName = `${node.firstName} ${node.lastName}`.trim() || node.username;
+
+    mockAuditLog.push({
+      id: 'al-' + Date.now() + '-eii',
+      action: 'update',
+      entityType: 'permission',
+      entityId: nodeId,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
+      details: `Export/import for "${nodeName}" set to ${label(clearing ? undefined : !!body.value)}`,
+      before: { exportImport: label(prev) },
+      after: { exportImport: label(clearing ? undefined : !!body.value) },
+      timestamp: new Date().toISOString(),
+    });
+
+    return HttpResponse.json({
+      overrides: orgExportImportOverrides,
+      default: EXPORT_IMPORT_FOR_NON_ADMINS,
+    });
   }),
 
   // Areas & Rooms

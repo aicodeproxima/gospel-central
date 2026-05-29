@@ -13,6 +13,7 @@ import {
   Activity,
   Tag,
   Lock,
+  FileSpreadsheet,
   Cog,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -30,6 +31,7 @@ import { AuditLogTab } from '@/components/admin/AuditLogTab';
 import { TagsTab } from '@/components/admin/TagsTab';
 import { PermissionsTab } from '@/components/admin/PermissionsTab';
 import { ContactsAdminTab } from '@/components/admin/ContactsAdminTab';
+import { ExportImportTab } from '@/components/admin/ExportImportTab';
 
 /**
  * Admin page shell.
@@ -110,6 +112,13 @@ const TAB_SPECS: TabSpec[] = [
     description: 'Read-only view of the role × resource × action matrix from docs/PERMISSIONS.md. Devs may export.',
     icon: Lock,
     phase: 7,
+  },
+  {
+    key: 'export-import',
+    label: 'Export / Import',
+    description: 'Turn CSV export & import on/off per Branch, Group, or Team. Lower levels inherit unless overridden. Branch Leaders manage their own branch; Overseer / Dev manage all.',
+    icon: FileSpreadsheet,
+    phase: 8,
   },
   {
     key: 'system',
@@ -348,6 +357,8 @@ export default function AdminPage() {
                   <TagsTab />
                 ) : activeSpec.key === 'permissions' ? (
                   <PermissionsTab />
+                ) : activeSpec.key === 'export-import' ? (
+                  <ExportImportTab />
                 ) : (
                   <PlaceholderTab spec={activeSpec} />
                 )}

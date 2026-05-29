@@ -106,6 +106,14 @@ export interface User {
   /** Set by admin password reset; UI must route to forced-change page. */
   mustChangePassword?: boolean;
   avatarUrl?: string;
+  /**
+   * Server-computed effective CSV export/import flag for THIS user, resolved
+   * from the per-group override tree (nearest Branch/Group/Team override
+   * walking up parentId, else the global EXPORT_IMPORT_FOR_NON_ADMINS
+   * default). Attached on /login + /me; consumed by canExportImport for
+   * non-admin viewers. Not persisted on the User record itself.
+   */
+  exportImportEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
