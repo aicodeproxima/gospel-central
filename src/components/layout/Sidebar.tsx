@@ -136,6 +136,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Button>
           )}
         </div>
+        {!collapsed && (
+          <div className="mt-3 pt-3 border-t border-border/50 text-center text-[10px] text-muted-foreground">
+            Built by{' '}
+            <a
+              href="https://accessoryseezin.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary hover:text-primary/80 transition-colors"
+            >
+              AccessorySeezin.com
+            </a>
+          </div>
+        )}
       </div>
     </motion.aside>
   );
