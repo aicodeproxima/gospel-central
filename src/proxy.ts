@@ -36,6 +36,7 @@ const PUBLIC_PREFIXES = [
   '/favicon.ico',
   '/mockServiceWorker.js',
   '/avatars',
+  '/tree-demo', // isolated mobile UX demo (feat/mobile-tree-demo branch only — never merged to main)
 ];
 
 export function proxy(request: NextRequest) {
