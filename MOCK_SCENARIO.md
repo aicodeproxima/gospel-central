@@ -8,8 +8,8 @@
 ## Overview
 
 Diamond currently runs against a frozen, deterministic mock dataset that
-simulates an **active week at a single church** with everyone booking every
-activity through the app.
+simulates an **active week across five branches** of a church community,
+with everyone booking every activity through the app.
 
 The scenario lives entirely in one file:
 [`src/mocks/scenario-church-week.ts`](./src/mocks/scenario-church-week.ts)
@@ -22,21 +22,46 @@ The study curriculum lives in
 | Level | Count | Notes |
 |---|---|---|
 | Developer (Admin) | 2 | **Michael** (no last name), **Stephen Wright** |
-| Overseer | 1 | **David Park** — everything rolls up under him |
-| Branch Leader | 4 | Sarah Johnson, James Wilson, Rachel Kim, Daniel Lee |
-| Group Leader | 10 | All also act as **Teachers** and have study metrics |
-| Team Leader | 15 | All also act as **Teachers** and have study metrics; distributed across the 10 group leaders |
-| Member | 100 | All baptized, distributed evenly across the 15 teams |
+| Overseer | 1 | **Gabriel** — every branch reports up under him |
+| Branch Leader | 5 | Joseph, Zechariah, John the Baptist, Simeon, Simon Peter — male biblical names, one per branch |
+| Group Leader | 10 | Two per branch. All carry the `teacher` tag and have study metrics. |
+| Team Leader | 15 | Distributed across the 10 group leaders. All carry `teacher` and have study metrics. |
+| Member | 99 | All baptized, distributed across the 15 teams. ~20 carry the `teacher` tag. |
 | **Total users** | **132** | |
 
-Stephen Wright sits as a second top-level admin. Everything else is under
-Michael → David Park (Overseer).
+Stephen Wright sits as a second top-level admin alongside Michael. Every
+operational reporting line is: Michael → Gabriel (Overseer) → Branch
+Leader → Group Leader → Team Leader → Member.
+
+## Branches
+
+5 branches under Gabriel, each with its own `area` (physical location):
+
+| Branch (area) | Branch Leader | Rooms |
+|---|---|---|
+| Newport News Zion (main) | Joseph | Bible Study Room 1–4, Conference Room, Sanctuary, Fellowship, TRE Room |
+| Chesapeake Zion | Zechariah | Study Room 1, 2, 3, Conference Room |
+| Norfolk Zion | John the Baptist | Study Room 1, 2, Living Room, ODU Library, ODU Web Center, HU Library, HU Student Center |
+| Virginia Beach Zion | Simeon | Study Room 1, 2, Conference Room |
+| Williamsburg Zion | Simon Peter | Study Room 1, Barnes and Noble |
+
+## Tags
+
+Tags are orthogonal capability flags on a user (replacing the prior
+Teacher role). The seed populates:
+
+- `teacher` — every Group + Team Leader (and ~20 Members) carry it. Required to be assigned as the leader of a Bible Study booking.
+- `co_group_leader` — exactly 1 per group (10 total).
+- `co_team_leader` — exactly 1 per team (15 total).
+
+New tag ids can be added at any time via the admin Tags tab; the data
+model is `tags: string[]`.
 
 ## Contacts (Unbaptized)
 
-- **50 contacts** total, all unbaptized.
-- **20 are currently studying** one of the 50 Bible study subjects.
-- The remaining 30 are at the "Initial Contact" pipeline stage.
+- **50 contacts** total, all unbaptized, distributed across all 5 branches.
+- About half are currently studying one of the 50 Bible study subjects.
+- Pipeline stages used: `FIRST_STUDY`, `REGULAR_STUDY`, `PROGRESSING`, `BAPTISM_READY`, `BAPTIZED`. (`INITIAL_CONTACT` was removed in v1 of the overhaul — don't reference it.)
 - Each studying contact has:
   - `currentlyStudying: true`
   - `currentStep` (1–5)
@@ -58,25 +83,10 @@ The full list is in `src/mocks/subjects.ts`. Structured as:
 - **Step 5:** Words of God Are Absolute, Watch Out for False Prophets,
   Second Coming, Coming on the Clouds, God's Coming From the East, …
 
-## Rooms
-
-Single area: **Main Church**, with 8 rooms:
-
-| Room | Capacity | Features |
-|---|---|---|
-| Bible Study Room 1 | 6 | Whiteboard |
-| Bible Study Room 2 | 6 | Whiteboard |
-| Bible Study Room 3 | 6 | Whiteboard, Zoom Setup |
-| Bible Study Room 4 | 6 | Whiteboard, Zoom Setup |
-| Conference Room | 20 | Projector, Video Conf |
-| Sanctuary | 300 | Stage, Sound System, Live Stream |
-| Fellowship | 60 | Kitchen, Tables |
-| TRE Room | 15 | Training Setup |
-
 ## Activities
 
-Bookings can be tagged with one of 8 activity types (on top of the existing
-7 "booking types"):
+Bookings can be tagged with one of 8 activity types (orthogonal to the 7
+booking types):
 
 - Bible Study
 - Group Activity
@@ -90,31 +100,47 @@ Bookings can be tagged with one of 8 activity types (on top of the existing
 Activity lives in `Booking.activity` and is defined by the `Activity` enum
 in `src/lib/types/activity.ts`.
 
+## Blocked time slots
+
+The seed defines 4 default global blocked slots (apply to all 5 branches,
+no role can override):
+
+| Day | Time | Reason |
+|---|---|---|
+| Tuesday | 20:00–21:00 | Tuesday service |
+| Saturday | 09:00–10:00 | Sabbath morning service |
+| Saturday | 15:00–16:00 | Sabbath afternoon service |
+| Saturday | 20:00–21:00 | Sabbath evening service |
+
+Service times live exclusively in `scenarioBlockedSlots` — they are NOT
+seeded as bookings. Booking attempts overlapping a blocked slot must be
+rejected with 409 by the backend (today the MSW mock and frontend gate
+this; see `BLOCK-*` audit findings).
+
 ## A Week in the Life
 
 The scenario auto-generates bookings for **the current calendar week**
-(Monday through Sunday). Every render uses the same deterministic PRNG seed
-so the data stays stable between refreshes.
+(Monday through Sunday) across all 5 branches. Every render uses the same
+deterministic PRNG seed so the data stays stable between refreshes.
 
-Typical week includes:
+Typical week includes ~70–80 bookings:
 
-- **~30 Bible study sessions** across the 4 study rooms (in-person and Zoom),
-  one to two sessions per currently-studying contact.
-- **15 team meetings** (one per team), distributed Mon–Fri in TRE Room and
-  study rooms, evening slots.
-- **10 group meetings** in Conference Room and Fellowship.
-- **4 branch committee meetings** in Conference Room.
+- **~30 Bible study sessions** across the various study rooms (in-person and Zoom).
+- **15 team meetings** (one per team).
+- **10 group meetings** in Conference Rooms and Fellowship.
+- **Branch Committee meetings** (one per branch, 5 total).
 - **2 committee mission** sessions (outreach planning, report review).
-- **2 special video** sessions in the Sanctuary.
-- **1 Sabbath morning service** + fellowship meal on Saturday.
+- **2 special video** sessions.
 - **1 monthly function meeting** (Overseer + all leaders).
 - Youth fellowship night, new teachers training, etc.
 
-**Total: ~70–80 bookings for the week**, all visible in the Calendar page.
+> **No church service bookings.** Sabbath morning/afternoon/evening and
+> Tuesday service are blocked slots, not bookings — this is a Bible-study
+> management app, not a service booking app.
 
-## New Metric: "Currently Studying"
+## "Currently Studying" metric
 
-Teachers and every level above them now track **how many of their students
+Teachers and every level above them track **how many of their students
 (or rolled-up subtree) are currently studying a Bible subject right now**.
 
 - `TeacherMetrics.currentlyStudying` — per-teacher count.
@@ -125,22 +151,22 @@ Teachers and every level above them now track **how many of their students
 
 ## Credentials
 
-All accounts use password **`admin`**. Key usernames:
+All mock accounts use password **`admin`**. Key usernames:
 
-- `admin` — Michael (Dev)
-- `stephen` — Stephen Wright (Dev)
-- `overseer1` — David Park (Overseer)
-- `branch1` … `branch4` — branch leaders
+- `admin` — Michael (Dev, top of tree)
+- `stephen` — Stephen Wright (Dev, sibling)
+- `overseer1` — Gabriel (Overseer)
+- `branch1` … `branch5` — branch leaders (Joseph, Zechariah, John the Baptist, Simeon, Simon Peter)
 - `group1` … `group10` — group leaders (also teachers)
 - `team1` … `team15` — team leaders (also teachers)
-- `member1` … `member100` — members
+- `member1` … `member99` — members
 
 ## Removing or replacing the mock data
 
 The entire scenario is **isolated to 2 files**:
 
-1. `src/mocks/scenario-church-week.ts` — all generated users, rooms,
-   contacts, bookings, metrics, org tree, audit log.
+1. `src/mocks/scenario-church-week.ts` — all generated users, areas,
+   rooms, contacts, bookings, blocked slots, metrics, org tree, audit log.
 2. `src/mocks/subjects.ts` — the 50 Bible study subjects.
 
 `src/mocks/data.ts` simply re-exports from `scenario-church-week.ts`, so

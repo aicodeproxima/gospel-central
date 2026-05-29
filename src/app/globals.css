@@ -494,6 +494,59 @@ html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
   color: rgb(240 240 255) !important;
 }
 
+/* ── Animated themes — force dark foundational variables (theme audit F-1)
+   ─────────────────────────────────────────────────────────────────────
+   The 10 animated themes below render with a fullscreen dark canvas.
+   Cards / sidebar / dialogs are styled with translucent dark bg via
+   the union selectors above so the canvas shows through. But the
+   foundational CSS variables (--card-foreground, --foreground,
+   --muted-foreground, etc.) come from :root (light mode) by default
+   and only the .dark class flips them to light-text values.
+
+   When a user toggles next-themes to light while one of these themes
+   is active, the light-mode 'dark text on white card' values combine
+   with the forced 'dark translucent card on dark canvas' surface,
+   producing invisible dark-on-dark text (theme audit H-1, H-2).
+   Starfield avoids this by overriding ALL foundational vars in its
+   own :root[data-theme="starfield"] block (lines 350-378).
+
+   This block extends starfield's pattern to the other 10 animated
+   themes via a shared selector. Per-theme accent palettes (--primary,
+   --ring, --sidebar-primary) are kept in their own blocks below so
+   each theme retains its distinctive accent color.
+   ───────────────────────────────────────────────────────────────── */
+:root[data-theme="aurora"], .dark[data-theme="aurora"],
+:root[data-theme="galaxy"], .dark[data-theme="galaxy"],
+:root[data-theme="jellyfish"], .dark[data-theme="jellyfish"],
+:root[data-theme="rain"], .dark[data-theme="rain"],
+:root[data-theme="matrix"], .dark[data-theme="matrix"],
+:root[data-theme="voronoi"], .dark[data-theme="voronoi"],
+:root[data-theme="constellation"], .dark[data-theme="constellation"],
+:root[data-theme="smoke"], .dark[data-theme="smoke"],
+:root[data-theme="synapse"], .dark[data-theme="synapse"],
+:root[data-theme="deepspace"], .dark[data-theme="deepspace"] {
+  --background: oklch(0.1 0.02 270);
+  --foreground: oklch(0.96 0.01 270);
+  --card: oklch(0.15 0.03 270 / 0.4);
+  --card-foreground: oklch(0.98 0.01 270);
+  --popover: oklch(0.12 0.03 270 / 0.88);
+  --popover-foreground: oklch(0.98 0.01 270);
+  --secondary: oklch(0.25 0.05 270 / 0.35);
+  --secondary-foreground: oklch(0.98 0.01 270);
+  --muted: oklch(0.2 0.03 270 / 0.3);
+  --muted-foreground: oklch(0.75 0.03 270);
+  --accent: oklch(0.4 0.1 280 / 0.35);
+  --accent-foreground: oklch(0.98 0.01 270);
+  --border: oklch(0.75 0.12 270 / 0.25);
+  --input: oklch(0.2 0.04 270 / 0.4);
+  --sidebar: oklch(0.1 0.03 270 / 0.55);
+  --sidebar-foreground: oklch(0.96 0.01 270);
+  --sidebar-border: oklch(0.75 0.12 270 / 0.2);
+  --sidebar-accent: oklch(0.35 0.08 280 / 0.35);
+  --sidebar-accent-foreground: oklch(0.98 0.01 270);
+  --destructive: oklch(0.65 0.25 20);
+}
+
 /* Per-theme accent palettes */
 :root[data-theme="aurora"], .dark[data-theme="aurora"] { --primary: oklch(0.75 0.2 160); --ring: oklch(0.75 0.2 160); --sidebar-primary: oklch(0.75 0.2 160); }
 :root[data-theme="galaxy"], .dark[data-theme="galaxy"] { --primary: oklch(0.7 0.22 310); --ring: oklch(0.7 0.22 310); --sidebar-primary: oklch(0.7 0.22 310); }

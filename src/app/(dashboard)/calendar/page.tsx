@@ -19,14 +19,17 @@ import { DayView } from '@/components/calendar/DayView';
 import { MonthView } from '@/components/calendar/MonthView';
 import { BookingSearchBar } from '@/components/calendar/BookingSearchBar';
 import { BookingWizard } from '@/components/booking/BookingWizard';
+import { ExportDropdown } from '@/components/shared/ExportDropdown';
 import { useTopbarSlot } from '@/components/layout/TopbarSlot';
 import { useBookingStore } from '@/lib/stores/booking-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { canExportImport } from '@/lib/utils/permissions';
 import { bookingsApi } from '@/lib/api/bookings';
 import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
 import { Badge } from '@/components/ui/badge';
 import { BOOKING_TYPE_CONFIG } from '@/lib/types';
-import type { Area, Booking, BookingFormData, Contact, User } from '@/lib/types';
+import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { calendarHelp } from '@/components/shared/pageHelp';
 import {
@@ -44,11 +47,15 @@ import {
 
 export default function CalendarPage() {
   const { tBookingType } = useTranslation();
+  const viewer = useAuthStore((s) => s.user);
   const { selectedDate, view, selectedAreaId, setDate, setView, setAreaId, openBookingModal, openEditModal } = useBookingStore();
   const [areas, setAreas] = useState<Area[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  // BLOCK-1: fetch blocked slots so the wizard can grey out service times
+  // and the backend's 409 contract is mirrored visually before submit.
+  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Apply preferred default view from settings on first mount
@@ -77,6 +84,10 @@ export default function CalendarPage() {
       });
     usersApi.getAll().then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => {});
     contactsApi.getContacts().then((d) => setContacts(Array.isArray(d) ? d : [])).catch(() => {});
+    bookingsApi
+      .getBlockedSlots()
+      .then((d) => setBlockedSlots(Array.isArray(d) ? d : []))
+      .catch(() => setBlockedSlots([]));
   }, [selectedAreaId, setAreaId]);
 
   // Load bookings
@@ -202,6 +213,74 @@ export default function CalendarPage() {
     return format(selectedDate, 'MMMM yyyy');
   }, [selectedDate, view]);
 
+  // EXPORT-3: row mapper + columns for the calendar CSV export. Resolves
+  // foreign-key fields (room/area/teacher/contact) from the lists already
+  // loaded on the page.
+  const allRoomsFlat = useMemo(() => areas.flatMap((a) => a.rooms), [areas]);
+  const userById = useMemo(() => {
+    const m = new Map<string, User>();
+    users.forEach((u) => m.set(u.id, u));
+    return m;
+  }, [users]);
+  const contactById = useMemo(() => {
+    const m = new Map<string, Contact>();
+    contacts.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [contacts]);
+  const areaById = useMemo(() => {
+    const m = new Map<string, Area>();
+    areas.forEach((a) => m.set(a.id, a));
+    return m;
+  }, [areas]);
+
+  const bookingColumns = [
+    'Title',
+    'Type',
+    'Activity',
+    'Area',
+    'Room',
+    'Start',
+    'End',
+    'Teacher',
+    'Contact',
+    'Status',
+    'Cancel reason',
+  ];
+  const bookingToRow = (b: Booking) => {
+    const room = allRoomsFlat.find((r) => r.id === b.roomId);
+    const area = areaById.get(b.areaId);
+    const teacher = b.teacherId ? userById.get(b.teacherId) : undefined;
+    const contact = b.contactId ? contactById.get(b.contactId) : undefined;
+    return [
+      b.title,
+      b.type,
+      b.activity ?? '',
+      area?.name ?? b.areaId,
+      room?.name ?? b.roomId,
+      b.startTime,
+      b.endTime,
+      teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
+      contact ? `${contact.firstName} ${contact.lastName}`.trim() : '',
+      b.status ?? 'active',
+      b.cancelReason ?? '',
+    ];
+  };
+
+  // "All I can see" — fetch a 5-year window (no areaId) on demand. The
+  // calendar matrix says every role sees all branches, so we don't filter
+  // by area here. Wider than 5 years is overkill for a Bible-study app.
+  const loadAllBookings = useCallback(async () => {
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 2);
+    const end = new Date();
+    end.setFullYear(end.getFullYear() + 3);
+    const data = await bookingsApi.getBookings({
+      start: start.toISOString(),
+      end: end.toISOString(),
+    });
+    return Array.isArray(data) ? data : [];
+  }, []);
+
   // Mount the page's toolbar into the global Topbar so the calendar grid
   // gets the full content area below. Re-runs whenever any value the JSX
   // references changes — include them all in the deps.
@@ -258,6 +337,21 @@ export default function CalendarPage() {
           </SelectContent>
         </Select>
 
+        {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
+             area + date-range slice on screen. All = wider 5-year window
+             across all branches. Admin-tier only unless canExportImport's
+             feature flag is enabled. */}
+        {canExportImport(viewer) && (
+          <ExportDropdown
+            currentRows={bookings}
+            loadAll={loadAllBookings}
+            columns={bookingColumns}
+            toRow={bookingToRow}
+            filenamePrefix="diamond-bookings"
+            allLabel="All bookings (5-year window)"
+          />
+        )}
+
         <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
           <TabsList>
             <TabsTrigger value="day">Day</TabsTrigger>
@@ -285,6 +379,10 @@ export default function CalendarPage() {
       setView,
       setAreaId,
       openBookingModal,
+      // Export deps: row-mapper closures depend on these too.
+      bookingColumns,
+      bookingToRow,
+      loadAllBookings,
     ],
   );
 
@@ -344,6 +442,7 @@ export default function CalendarPage() {
         bookings={bookings}
         users={users}
         contacts={contacts}
+        blockedSlots={blockedSlots}
         onSubmit={handleBookingSubmit}
         onDelete={handleBookingDelete}
         onCancel={handleBookingCancel}

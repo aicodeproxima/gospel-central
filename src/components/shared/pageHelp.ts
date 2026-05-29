@@ -132,7 +132,7 @@ export const groupsHelp: PageHelp = {
     {
       heading: 'Popup behavior',
       body: 'Click any icon to see the list of contacts counted toward that number. Double-click any contact in the popup to jump straight to their edit form on the Contacts page.',
-      example: 'Click the graduation cap on Sarah Johnson\u2019s row \u2192 popup shows all 9 contacts studying in her subtree. Double-click "Peter White" \u2192 opens the Contacts page with Peter\u2019s edit form already open.',
+      example: 'Click the graduation cap on a Group Leader\u2019s row \u2192 popup shows every contact studying in their subtree. Double-click any contact \u2192 opens the Contacts page with that person\u2019s edit form already open.',
     },
     {
       heading: 'Live updates',

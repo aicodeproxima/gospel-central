@@ -12,6 +12,7 @@ import {
   scenarioUsers,
   scenarioAreas,
   scenarioBookings,
+  scenarioBlockedSlots,
   scenarioContacts,
   scenarioOrgTree,
   scenarioTeacherMetrics,
@@ -21,6 +22,7 @@ import {
 export const mockUsers = scenarioUsers;
 export const mockAreas = scenarioAreas;
 export const mockBookings = scenarioBookings;
+export const mockBlockedSlots = scenarioBlockedSlots;
 export const mockContacts = scenarioContacts;
 export const mockOrgTree = scenarioOrgTree;
 export const mockTeacherMetrics = scenarioTeacherMetrics;

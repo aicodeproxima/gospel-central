@@ -1,0 +1,58 @@
+name: Test + Build
+
+# CI gating for feat/admin-system (and main once merged). Enforces the
+# regression-safety contract from ~/.claude/plans/perfect-lets-start-testing-
+# stateful-quill.md: every push + PR must pass `npm test` (202+ assertions
+# including critical-scenarios + per-user-smoke + permissions matrix +
+# availability) AND a clean `npm run build` (TypeScript pass, no Next.js
+# deprecation warnings).
+#
+# Without this gate, the 202-test baseline could regress silently on any
+# PR. The Critical scenarios campaign (docs/CRITICAL_SCENARIO_RUN.md +
+# AUDIT_REPORT.md Addendum 3) added 30 pin-the-bug tests; this workflow
+# is the durable mechanism that keeps them effective.
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    name: vitest + next build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # Use `npm ci` for deterministic installs that respect package-lock.json.
+        # Falls back to `npm install` if no lock file (shouldn't happen, but
+        # be defensive against a clean checkout).
+        run: npm ci || npm install
+
+      - name: Run tests
+        # `vitest run` (single-pass) — same command as `npm test` locally.
+        # The campaign's pin-the-bug tests live in:
+        #   - src/mocks/critical-scenarios.test.ts  (30 assertions)
+        #   - src/mocks/per-user-smoke.test.ts      (51 assertions)
+        #   - src/lib/utils/permissions.test.ts     (50+ assertions)
+        #   - src/lib/utils/availability.test.ts    (30+ assertions)
+        # Any regression breaks this step.
+        run: npm test -- --run
+
+      - name: Build
+        # `next build` — TypeScript pass + production bundle. Catches the
+        # broader class of regressions that unit tests miss (e.g. a new
+        # AuditEntityType not added to the union; a missing import).
+        run: npm run build

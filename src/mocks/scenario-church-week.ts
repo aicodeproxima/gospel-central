@@ -1,33 +1,52 @@
 /**
  * ============================================================================
- * HYPOTHETICAL CHURCH WEEK — MOCK SCENARIO
+ * HYPOTHETICAL CHURCH WEEK — MOCK SCENARIO (v2: 5 branches, biblical names)
  * ============================================================================
  *
  * This file generates a complete mock dataset representing a hypothetical
- * active week at a church using Diamond for all bookings and tracking.
+ * active week across 5 collaborating Zion branches in the Hampton Roads
+ * area of Virginia.
  *
- * It is 100% mock data used for frontend testing and demos. To replace with
- * real data when the Go backend is live:
+ * All data is mock and lives in this file. To replace with real data when
+ * the Go backend is live, set `NEXT_PUBLIC_MOCK_API=false` and MSW will
+ * stop intercepting — this file becomes dead code.
  *
- *   1. Set NEXT_PUBLIC_MOCK_API=false in the environment.
- *   2. MSW will stop intercepting, and all API calls will hit the real backend.
- *   3. This entire file can be deleted — no production code imports from it
- *      directly. Only `src/mocks/data.ts` re-exports from here, and `data.ts`
- *      itself is only consumed by MSW handlers (src/mocks/handlers.ts) and
- *      the mock seed page (if any).
+ * Scenario overview
+ * -----------------
+ *   Roles (no Teacher role; Teacher is a TAG):
+ *     - 2 Devs:           Michael, Stephen Wright
+ *     - 1 Overseer:       Gabriel
+ *     - 5 Branch Leaders: one per branch (all male biblical names)
+ *     - 10 Group Leaders: 2 per branch
+ *     - 15 Team Leaders:  ~3 per branch
+ *     - 99 Members:       distributed across teams
+ *     ------
+ *     132 users total — biblical names #1–132 from the prepared list
  *
- * Scenario overview:
- *   - 1 Overseer (David Park) with 2 Admins above (Michael, Stephen Wright)
- *   - 4 Branch Leaders, 10 Group Leaders (also Teachers),
- *     15 Team Leaders (also Teachers), 100 baptized Members
- *   - 50 unbaptized Contacts, 20 of whom are currently studying one of
- *     the 50 Bible study subjects (see src/mocks/subjects.ts)
- *   - 8 rooms at one Main Church area: 4 Bible Study Rooms, Conference Room,
- *     Sanctuary, Fellowship, TRE Room
- *   - A realistic week of bookings across all rooms (studies, meetings,
- *     group activities, committee meetings, special videos, etc.)
+ *   Branches (each is a physical church location with its own area):
+ *     1. Newport News Zion  — main church, 8 rooms (BS1–4, Conference, Sanctuary, Fellowship, TRE)
+ *     2. Chesapeake Zion    — 4 rooms (Chesapeake Study Rooms 1–3, Conference Room)
+ *     3. Norfolk Zion       — 7 rooms (Norfolk Study 1–2, Living Room, ODU Library, ODU Web Center, HU Library, HU Student Center)
+ *     4. Virginia Beach Zion — 3 rooms (Virginia Beach Study Rooms 1–2, Conference Room)
+ *     5. Williamsburg Zion  — 2 rooms (Williamsburg Study Room 1, Barnes and Noble)
  *
- * To customize or remove this scenario, edit or replace this single file.
+ *   Tags (orthogonal to role; multiple per user allowed):
+ *     - 'teacher'          — can lead Bible Study bookings
+ *     - 'co_group_leader'  — supports the primary group leader
+ *     - 'co_team_leader'   — supports the primary team leader
+ *     All Branch / Group / Team leaders carry 'teacher' by default.
+ *     One Co-Group Leader per group (10 total) and one Co-Team Leader per
+ *     team (15 total) are picked from members and tagged.
+ *     ~20 random Members are also tagged 'teacher'.
+ *
+ *   Contacts: 50 unbaptized contacts in various pipeline stages, distributed
+ *   across all 5 branches. Biblical names #133–182.
+ *
+ *   Bookings: Bible studies + admin meetings spread across all 5 branches.
+ *   Sabbath services are NOT bookings — they live in BLOCKED_SLOTS instead.
+ *
+ *   Blocked slots: 4 weekly global blocks for service times that no role can
+ *   override. See scenarioBlockedSlots below.
  * ============================================================================
  */
 
@@ -39,10 +58,12 @@ import {
   PIPELINE_STAGE_CONFIG,
   PipelineStage,
   UserRole,
+  KNOWN_TAGS,
 } from '@/lib/types';
 import type {
   Area,
   AuditLogEntry,
+  BlockedSlot,
   Booking,
   Contact,
   OrgNode,
@@ -64,174 +85,462 @@ function seeded(seed: number) {
   };
 }
 const rand = seeded(42);
-const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
 const range = (n: number) => Array.from({ length: n }, (_, i) => i);
 
 // ---------------------------------------------------------------------------
-// Name pools for generating realistic-looking users
+// Biblical names (1–182). User-provided list, mapped 1:1 to seed entities.
 // ---------------------------------------------------------------------------
-const FIRST_NAMES = [
-  'Aaron', 'Abigail', 'Adam', 'Amy', 'Andrew', 'Angela', 'Anna', 'Anthony',
-  'Ben', 'Bethany', 'Caleb', 'Catherine', 'Charles', 'Chloe', 'Christopher',
-  'Claire', 'Daniel', 'David', 'Deborah', 'Dennis', 'Elijah', 'Elizabeth',
-  'Emily', 'Emma', 'Eric', 'Esther', 'Ethan', 'Eve', 'Faith', 'Frank',
-  'Gabriel', 'Grace', 'Hannah', 'Hope', 'Isaac', 'Isaiah', 'Jacob', 'Jade',
-  'James', 'Jane', 'Jason', 'Jasmine', 'Jeremy', 'Jessica', 'Joanna', 'Joel',
-  'John', 'Jonathan', 'Joseph', 'Joshua', 'Joy', 'Judah', 'Julia', 'Karen',
-  'Katherine', 'Kevin', 'Laura', 'Lauren', 'Leah', 'Leo', 'Levi', 'Lily',
-  'Luke', 'Lydia', 'Mark', 'Martha', 'Mary', 'Matthew', 'Megan', 'Micah',
-  'Michelle', 'Miriam', 'Nathan', 'Nehemiah', 'Noah', 'Olivia', 'Paul',
-  'Peter', 'Philip', 'Phoebe', 'Rachel', 'Rebecca', 'Reuben', 'Rose', 'Ruth',
-  'Samuel', 'Sarah', 'Seth', 'Silas', 'Simon', 'Sophia', 'Stephen', 'Susan',
-  'Thomas', 'Timothy', 'Titus', 'Tobias', 'Victor', 'William', 'Zachary', 'Zoe',
-];
-const LAST_NAMES = [
-  'Adams', 'Allen', 'Anderson', 'Baker', 'Bennett', 'Brown', 'Campbell',
-  'Carter', 'Chen', 'Cho', 'Clark', 'Cook', 'Cooper', 'Davis', 'Edwards',
-  'Evans', 'Foster', 'Garcia', 'Gonzalez', 'Gray', 'Green', 'Hall', 'Hansen',
-  'Harris', 'Hill', 'Howard', 'Hughes', 'Jackson', 'Johnson', 'Jones',
-  'Kim', 'King', 'Lee', 'Lewis', 'Lopez', 'Martin', 'Martinez', 'Miller',
-  'Mitchell', 'Moore', 'Morgan', 'Morris', 'Nelson', 'Nguyen', 'Park',
-  'Parker', 'Patel', 'Perez', 'Peterson', 'Phillips', 'Price', 'Reed',
-  'Reyes', 'Rivera', 'Roberts', 'Rogers', 'Rodriguez', 'Russell', 'Sanchez',
-  'Scott', 'Smith', 'Song', 'Taylor', 'Thomas', 'Thompson', 'Torres', 'Tran',
-  'Turner', 'Walker', 'Ward', 'Watson', 'White', 'Williams', 'Wilson',
-  'Wright', 'Wu', 'Yang', 'Young',
+// Index 0 is unused so #1 = Jesus, #2 = Gabriel, etc.
+// We don't seed Jesus (#1) or Mary mother of Jesus (#3) into any specific
+// role — they're skipped to preserve the venerated naming. The Devs keep
+// their existing names (Michael, Stephen Wright) which are independently
+// biblical (Archangel Michael; Stephen the protomartyr).
+// ---------------------------------------------------------------------------
+const BIBLICAL_NAMES: { first: string; last: string; female?: boolean }[] = [
+  { first: '', last: '' },                                                      // 0 (placeholder)
+  { first: 'Jesus', last: '' },                                                 // 1
+  { first: 'Gabriel', last: '' },                                               // 2
+  { first: 'Mary', last: 'of Nazareth', female: true },                         // 3
+  { first: 'Joseph', last: '' },                                                // 4
+  { first: 'Elizabeth', last: '', female: true },                               // 5
+  { first: 'Zechariah', last: '' },                                             // 6
+  { first: 'John', last: 'the Baptist' },                                       // 7
+  { first: 'Simeon', last: '' },                                                // 8
+  { first: 'Anna', last: 'the Prophetess', female: true },                      // 9
+  { first: 'Simon', last: 'Peter' },                                            // 10
+  { first: 'Andrew', last: '' },                                                // 11
+  { first: 'James', last: 'son of Zebedee' },                                   // 12
+  { first: 'John', last: 'son of Zebedee' },                                    // 13
+  { first: 'Philip', last: 'the Apostle' },                                     // 14
+  { first: 'Bartholomew', last: '' },                                           // 15
+  { first: 'Thomas', last: '' },                                                // 16
+  { first: 'Matthew', last: '' },                                               // 17
+  { first: 'James', last: 'son of Alphaeus' },                                  // 18
+  { first: 'Jude', last: 'son of James' },                                      // 19
+  { first: 'Simon', last: 'the Zealot' },                                       // 20
+  { first: 'Matthias', last: '' },                                              // 21
+  { first: 'Paul', last: '' },                                                  // 22
+  { first: 'Barnabas', last: '' },                                              // 23
+  { first: 'Silas', last: '' },                                                 // 24
+  { first: 'Timothy', last: '' },                                               // 25
+  { first: 'Titus', last: '' },                                                 // 26
+  { first: 'Luke', last: '' },                                                  // 27
+  { first: 'John', last: 'Mark' },                                              // 28
+  { first: 'Apollos', last: '' },                                               // 29
+  { first: 'Aquila', last: '' },                                                // 30
+  { first: 'Priscilla', last: '', female: true },                               // 31
+  { first: 'Lydia', last: '', female: true },                                   // 32
+  { first: 'Phoebe', last: '', female: true },                                  // 33
+  { first: 'Stephen', last: 'the Deacon' },                                     // 34
+  { first: 'Philip', last: 'the Evangelist' },                                  // 35
+  { first: 'Ananias', last: 'of Damascus' },                                    // 36
+  { first: 'Dorcas', last: '', female: true },                                  // 37
+  { first: 'Cornelius', last: '' },                                             // 38
+  { first: 'Agabus', last: '' },                                                // 39
+  { first: 'Simeon', last: 'Niger' },                                           // 40
+  { first: 'Lucius', last: 'of Cyrene' },                                       // 41
+  { first: 'Manaen', last: '' },                                                // 42
+  { first: 'Rhoda', last: '', female: true },                                   // 43
+  { first: 'Mary', last: 'mother of Mark', female: true },                      // 44
+  { first: 'James', last: "the Lord's brother" },                               // 45
+  { first: 'Jude', last: "the Lord's brother" },                                // 46
+  { first: 'Joses', last: "the Lord's brother" },                               // 47
+  { first: 'Simon', last: "the Lord's brother" },                               // 48
+  { first: 'Mary', last: 'Magdalene', female: true },                           // 49
+  { first: 'Mary', last: 'mother of James and Joses', female: true },           // 50
+  { first: 'Salome', last: '', female: true },                                  // 51
+  { first: 'Joanna', last: '', female: true },                                  // 52
+  { first: 'Susanna', last: '', female: true },                                 // 53
+  { first: 'Martha', last: '', female: true },                                  // 54
+  { first: 'Mary', last: 'of Bethany', female: true },                          // 55
+  { first: 'Lazarus', last: '' },                                               // 56
+  { first: 'Nicodemus', last: '' },                                             // 57
+  { first: 'Joseph', last: 'of Arimathea' },                                    // 58
+  { first: 'Zacchaeus', last: '' },                                             // 59
+  { first: 'Bartimaeus', last: '' },                                            // 60
+  { first: 'Jairus', last: '' },                                                // 61
+  { first: 'Cleopas', last: '' },                                               // 62
+  { first: 'Simon', last: 'of Cyrene' },                                        // 63
+  { first: 'Alexander', last: 'son of Simon' },                                 // 64
+  { first: 'Rufus', last: '' },                                                 // 65
+  { first: 'Joseph', last: 'Barsabbas' },                                       // 66
+  { first: 'Justus', last: 'of Corinth' },                                      // 67
+  { first: 'Crispus', last: '' },                                               // 68
+  { first: 'Sosthenes', last: '' },                                             // 69
+  { first: 'Erastus', last: '' },                                               // 70
+  { first: 'Gaius', last: '' },                                                 // 71
+  { first: 'Aristarchus', last: '' },                                           // 72
+  { first: 'Secundus', last: '' },                                              // 73
+  { first: 'Sopater', last: '' },                                               // 74
+  { first: 'Tychicus', last: '' },                                              // 75
+  { first: 'Trophimus', last: '' },                                             // 76
+  { first: 'Epaphroditus', last: '' },                                          // 77
+  { first: 'Epaphras', last: '' },                                              // 78
+  { first: 'Onesimus', last: '' },                                              // 79
+  { first: 'Philemon', last: '' },                                              // 80
+  { first: 'Apphia', last: '', female: true },                                  // 81
+  { first: 'Archippus', last: '' },                                             // 82
+  { first: 'Nympha', last: '', female: true },                                  // 83
+  { first: 'Chloe', last: '', female: true },                                   // 84
+  { first: 'Stephanas', last: '' },                                             // 85
+  { first: 'Fortunatus', last: '' },                                            // 86
+  { first: 'Achaicus', last: '' },                                              // 87
+  { first: 'Andronicus', last: '' },                                            // 88
+  { first: 'Junia', last: '', female: true },                                   // 89
+  { first: 'Ampliatus', last: '' },                                             // 90
+  { first: 'Urbanus', last: '' },                                               // 91
+  { first: 'Stachys', last: '' },                                               // 92
+  { first: 'Apelles', last: '' },                                               // 93
+  { first: 'Aristobulus', last: '' },                                           // 94
+  { first: 'Herodion', last: '' },                                              // 95
+  { first: 'Tryphaena', last: '', female: true },                               // 96
+  { first: 'Tryphosa', last: '', female: true },                                // 97
+  { first: 'Persis', last: '', female: true },                                  // 98
+  { first: 'Asyncritus', last: '' },                                            // 99
+  { first: 'Phlegon', last: '' },                                               // 100
+  { first: 'Hermes', last: '' },                                                // 101
+  { first: 'Patrobas', last: '' },                                              // 102
+  { first: 'Hermas', last: '' },                                                // 103
+  { first: 'Philologus', last: '' },                                            // 104
+  { first: 'Julia', last: '', female: true },                                   // 105
+  { first: 'Nereus', last: '' },                                                // 106
+  { first: 'Olympas', last: '' },                                               // 107
+  { first: 'Euodia', last: '', female: true },                                  // 108
+  { first: 'Syntyche', last: '', female: true },                                // 109
+  { first: 'Clement', last: '' },                                               // 110
+  { first: 'Carpus', last: '' },                                                // 111
+  { first: 'Eubulus', last: '' },                                               // 112
+  { first: 'Pudens', last: '' },                                                // 113
+  { first: 'Linus', last: '' },                                                 // 114
+  { first: 'Claudia', last: '', female: true },                                 // 115
+  { first: 'Zenas', last: '' },                                                 // 116
+  { first: 'Artemas', last: '' },                                               // 117
+  { first: 'Crescens', last: '' },                                              // 118
+  { first: 'Onesiphorus', last: '' },                                           // 119
+  { first: 'Lois', last: '', female: true },                                    // 120
+  { first: 'Eunice', last: '', female: true },                                  // 121
+  { first: 'Jason', last: '' },                                                 // 122
+  { first: 'Mnason', last: '' },                                                // 123
+  { first: 'Dionysius', last: 'the Areopagite' },                               // 124
+  { first: 'Damaris', last: '', female: true },                                 // 125
+  { first: 'Sergius', last: 'Paulus' },                                         // 126
+  { first: 'Julius', last: 'the Centurion' },                                   // 127
+  { first: 'Publius', last: '' },                                               // 128
+  { first: 'Eutychus', last: '' },                                              // 129
+  { first: 'Gamaliel', last: '' },                                              // 130
+  { first: 'Theophilus', last: '' },                                            // 131
+  { first: 'Simon', last: 'the Tanner' },                                       // 132
+  // ---- Contacts (133–182) ----
+  { first: 'Ethiopian', last: 'Eunuch' },                                       // 133
+  { first: 'Samaritan', last: 'Woman', female: true },                          // 134
+  { first: 'Repentant', last: 'Thief' },                                        // 135
+  { first: 'Adam', last: '' },                                                  // 136
+  { first: 'Abel', last: '' },                                                  // 137
+  { first: 'Enoch', last: '' },                                                 // 138
+  { first: 'Noah', last: '' },                                                  // 139
+  { first: 'Abraham', last: '' },                                               // 140
+  { first: 'Sarah', last: '', female: true },                                   // 141
+  { first: 'Isaac', last: '' },                                                 // 142
+  { first: 'Rebekah', last: '', female: true },                                 // 143
+  { first: 'Jacob', last: '' },                                                 // 144
+  { first: 'Leah', last: '', female: true },                                    // 145
+  { first: 'Rachel', last: '', female: true },                                  // 146
+  { first: 'Joseph', last: 'son of Jacob' },                                    // 147
+  { first: 'Judah', last: '' },                                                 // 148
+  { first: 'Tamar', last: '', female: true },                                   // 149
+  { first: 'Perez', last: '' },                                                 // 150
+  { first: 'Hezron', last: '' },                                                // 151
+  { first: 'Amminadab', last: '' },                                             // 152
+  { first: 'Boaz', last: '' },                                                  // 153
+  { first: 'Rahab', last: '', female: true },                                   // 154
+  { first: 'Ruth', last: '', female: true },                                    // 155
+  { first: 'Obed', last: '' },                                                  // 156
+  { first: 'Jesse', last: '' },                                                 // 157
+  { first: 'David', last: '' },                                                 // 158
+  { first: 'Solomon', last: '' },                                               // 159
+  { first: 'Hezekiah', last: '' },                                              // 160
+  { first: 'Josiah', last: '' },                                                // 161
+  { first: 'Shealtiel', last: '' },                                             // 162
+  { first: 'Zerubbabel', last: '' },                                            // 163
+  { first: 'Eliakim', last: '' },                                               // 164
+  { first: 'Zadok', last: '' },                                                 // 165
+  { first: 'Moses', last: '' },                                                 // 166
+  { first: 'Aaron', last: '' },                                                 // 167
+  { first: 'Joshua', last: '' },                                                // 168
+  { first: 'Samuel', last: '' },                                                // 169
+  { first: 'Elijah', last: '' },                                                // 170
+  { first: 'Elisha', last: '' },                                                // 171
+  { first: 'Isaiah', last: '' },                                                // 172
+  { first: 'Jeremiah', last: '' },                                              // 173
+  { first: 'Daniel', last: '' },                                                // 174
+  { first: 'Jonah', last: '' },                                                 // 175
+  { first: 'Job', last: '' },                                                   // 176
+  { first: 'Lot', last: '' },                                                   // 177
+  { first: 'Melchizedek', last: '' },                                           // 178
+  { first: 'Gideon', last: '' },                                                // 179
+  { first: 'Barak', last: '' },                                                 // 180
+  { first: 'Samson', last: '' },                                                // 181
+  { first: 'Jephthah', last: '' },                                              // 182
 ];
 
-function genName(i: number): { first: string; last: string } {
-  return {
-    first: FIRST_NAMES[i % FIRST_NAMES.length],
-    last: LAST_NAMES[(i * 7) % LAST_NAMES.length],
-  };
+function nameAt(idx: number): { first: string; last: string; female?: boolean } {
+  return BIBLICAL_NAMES[idx] ?? { first: 'Unknown', last: '' };
 }
 
 // ---------------------------------------------------------------------------
-// Rooms — single Main Church area with 8 rooms
+// Areas / Rooms — 5 branches with a per-branch room layout
 // ---------------------------------------------------------------------------
 export const scenarioAreas: Area[] = [
   {
-    id: 'area-main',
-    name: 'Main Church',
-    description: 'All church rooms and facilities',
+    id: 'area-newport-news',
+    name: 'Newport News Zion',
+    description: 'Main church location — full facility with Sanctuary, Fellowship hall, and TRE Room.',
     rooms: [
-      { id: 'room-bs1', areaId: 'area-main', name: 'Bible Study Room 1', capacity: 6, features: ['Whiteboard'] },
-      { id: 'room-bs2', areaId: 'area-main', name: 'Bible Study Room 2', capacity: 6, features: ['Whiteboard'] },
-      { id: 'room-bs3', areaId: 'area-main', name: 'Bible Study Room 3', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
-      { id: 'room-bs4', areaId: 'area-main', name: 'Bible Study Room 4', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
-      { id: 'room-conf', areaId: 'area-main', name: 'Conference Room', capacity: 20, features: ['Projector', 'Video Conf'] },
-      { id: 'room-sanct', areaId: 'area-main', name: 'Sanctuary', capacity: 300, features: ['Stage', 'Sound System', 'Live Stream'] },
-      { id: 'room-fellow', areaId: 'area-main', name: 'Fellowship', capacity: 60, features: ['Kitchen', 'Tables'] },
-      { id: 'room-tre', areaId: 'area-main', name: 'TRE Room', capacity: 15, features: ['Training Setup'] },
+      { id: 'rm-nn-bs1',     areaId: 'area-newport-news', name: 'Bible Study Room 1', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-nn-bs2',     areaId: 'area-newport-news', name: 'Bible Study Room 2', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-nn-bs3',     areaId: 'area-newport-news', name: 'Bible Study Room 3', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
+      { id: 'rm-nn-bs4',     areaId: 'area-newport-news', name: 'Bible Study Room 4', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
+      { id: 'rm-nn-conf',    areaId: 'area-newport-news', name: 'Conference Room',    capacity: 20, features: ['Projector', 'Video Conf'] },
+      // ROOM-1: Sanctuary + Fellowship are service-only spaces. They
+      // appear in the room list for completeness but the BookingWizard
+      // filters them out so users don't try to book a Bible Study during
+      // service hours and hit the blocked-slot 409.
+      { id: 'rm-nn-sanct',   areaId: 'area-newport-news', name: 'Sanctuary',          capacity: 300, features: ['Stage', 'Sound System', 'Live Stream'], isBookable: false },
+      { id: 'rm-nn-fellow',  areaId: 'area-newport-news', name: 'Fellowship',         capacity: 60, features: ['Kitchen', 'Tables'], isBookable: false },
+      { id: 'rm-nn-tre',     areaId: 'area-newport-news', name: 'TRE Room',           capacity: 15, features: ['Training Setup'] },
+    ],
+  },
+  {
+    id: 'area-chesapeake',
+    name: 'Chesapeake Zion',
+    description: 'Chesapeake branch.',
+    rooms: [
+      { id: 'rm-ch-sr1',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 1', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-ch-sr2',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 2', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-ch-sr3',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 3', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
+      { id: 'rm-ch-conf', areaId: 'area-chesapeake', name: 'Conference Room',         capacity: 16, features: ['Projector'] },
+    ],
+  },
+  {
+    id: 'area-norfolk',
+    name: 'Norfolk Zion',
+    description: 'Norfolk branch — uses several public spaces (ODU, HU) for outreach studies.',
+    rooms: [
+      { id: 'rm-nf-sr1',     areaId: 'area-norfolk', name: 'Norfolk Study Room 1',  capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-nf-sr2',     areaId: 'area-norfolk', name: 'Norfolk Study Room 2',  capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-nf-living',  areaId: 'area-norfolk', name: 'Living Room',           capacity: 8, features: ['Casual'] },
+      { id: 'rm-nf-odu-lib', areaId: 'area-norfolk', name: 'ODU Library',           capacity: 6, features: ['Public Space'] },
+      { id: 'rm-nf-odu-web', areaId: 'area-norfolk', name: 'ODU Web Center',        capacity: 6, features: ['Public Space', 'Wi-Fi'] },
+      { id: 'rm-nf-hu-lib',  areaId: 'area-norfolk', name: 'HU Library',            capacity: 6, features: ['Public Space'] },
+      { id: 'rm-nf-hu-stu',  areaId: 'area-norfolk', name: 'HU Student Center',     capacity: 8, features: ['Public Space'] },
+    ],
+  },
+  {
+    id: 'area-virginia-beach',
+    name: 'Virginia Beach Zion',
+    description: 'Virginia Beach branch.',
+    rooms: [
+      { id: 'rm-vb-sr1',  areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 1', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-vb-sr2',  areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 2', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-vb-conf', areaId: 'area-virginia-beach', name: 'Conference Room',             capacity: 16, features: ['Projector'] },
+    ],
+  },
+  {
+    id: 'area-williamsburg',
+    name: 'Williamsburg Zion',
+    description: 'Williamsburg branch — small footprint, partners with Barnes & Noble for outreach studies.',
+    rooms: [
+      { id: 'rm-wb-sr1', areaId: 'area-williamsburg', name: 'Williamsburg Study Room 1', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-wb-bn',  areaId: 'area-williamsburg', name: 'Barnes and Noble',          capacity: 6, features: ['Public Space'] },
     ],
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Users — hierarchical generation under one Overseer
-// ---------------------------------------------------------------------------
-// Admins (2): Michael (no last name), Stephen Wright
-// Overseer (1): David Park (existing from original data)
-// Branch Leaders (4), Group Leaders (10, also Teachers),
-// Team Leaders (15, also Teachers), Members (100, all baptized)
+// Users — hierarchy under Gabriel (Overseer) → 5 Branch Leaders → ...
 // ---------------------------------------------------------------------------
 
 const today = () => new Date().toISOString();
 
-function makeUser(
-  id: string,
-  firstName: string,
-  lastName: string,
-  username: string,
-  role: UserRole,
-  parentId?: string,
-): User {
+interface UserSeed {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  parentId?: string;
+  tags?: string[];
+}
+
+function makeUser(s: UserSeed): User {
   return {
-    id,
-    username,
-    firstName,
-    lastName,
-    email: `${username}@diamond.org`,
+    id: s.id,
+    username: s.username,
+    firstName: s.firstName,
+    lastName: s.lastName,
+    email: `${s.username}@diamond.org`,
     phone: undefined,
-    role,
-    parentId,
+    role: s.role,
+    parentId: s.parentId,
+    tags: s.tags ?? [],
+    isActive: true,
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: today(),
   };
 }
 
-// --- Admins (2) ---
-const uMichael = makeUser('u-michael', 'Michael', '', 'admin', UserRole.DEV);
-const uStephen = makeUser('u-stephen', 'Stephen', 'Wright', 'stephen', UserRole.DEV);
-
-// --- Overseer (1) ---
-const uOverseer = makeUser('u-overseer', 'David', 'Park', 'overseer1', UserRole.OVERSEER, uMichael.id);
-
-// --- Branch Leaders (4) ---
-const branchNames = [
-  { first: 'Sarah', last: 'Johnson', username: 'branch1' },
-  { first: 'James', last: 'Wilson', username: 'branch2' },
-  { first: 'Rachel', last: 'Kim', username: 'branch3' },
-  { first: 'Daniel', last: 'Lee', username: 'branch4' },
-];
-const branchLeaders: User[] = branchNames.map((n, i) =>
-  makeUser(`u-branch-${i + 1}`, n.first, n.last, n.username, UserRole.BRANCH_LEADER, uOverseer.id),
-);
-
-// --- Group Leaders (10, also Teachers) ---
-// The role is GROUP_LEADER, but they also teach (reflected via metrics + bookings).
-const groupLeaderNames = [
-  { first: 'Mark', last: 'Davis' },
-  { first: 'Grace', last: 'Lee' },
-  { first: 'Paul', last: 'Nguyen' },
-  { first: 'Lydia', last: 'Chen' },
-  { first: 'Peter', last: 'Kim' },
-  { first: 'Hannah', last: 'Park' },
-  { first: 'Luke', last: 'Wilson' },
-  { first: 'Anna', last: 'Garcia' },
-  { first: 'Matthew', last: 'Cho' },
-  { first: 'Ruth', last: 'Tran' },
-];
-const groupLeaders: User[] = groupLeaderNames.map((n, i) => {
-  const branchIdx = Math.floor(i / 3); // ~2-3 per branch, wraps
-  const parent = branchLeaders[Math.min(branchIdx, branchLeaders.length - 1)];
-  return makeUser(`u-group-${i + 1}`, n.first, n.last, `group${i + 1}`, UserRole.GROUP_LEADER, parent.id);
+// --- Devs (2) — names kept intentionally; both happen to be biblical already ---
+const uMichael = makeUser({
+  id: 'u-michael', username: 'admin', firstName: 'Michael', lastName: '',
+  role: UserRole.DEV,
+});
+const uStephen = makeUser({
+  id: 'u-stephen', username: 'stephen', firstName: 'Stephen', lastName: 'Wright',
+  role: UserRole.DEV,
 });
 
-// --- Team Leaders (15, also Teachers) ---
-// Distribute across the 10 group leaders: 5 groups get 2 teams, 5 get 1.
-const teamLeaderNames = [
-  { first: 'Tim', last: 'Baker' },
-  { first: 'Eve', last: 'Carter' },
-  { first: 'Noah', last: 'White' },
-  { first: 'Jade', last: 'Nguyen' },
-  { first: 'Sam', last: 'Foster' },
-  { first: 'Mia', last: 'Lopez' },
-  { first: 'Joy', last: 'Song' },
-  { first: 'Ben', last: 'Hall' },
-  { first: 'Zoe', last: 'Young' },
-  { first: 'Max', last: 'Chen' },
-  { first: 'Leo', last: 'Rivera' },
-  { first: 'Ivy', last: 'Wu' },
-  { first: 'Eli', last: 'Morgan' },
-  { first: 'Kim', last: 'Park' },
-  { first: 'Phoebe', last: 'Adams' },
-];
-// Distribution: group 1 gets teams 1,2 | 2 gets 3,4 | 3 gets 5,6 | 4 gets 7,8 | 5 gets 9,10 | 6-10 get 11-15
-const teamToGroup: number[] = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9];
-const teamLeaders: User[] = teamLeaderNames.map((n, i) =>
-  makeUser(`u-team-${i + 1}`, n.first, n.last, `team${i + 1}`, UserRole.TEAM_LEADER, groupLeaders[teamToGroup[i]].id),
-);
+// --- Overseer (1) — Gabriel (#2) ---
+const uOverseer = makeUser({
+  id: 'u-overseer-gabriel',
+  username: 'overseer1',
+  firstName: nameAt(2).first,
+  lastName: nameAt(2).last,
+  role: UserRole.OVERSEER,
+  parentId: uMichael.id,
+});
 
-// --- Members (100, all baptized) ---
-// Distribute 100 members evenly across 15 teams ≈ 6-7 per team.
-const members: User[] = range(100).map((i) => {
-  const n = genName(i + 3);
+// --- Branch Leaders (5) — male biblical names, mapped to the 5 branches ---
+//   #4  Joseph              → Newport News Zion (main)
+//   #6  Zechariah            → Chesapeake Zion
+//   #7  John the Baptist     → Norfolk Zion
+//   #8  Simeon               → Virginia Beach Zion
+//   #10 Simon Peter          → Williamsburg Zion
+const BRANCH_LEADER_SEEDS: { areaId: string; nameIdx: number }[] = [
+  { areaId: 'area-newport-news',   nameIdx: 4 },
+  { areaId: 'area-chesapeake',     nameIdx: 6 },
+  { areaId: 'area-norfolk',        nameIdx: 7 },
+  { areaId: 'area-virginia-beach', nameIdx: 8 },
+  { areaId: 'area-williamsburg',   nameIdx: 10 },
+];
+const branchLeaders: User[] = BRANCH_LEADER_SEEDS.map((s, i) => {
+  const n = nameAt(s.nameIdx);
+  return makeUser({
+    id: `u-branch-${i + 1}`,
+    username: `branch${i + 1}`,
+    firstName: n.first,
+    lastName: n.last,
+    role: UserRole.BRANCH_LEADER,
+    parentId: uOverseer.id,
+    tags: [KNOWN_TAGS.TEACHER],
+  });
+});
+
+/** Helper — branch leader for a given areaId. */
+function branchLeaderFor(areaId: string): User {
+  const idx = BRANCH_LEADER_SEEDS.findIndex((s) => s.areaId === areaId);
+  return branchLeaders[idx];
+}
+
+// --- Group Leaders (10) — names #5, #9, #11–18 ---
+// 2 groups per branch
+const GROUP_LEADER_NAME_INDICES = [5, 9, 11, 12, 13, 14, 15, 16, 17, 18];
+const groupLeaders: User[] = GROUP_LEADER_NAME_INDICES.map((nameIdx, i) => {
+  const branchIdx = Math.floor(i / 2); // 2 groups per branch
+  const parent = branchLeaders[branchIdx];
+  const n = nameAt(nameIdx);
+  return makeUser({
+    id: `u-group-${i + 1}`,
+    username: `group${i + 1}`,
+    firstName: n.first,
+    lastName: n.last,
+    role: UserRole.GROUP_LEADER,
+    parentId: parent.id,
+    tags: [KNOWN_TAGS.TEACHER],
+  });
+});
+
+// --- Team Leaders (15) — names #19–33. 3 teams per branch (uneven) ---
+// Distribute 15 teams across 10 groups: each group gets 1 team, then
+// the first 5 groups get a second team. So: groups 0-4 → 2 teams each
+// (10), groups 5-9 → 1 team each (5). Total 15.
+const TEAM_LEADER_NAME_INDICES = [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33];
+const teamToGroupIndex: number[] = [
+  0, 0,    // group 0 → teams 0,1
+  1, 1,    // group 1 → teams 2,3
+  2, 2,    // group 2 → teams 4,5
+  3, 3,    // group 3 → teams 6,7
+  4, 4,    // group 4 → teams 8,9
+  5,       // group 5 → team 10
+  6,       // group 6 → team 11
+  7,       // group 7 → team 12
+  8,       // group 8 → team 13
+  9,       // group 9 → team 14
+];
+const teamLeaders: User[] = TEAM_LEADER_NAME_INDICES.map((nameIdx, i) => {
+  const groupIdx = teamToGroupIndex[i];
+  const n = nameAt(nameIdx);
+  return makeUser({
+    id: `u-team-${i + 1}`,
+    username: `team${i + 1}`,
+    firstName: n.first,
+    lastName: n.last,
+    role: UserRole.TEAM_LEADER,
+    parentId: groupLeaders[groupIdx].id,
+    tags: [KNOWN_TAGS.TEACHER],
+  });
+});
+
+// --- Members (99) — names #34–132 ---
+// Distribute across 15 teams (~6-7 per team).
+const MEMBER_NAME_INDICES = range(99).map((i) => 34 + i);  // 34..132
+const members: User[] = MEMBER_NAME_INDICES.map((nameIdx, i) => {
   const team = teamLeaders[i % teamLeaders.length];
-  return makeUser(`u-mem-${i + 1}`, n.first, n.last, `member${i + 1}`, UserRole.MEMBER, team.id);
+  const n = nameAt(nameIdx);
+  return makeUser({
+    id: `u-mem-${i + 1}`,
+    username: `member${i + 1}`,
+    firstName: n.first,
+    lastName: n.last,
+    role: UserRole.MEMBER,
+    parentId: team.id,
+    tags: [],     // tags applied below
+  });
 });
 
-// Assign avatars: Gospel Worker (randomized) for Team Leader+, Default for Member/Teacher.
+// --- Apply Co-Group Leader tag to one member of each group ---
+groupLeaders.forEach((gl, gi) => {
+  // Find a member in this group's subtree (any of its team members)
+  const groupTeamIds = teamLeaders.filter((t) => t.parentId === gl.id).map((t) => t.id);
+  const candidate = members.find((m) => groupTeamIds.includes(m.parentId!));
+  if (candidate) {
+    candidate.tags = [...(candidate.tags ?? []), KNOWN_TAGS.CO_GROUP_LEADER, KNOWN_TAGS.TEACHER];
+  }
+});
+
+// --- Apply Co-Team Leader tag to one member of each team ---
+teamLeaders.forEach((tl, ti) => {
+  const teamMembers = members.filter((m) => m.parentId === tl.id);
+  // Skip the first member if it's already tagged as Co-GL (so they're different people)
+  const candidate = teamMembers.find((m) => !m.tags?.includes(KNOWN_TAGS.CO_GROUP_LEADER)) ?? teamMembers[0];
+  if (candidate) {
+    candidate.tags = [...(candidate.tags ?? []), KNOWN_TAGS.CO_TEAM_LEADER, KNOWN_TAGS.TEACHER];
+  }
+});
+
+// --- Tag ~20 additional Members as Teacher (in addition to Co-leaders) ---
+// Spread roughly evenly so each team has at least one extra teacher.
+const TEACHER_MEMBER_INDICES = [
+  3, 8, 13, 18, 23, 28, 33, 38, 43, 48,
+  53, 58, 63, 68, 73, 78, 83, 88, 93, 98,
+];
+TEACHER_MEMBER_INDICES.forEach((i) => {
+  const m = members[i];
+  if (m && !m.tags?.includes(KNOWN_TAGS.TEACHER)) {
+    m.tags = [...(m.tags ?? []), KNOWN_TAGS.TEACHER];
+  }
+});
+
+// --- Assign avatars ---
 const _rawUsers: User[] = [
   uMichael,
   uStephen,
@@ -242,130 +551,138 @@ const _rawUsers: User[] = [
   ...members,
 ];
 for (const u of _rawUsers) {
-  u.avatarUrl = pickAvatarForUser(u.role, u.id, isFemaleFirstName(u.firstName));
+  const isFemale =
+    BIBLICAL_NAMES.find(
+      (n) => n.first === u.firstName && (n.last === '' || n.last === u.lastName),
+    )?.female ?? isFemaleFirstName(u.firstName);
+  u.avatarUrl = pickAvatarForUser(u.role, u.id, isFemale);
 }
 export const scenarioUsers: User[] = _rawUsers;
 
 // ---------------------------------------------------------------------------
-// Contacts — 50 unbaptized, 20 currently studying (assigned subjects)
+// Helpers — lookups used by contacts + bookings + org tree
 // ---------------------------------------------------------------------------
-// All 10 group leaders + 15 team leaders = 25 teacher pool for assignment.
-const teacherPool = [...groupLeaders, ...teamLeaders];
 
-/**
- * Historical session baseline by pipeline stage.
- * Represents how many lifetime study sessions a contact has accumulated
- * before this current week. The actual booking count from this week is
- * added on top by the booking generator below.
- */
+/** Resolve which branch a member belongs to via parentId chain. */
+function branchForMember(member: User): User {
+  const team = teamLeaders.find((t) => t.id === member.parentId);
+  const group = team ? groupLeaders.find((g) => g.id === team.parentId) : undefined;
+  const branch = group ? branchLeaders.find((b) => b.id === group.parentId) : undefined;
+  return branch ?? branchLeaders[0];
+}
+
+function areaIdForBranch(branchUser: User): string {
+  const idx = branchLeaders.findIndex((b) => b.id === branchUser.id);
+  return idx >= 0 ? BRANCH_LEADER_SEEDS[idx].areaId : 'area-newport-news';
+}
+
+// ---------------------------------------------------------------------------
+// Blocked slots — service times no role can override
+// ---------------------------------------------------------------------------
+export const scenarioBlockedSlots: BlockedSlot[] = [
+  {
+    id: 'bs-tue-evening',
+    scope: 'global',
+    recurrence: 'weekly',
+    dayOfWeek: 2,    // Tuesday
+    startTime: '20:00',
+    endTime: '21:00',
+    reason: 'Tuesday service',
+    createdBy: uOverseer.id,
+    createdAt: '2024-01-01T00:00:00Z',
+    isActive: true,
+  },
+  {
+    id: 'bs-sat-morning',
+    scope: 'global',
+    recurrence: 'weekly',
+    dayOfWeek: 6,    // Saturday
+    startTime: '09:00',
+    endTime: '10:00',
+    reason: 'Sabbath morning service',
+    createdBy: uOverseer.id,
+    createdAt: '2024-01-01T00:00:00Z',
+    isActive: true,
+  },
+  {
+    id: 'bs-sat-afternoon',
+    scope: 'global',
+    recurrence: 'weekly',
+    dayOfWeek: 6,
+    startTime: '15:00',
+    endTime: '16:00',
+    reason: 'Sabbath afternoon service',
+    createdBy: uOverseer.id,
+    createdAt: '2024-01-01T00:00:00Z',
+    isActive: true,
+  },
+  {
+    id: 'bs-sat-evening',
+    scope: 'global',
+    recurrence: 'weekly',
+    dayOfWeek: 6,
+    startTime: '20:00',
+    endTime: '21:00',
+    reason: 'Sabbath evening service',
+    createdBy: uOverseer.id,
+    createdAt: '2024-01-01T00:00:00Z',
+    isActive: true,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Contacts — 50 contacts assigned to members across all 5 branches
+// ---------------------------------------------------------------------------
+const teacherPool = [
+  ...branchLeaders, ...groupLeaders, ...teamLeaders,
+  ...members.filter((m) => (m.tags ?? []).includes(KNOWN_TAGS.TEACHER)),
+];
+
 function historicalBaseline(stage: PipelineStage): number {
   switch (stage) {
-    case PipelineStage.FIRST_STUDY:
-      return 1 + Math.floor(rand() * 3); // 1-3
-    case PipelineStage.REGULAR_STUDY:
-      return 5 + Math.floor(rand() * 8); // 5-12
-    case PipelineStage.PROGRESSING:
-      return 15 + Math.floor(rand() * 11); // 15-25
-    case PipelineStage.BAPTISM_READY:
-      return 25 + Math.floor(rand() * 11); // 25-35
-    case PipelineStage.BAPTIZED:
-      return 30 + Math.floor(rand() * 21); // 30-50
-    default:
-      return 0;
+    case PipelineStage.FIRST_STUDY:    return 1 + Math.floor(rand() * 3);
+    case PipelineStage.REGULAR_STUDY:  return 5 + Math.floor(rand() * 8);
+    case PipelineStage.PROGRESSING:    return 15 + Math.floor(rand() * 11);
+    case PipelineStage.BAPTISM_READY:  return 25 + Math.floor(rand() * 11);
+    case PipelineStage.BAPTIZED:       return 30 + Math.floor(rand() * 21);
+    default:                           return 0;
   }
 }
 
-/**
- * Pick a Bible study subject appropriate for a contact's current pipeline
- * stage. Progressing contacts should be on mid-level subjects, BAPTISM_READY
- * on advanced ones, etc.
- */
-function subjectForStage(stage: PipelineStage, seed: number): (typeof STUDY_SUBJECTS)[number] {
+function subjectForStage(stage: PipelineStage, seed: number) {
   const stepForStage: Record<PipelineStage, number[]> = {
-    [PipelineStage.FIRST_STUDY]: [1],
+    [PipelineStage.FIRST_STUDY]:   [1],
     [PipelineStage.REGULAR_STUDY]: [1, 2],
-    [PipelineStage.PROGRESSING]: [2, 3],
+    [PipelineStage.PROGRESSING]:   [2, 3],
     [PipelineStage.BAPTISM_READY]: [4, 5],
-    [PipelineStage.BAPTIZED]: [5],
+    [PipelineStage.BAPTIZED]:      [5],
   };
   const validSteps = stepForStage[stage];
   const pool = STUDY_SUBJECTS.filter((s) => validSteps.includes(s.step));
   return pool[seed % pool.length];
 }
 
-/**
- * For a given pipeline stage, pick the set of subjects a contact has
- * studied so far. Roughly matches curriculum progression:
- * - FIRST_STUDY: 1-3 subjects from Step 1
- * - REGULAR_STUDY: all of Step 1 + few from Step 2
- * - PROGRESSING: all of Steps 1-2 + several from Step 3
- * - BAPTISM_READY: all of Steps 1-3 + Step 4
- * - BAPTIZED: all 50 subjects (completed the curriculum)
- */
 function subjectsStudiedForStage(stage: PipelineStage, seed: number): string[] {
   const all = STUDY_SUBJECTS;
   const byStep = (step: number) => all.filter((s) => s.step === step).map((s) => s.title);
-
   switch (stage) {
-    case PipelineStage.FIRST_STUDY: {
-      // 1-3 subjects from Step 1
-      const count = 1 + (seed % 3);
-      return byStep(1).slice(0, count);
-    }
-    case PipelineStage.REGULAR_STUDY: {
-      // All of Step 1 + 2-5 from Step 2
-      const step2Count = 2 + (seed % 4);
-      return [...byStep(1), ...byStep(2).slice(0, step2Count)];
-    }
-    case PipelineStage.PROGRESSING: {
-      // All of Steps 1-2 + 3-7 from Step 3
-      const step3Count = 3 + (seed % 5);
-      return [...byStep(1), ...byStep(2), ...byStep(3).slice(0, step3Count)];
-    }
-    case PipelineStage.BAPTISM_READY: {
-      // All of Steps 1-3 + all of Step 4 + a few from Step 5
-      const step5Count = 2 + (seed % 4);
-      return [...byStep(1), ...byStep(2), ...byStep(3), ...byStep(4), ...byStep(5).slice(0, step5Count)];
-    }
+    case PipelineStage.FIRST_STUDY:
+      return byStep(1).slice(0, 1 + (seed % 3));
+    case PipelineStage.REGULAR_STUDY:
+      return [...byStep(1), ...byStep(2).slice(0, 2 + (seed % 4))];
+    case PipelineStage.PROGRESSING:
+      return [...byStep(1), ...byStep(2), ...byStep(3).slice(0, 3 + (seed % 5))];
+    case PipelineStage.BAPTISM_READY:
+      return [...byStep(1), ...byStep(2), ...byStep(3), ...byStep(4), ...byStep(5).slice(0, 2 + (seed % 4))];
     case PipelineStage.BAPTIZED:
-      // Completed curriculum
       return all.map((s) => s.title);
     default:
       return [];
   }
 }
 
-// Helper: trace a member up to their branch leader for groupName display
-function resolveBranchName(memberParentId: string | undefined): string {
-  const team = teamLeaders.find((t) => t.id === memberParentId);
-  if (!team) return 'Branch 1';
-  const group = groupLeaders.find((g) => g.id === team.parentId);
-  if (!group) return 'Branch 1';
-  const branch = branchLeaders.find((b) => b.id === group.parentId);
-  return branch ? `Branch ${branch.username.replace('branch', '')}` : 'Branch 1';
-}
-
-// Note: contacts are declared with mutable totalSessions; the booking generator
-// below will increment it for each session it actually creates this week.
-// ---------------------------------------------------------------------------
-// IMPORTANT: contacts are now assigned to MEMBERS, not teachers. Each of the
-// 50 contacts belongs to a specific baptized member. Metrics still roll up
-// correctly because the member is in the subtree of their team → group →
-// branch → overseer.
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// NEW DISTRIBUTION (no more INITIAL_CONTACT — this app is for booking
-// actual studies, so every contact has real engagement):
-//   4  BAPTIZED       (fruit-bearing, done studying)
-//   6  BAPTISM_READY  (Steps 4-5, preparing for baptism)
-//  12  PROGRESSING    (Steps 2-3, moving through curriculum)
-//  18  REGULAR_STUDY  (Steps 1-2, steady weekly studies)
-//  10  FIRST_STUDY    (just started, on Step 1)
-//  ---
-//  50 total
-// ---------------------------------------------------------------------------
 function stageForIndex(i: number): PipelineStage {
-  if (i < 4) return PipelineStage.BAPTIZED;
+  if (i < 4)  return PipelineStage.BAPTIZED;
   if (i < 10) return PipelineStage.BAPTISM_READY;
   if (i < 22) return PipelineStage.PROGRESSING;
   if (i < 40) return PipelineStage.REGULAR_STUDY;
@@ -373,30 +690,30 @@ function stageForIndex(i: number): PipelineStage {
 }
 
 export const scenarioContacts: Contact[] = range(50).map((i) => {
-  const n = genName(i + 77);
-  const member = members[i];
+  // Distribute contacts across all 99 members so they fall under all 5 branches.
+  const member = members[(i * 2) % members.length];
+  const branch = branchForMember(member);
   const stage = stageForIndex(i);
   const isBaptized = stage === PipelineStage.BAPTIZED;
-  // Everyone except baptized contacts is actively studying
   const isStudying = !isBaptized;
-
   const subject = subjectForStage(stage, i);
-  const groupName = resolveBranchName(member.parentId);
 
-  // 3 preaching partners: the member + 2 rotating teacher-pool neighbors
+  // Contact gets a biblical name from the contacts pool (#133–182)
+  const n = nameAt(133 + i);
+  const fullContactName = `${n.first} ${n.last}`.trim();
+
+  // 3 preaching partners: the assigned member + 2 rotating teacher pool
   const partner1 = member.id;
   const partner2 = teacherPool[(i + 1) % teacherPool.length].id;
   const partner3 = teacherPool[(i + 2) % teacherPool.length].id;
+  const partnerName = `${teacherPool[(i + 1) % teacherPool.length].firstName} ${teacherPool[(i + 1) % teacherPool.length].lastName}`.trim();
 
-  // Generate a realistic timeline for this contact based on their
-  // pipeline stage. More advanced contacts have longer timelines.
+  // Realistic timeline based on pipeline stage
   const timeline: TimelineEntry[] = [];
   const DAY = 86400000;
   const createdDate = new Date('2024-06-01');
   const memberName = `${member.firstName} ${member.lastName}`.trim();
-  const partnerName = `${teacherPool[(i + 1) % teacherPool.length].firstName} ${teacherPool[(i + 1) % teacherPool.length].lastName}`.trim();
 
-  // Everyone starts with a "created" event
   timeline.push({
     date: createdDate.toISOString(),
     action: 'created',
@@ -405,7 +722,6 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     userName: memberName,
   });
 
-  // Stage progression events (more for further stages)
   const stageOrder: PipelineStage[] = [
     PipelineStage.FIRST_STUDY,
     PipelineStage.REGULAR_STUDY,
@@ -426,9 +742,8 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     });
   }
 
-  // Session events (spread over time, count based on totalSessions)
   const sessions = historicalBaseline(stage);
-  const sessionSpread = Math.min(sessions, 8); // cap visible entries
+  const sessionSpread = Math.min(sessions, 8);
   for (let s = 0; s < sessionSpread; s++) {
     const sessionDate = new Date(Date.now() - (sessionSpread - s) * 7 * DAY + Math.floor(rand() * 3 * DAY));
     timeline.push({
@@ -440,7 +755,6 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     });
   }
 
-  // Partner assignment event
   timeline.push({
     date: new Date(createdDate.getTime() + 7 * DAY).toISOString(),
     action: 'partner_change',
@@ -449,30 +763,29 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     userName: memberName,
   });
 
-  // Sort timeline chronologically
   timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return {
     id: `c-${i + 1}`,
     firstName: n.first,
     lastName: n.last,
-    email: `${n.first.toLowerCase()}.${n.last.toLowerCase()}${i + 1}@contact.org`,
-    phone: `555-${(1000 + i).toString().slice(-4)}`,
-    groupName,
+    email: `contact${i + 1}@diamond.org`,
+    phone: `757-${(1000 + i).toString().slice(-4)}`,
+    groupName: scenarioAreas.find((a) => a.id === areaIdForBranch(branch))?.name ?? 'Unknown',
     type: isBaptized ? BookingType.BAPTIZED_IN_PERSON : BookingType.UNBAPTIZED_CONTACT,
     status: ContactStatus.ACTIVE,
     pipelineStage: stage,
     assignedTeacherId: member.id,
     preachingPartnerIds: [partner1, partner2, partner3],
     totalSessions: historicalBaseline(stage),
-    lastSessionDate: new Date(Date.now() - Math.floor(rand() * 10) * 86400000).toISOString(),
+    lastSessionDate: new Date(Date.now() - Math.floor(rand() * 10) * DAY).toISOString(),
     currentlyStudying: isStudying,
     currentStep: isStudying ? subject.step : undefined,
     currentSubject: isStudying ? subject.title : undefined,
     subjectsStudied: subjectsStudiedForStage(stage, i),
     notes: isBaptized
-      ? `Baptized after completing the curriculum. Now an active member.`
-      : `Currently on Step ${subject.step}, Subject ${subject.index} — ${subject.title}`,
+      ? `Baptized after completing the curriculum. ${fullContactName} is now an active member of ${branch.firstName} ${branch.lastName}'s branch.`
+      : `Currently on Step ${subject.step} — ${subject.title}`,
     timeline,
     createdBy: member.id,
     createdAt: '2024-06-01T00:00:00Z',
@@ -481,18 +794,13 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
 });
 
 // ---------------------------------------------------------------------------
-// Bookings — a realistic week of activity
-// ---------------------------------------------------------------------------
-// Generates bookings for Monday–Sunday of the CURRENT week.
-// Covers Bible studies (in-person & Zoom), group/team/committee meetings,
-// special videos, Sabbath service, fellowship meals.
+// Bookings — Bible studies + admin meetings spread across all 5 branches
+// (NO Sabbath service bookings — those live in scenarioBlockedSlots above.)
 // ---------------------------------------------------------------------------
 
 function weekStart(): Date {
   const d = new Date();
-  const day = d.getDay(); // 0 Sun, 1 Mon...
-  // Use THIS week's Monday so the mock bookings are always in the
-  // current week and immediately visible on the calendar.
+  const day = d.getDay();
   const offset = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + offset);
   d.setHours(0, 0, 0, 0);
@@ -514,20 +822,7 @@ const dayOf = (offset: number) => {
 
 const bookings: Booking[] = [];
 let bookingCounter = 0;
-
-const BS_ROOMS = ['room-bs1', 'room-bs2', 'room-bs3', 'room-bs4'];
-const CONF = 'room-conf';
-const SANCT = 'room-sanct';
-const FELLOW = 'room-fellow';
-const TRE = 'room-tre';
-const AREA = 'area-main';
-
-/**
- * Conflict-aware slot allocator.
- * Tracks occupied 30-minute slots per (room × day × hour-minute) and refuses
- * to double-book. Use this for every addBooking call.
- */
-const occupied = new Set<string>(); // key = roomId|YYYY-MM-DD|HH:MM
+const occupied = new Set<string>(); // key = roomId|YYYY-M-D|HH:MM
 
 function slotKeys(roomId: string, start: Date, end: Date): string[] {
   const keys: string[] = [];
@@ -550,6 +845,24 @@ function markOccupied(roomId: string, start: Date, end: Date): void {
   slotKeys(roomId, start, end).forEach((k) => occupied.add(k));
 }
 
+/** True if [start,end) overlaps any blocked slot (global or for the booking's area). */
+function overlapsBlockedSlot(areaId: string, start: Date, end: Date): boolean {
+  const day = start.getDay();
+  const startMin = start.getHours() * 60 + start.getMinutes();
+  const endMin = end.getHours() * 60 + end.getMinutes();
+  for (const slot of scenarioBlockedSlots) {
+    if (slot.scope === 'area' && slot.areaId !== areaId) continue;
+    if (slot.recurrence !== 'weekly') continue;
+    if (slot.dayOfWeek !== day) continue;
+    const [sh, sm] = (slot.startTime ?? '0:0').split(':').map(Number);
+    const [eh, em] = (slot.endTime ?? '0:0').split(':').map(Number);
+    const blockStart = sh * 60 + sm;
+    const blockEnd = eh * 60 + em;
+    if (startMin < blockEnd && endMin > blockStart) return true;
+  }
+  return false;
+}
+
 interface BookingSpec {
   areaId: string;
   roomId: string;
@@ -566,13 +879,10 @@ interface BookingSpec {
   participants: string[];
 }
 
-/**
- * Attempt to add a booking. Returns true on success, false if the slot is
- * already occupied. Use `tryAddBooking` for any placement that might conflict.
- */
 function tryAddBooking(spec: BookingSpec): boolean {
   const start = new Date(spec.startTime);
   const end = new Date(spec.endTime);
+  if (overlapsBlockedSlot(spec.areaId, start, end)) return false;
   if (!isFree(spec.roomId, start, end)) return false;
   markOccupied(spec.roomId, start, end);
   bookings.push({
@@ -584,11 +894,8 @@ function tryAddBooking(spec: BookingSpec): boolean {
   return true;
 }
 
-/**
- * Find the first free time slot for a given room + day + duration (in 30-min steps),
- * searching hours [startHour, endHour).
- */
 function findFreeTime(
+  areaId: string,
   roomId: string,
   day: Date,
   durationSlots: number,
@@ -601,6 +908,7 @@ function findFreeTime(
       start.setHours(h, m, 0, 0);
       const end = new Date(start.getTime() + durationSlots * 30 * 60000);
       if (end.getHours() >= endHour && !(end.getHours() === endHour && end.getMinutes() === 0)) continue;
+      if (overlapsBlockedSlot(areaId, start, end)) continue;
       if (isFree(roomId, start, end)) return { start, end };
     }
   }
@@ -608,35 +916,32 @@ function findFreeTime(
 }
 
 // ============================================================================
-// FIXED / HIGH-PRIORITY BOOKINGS FIRST (so lower-priority bookings work around them)
+// Per-branch admin meetings (committee, team meetings)
 // ============================================================================
 
-// --- Sabbath Service (Saturday 11am-1pm in Sanctuary) ---
-tryAddBooking({
-  roomId: SANCT, areaId: AREA,
-  type: BookingType.GROUP_ACTIVITIES, activity: Activity.GROUP_ACTIVITY,
-  title: 'Sabbath Morning Service',
-  description: 'Weekly Sabbath worship',
-  startTime: isoAt(dayOf(5), 11),
-  endTime: isoAt(dayOf(5), 13),
-  createdBy: uOverseer.id,
-  participants: [],
+// One Branch Committee meeting in each branch's primary admin room
+branchLeaders.forEach((leader, i) => {
+  const areaId = BRANCH_LEADER_SEEDS[i].areaId;
+  const adminRoom = areaId === 'area-newport-news'   ? 'rm-nn-conf'
+                  : areaId === 'area-chesapeake'     ? 'rm-ch-conf'
+                  : areaId === 'area-norfolk'        ? 'rm-nf-living'
+                  : areaId === 'area-virginia-beach' ? 'rm-vb-conf'
+                  : 'rm-wb-sr1';
+  // Day rotates so meetings don't all collide on one day
+  tryAddBooking({
+    areaId, roomId: adminRoom,
+    type: BookingType.TEAM_ACTIVITIES, activity: Activity.COMMITTEE_MEETING,
+    title: `${leader.firstName} ${leader.lastName} — Branch Committee`,
+    startTime: isoAt(dayOf(i), 10),
+    endTime: isoAt(dayOf(i), 11, 30),
+    createdBy: leader.id,
+    participants: [leader.id, uOverseer.id],
+  });
 });
 
-// --- Sabbath Fellowship Meal (Saturday 1pm-2:30pm in Fellowship) ---
+// One Function Meeting at the main church on Monday evening
 tryAddBooking({
-  roomId: FELLOW, areaId: AREA,
-  type: BookingType.GROUP_ACTIVITIES, activity: Activity.GROUP_ACTIVITY,
-  title: 'Sabbath Fellowship Meal',
-  startTime: isoAt(dayOf(5), 13),
-  endTime: isoAt(dayOf(5), 14, 30),
-  createdBy: groupLeaders[0].id,
-  participants: [],
-});
-
-// --- Monthly Function Meeting (Monday 7pm in Conference) ---
-tryAddBooking({
-  roomId: CONF, areaId: AREA,
+  areaId: 'area-newport-news', roomId: 'rm-nn-conf',
   type: BookingType.TEAM_ACTIVITIES, activity: Activity.FUNCTION_MEETING,
   title: 'Monthly Function Meeting',
   startTime: isoAt(dayOf(0), 19),
@@ -645,116 +950,101 @@ tryAddBooking({
   participants: [uOverseer.id, ...branchLeaders.map((b) => b.id), ...groupLeaders.map((g) => g.id)],
 });
 
-// --- Special video sessions in Sanctuary ---
+// Special video sessions in Newport News Sanctuary
 tryAddBooking({
-  roomId: SANCT, areaId: AREA,
+  areaId: 'area-newport-news', roomId: 'rm-nn-sanct',
   type: BookingType.GROUP_ACTIVITIES, activity: Activity.SPECIAL_VIDEO,
   title: 'Special Video: Heavenly Wedding Banquet',
   startTime: isoAt(dayOf(2), 19),
-  endTime: isoAt(dayOf(2), 20, 30),
+  endTime: isoAt(dayOf(2), 20),
   createdBy: uOverseer.id,
   participants: [uOverseer.id],
 });
 tryAddBooking({
-  roomId: SANCT, areaId: AREA,
+  areaId: 'area-newport-news', roomId: 'rm-nn-sanct',
   type: BookingType.GROUP_ACTIVITIES, activity: Activity.SPECIAL_VIDEO,
   title: 'Special Video: Prophecy of Daniel',
-  startTime: isoAt(dayOf(3), 10),
-  endTime: isoAt(dayOf(3), 11, 30),
+  startTime: isoAt(dayOf(3), 11),
+  endTime: isoAt(dayOf(3), 12, 30),
   createdBy: branchLeaders[1].id,
   participants: [],
 });
 
-// --- Branch committee meetings (different days, Conference Room) ---
-branchLeaders.forEach((leader, i) => {
-  tryAddBooking({
-    roomId: CONF, areaId: AREA,
-    type: BookingType.TEAM_ACTIVITIES, activity: Activity.COMMITTEE_MEETING,
-    title: `Branch Committee — ${leader.firstName}`,
-    startTime: isoAt(dayOf(i), 10),
-    endTime: isoAt(dayOf(i), 11, 30),
-    createdBy: leader.id,
-    participants: [leader.id, uOverseer.id],
-  });
-});
-
-// --- Committee missions ---
+// Outreach planning at Williamsburg Barnes & Noble
 tryAddBooking({
-  roomId: FELLOW, areaId: AREA,
+  areaId: 'area-williamsburg', roomId: 'rm-wb-bn',
   type: BookingType.GROUP_ACTIVITIES, activity: Activity.COMMITTEE_MISSION,
-  title: 'Community Outreach Planning',
+  title: 'Williamsburg Outreach Planning',
   startTime: isoAt(dayOf(2), 14),
-  endTime: isoAt(dayOf(2), 16),
-  createdBy: branchLeaders[0].id,
-  participants: branchLeaders.map((b) => b.id),
-});
-tryAddBooking({
-  roomId: CONF, areaId: AREA,
-  type: BookingType.GROUP_ACTIVITIES, activity: Activity.COMMITTEE_MISSION,
-  title: 'Mission Report Review',
-  startTime: isoAt(dayOf(4), 14),
-  endTime: isoAt(dayOf(4), 15, 30),
-  createdBy: uOverseer.id,
-  participants: [uOverseer.id, ...branchLeaders.map((b) => b.id)],
+  endTime: isoAt(dayOf(2), 15, 30),
+  createdBy: branchLeaders[4].id,
+  participants: [branchLeaders[4].id],
 });
 
-// --- Youth Fellowship Night ---
+// New Teachers Training in Newport News TRE Room
 tryAddBooking({
-  roomId: FELLOW, areaId: AREA,
-  type: BookingType.GROUP_ACTIVITIES, activity: Activity.GROUP_ACTIVITY,
-  title: 'Youth Fellowship Night',
-  startTime: isoAt(dayOf(4), 19),
-  endTime: isoAt(dayOf(4), 21),
-  createdBy: groupLeaders[3].id,
-  participants: [],
-});
-
-// --- New Teachers Training ---
-tryAddBooking({
-  roomId: TRE, areaId: AREA,
+  areaId: 'area-newport-news', roomId: 'rm-nn-tre',
   type: BookingType.TEAM_ACTIVITIES, activity: Activity.TEAM_MEETING,
   title: 'New Teachers Training',
-  startTime: isoAt(dayOf(3), 10),
-  endTime: isoAt(dayOf(3), 12),
+  startTime: isoAt(dayOf(3), 13),
+  endTime: isoAt(dayOf(3), 15),
   createdBy: branchLeaders[2].id,
   participants: [],
 });
 
 // ============================================================================
-// DYNAMIC BOOKINGS (will find the next free slot)
+// Team meetings (15 teams, weeknight evenings, in their branch's rooms)
 // ============================================================================
-
-// --- Team meetings (15 teams, ideally weeknight evenings) ---
 teamLeaders.forEach((leader, i) => {
+  // Find which branch this team belongs to (via group → branch)
+  const group = groupLeaders.find((g) => g.id === leader.parentId);
+  const branch = group ? branchLeaders.find((b) => b.id === group.parentId) : branchLeaders[0];
+  if (!branch) return;
+  const areaId = areaIdForBranch(branch);
+  // Try this team's branch's rooms first (any non-Sanctuary room)
+  const branchRooms = scenarioAreas
+    .find((a) => a.id === areaId)!
+    .rooms.filter((r) => !r.name.toLowerCase().includes('sanctuary'))
+    .map((r) => r.id);
   const preferredDay = dayOf(i % 5);
-  const preferredRooms = [TRE, ...BS_ROOMS];
-  for (const room of preferredRooms) {
-    const slot = findFreeTime(room, preferredDay, 2, 17, 22); // 5pm-10pm, 60 min
+  for (const room of branchRooms) {
+    const slot = findFreeTime(areaId, room, preferredDay, 2, 17, 22);
     if (slot) {
       tryAddBooking({
-        roomId: room, areaId: AREA,
+        areaId, roomId: room,
         type: BookingType.TEAM_ACTIVITIES, activity: Activity.TEAM_MEETING,
         title: `${leader.firstName}'s Team Meeting`,
         startTime: slot.start.toISOString(),
         endTime: slot.end.toISOString(),
         createdBy: leader.id,
         teacherId: leader.id,
-        participants: [leader.id, ...members.filter((m) => m.parentId === leader.id).slice(0, 3).map((m) => m.id)],
+        participants: [
+          leader.id,
+          ...members.filter((m) => m.parentId === leader.id).slice(0, 3).map((m) => m.id),
+        ],
       });
       break;
     }
   }
 });
 
-// --- Group meetings (10 groups) ---
+// ============================================================================
+// Group meetings (10 groups)
+// ============================================================================
 groupLeaders.forEach((leader, i) => {
+  const branch = branchLeaders.find((b) => b.id === leader.parentId);
+  if (!branch) return;
+  const areaId = areaIdForBranch(branch);
+  const branchRooms = scenarioAreas
+    .find((a) => a.id === areaId)!
+    .rooms.filter((r) => !r.name.toLowerCase().includes('sanctuary'))
+    .map((r) => r.id);
   const preferredDay = dayOf(i % 5);
-  const preferredRooms = i < 5 ? [CONF, FELLOW, TRE] : [FELLOW, CONF, TRE];
-  for (const room of preferredRooms) {
-    const slot = findFreeTime(room, preferredDay, 3, 17, 22); // 5pm-10pm, 90 min
+  for (const room of branchRooms) {
+    const slot = findFreeTime(areaId, room, preferredDay, 3, 17, 22);
     if (slot) {
       tryAddBooking({
-        roomId: room, areaId: AREA,
+        areaId, roomId: room,
         type: BookingType.GROUP_ACTIVITIES, activity: Activity.GROUP_MEETING,
         title: `${leader.firstName}'s Group Meeting`,
         startTime: slot.start.toISOString(),
@@ -768,24 +1058,41 @@ groupLeaders.forEach((leader, i) => {
   }
 });
 
-// --- Bible studies for the 20 currently-studying contacts ---
-// Each gets 1-2 sessions this week. Allocate to the first free BS room.
+// ============================================================================
+// Bible studies for currently-studying contacts
+// ============================================================================
 const studyingContacts = scenarioContacts.filter((c) => c.currentlyStudying);
 studyingContacts.forEach((contact, i) => {
   const teacher = scenarioUsers.find((u) => u.id === contact.assignedTeacherId)!;
+  const branch = branchForMember(teacher);
+  const areaId = areaIdForBranch(branch);
   const sessionsThisWeek = 1 + (i % 2);
   const isZoom = i % 4 === 0;
+
+  // Pick rooms named like "Study Room" or similar — any non-Sanctuary room
+  const studyRooms = scenarioAreas
+    .find((a) => a.id === areaId)!
+    .rooms.filter(
+      (r) =>
+        r.name.toLowerCase().includes('study') ||
+        r.name.toLowerCase().includes('library') ||
+        r.name.toLowerCase().includes('living') ||
+        r.name.toLowerCase().includes('barnes') ||
+        r.name.toLowerCase().includes('web') ||
+        r.name.toLowerCase().includes('center'),
+    )
+    .map((r) => r.id);
+  if (studyRooms.length === 0) return;  // shouldn't happen — early-out forEach iteration
+
   for (let s = 0; s < sessionsThisWeek; s++) {
-    // Try each weekday and find the first free BS room with a free hour
+    let placed = false;
     for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
       const day = dayOf((i + s * 3 + dayOffset) % 6);
-      const candidateRooms = isZoom ? ['room-bs3', 'room-bs4', ...BS_ROOMS] : BS_ROOMS;
-      let placed = false;
-      for (const room of candidateRooms) {
-        const slot = findFreeTime(room, day, 2, 9, 18); // 9am-6pm, 60 min
+      for (const room of studyRooms) {
+        const slot = findFreeTime(areaId, room, day, 2, 9, 18);
         if (slot) {
           const added = tryAddBooking({
-            roomId: room, areaId: AREA,
+            areaId, roomId: room,
             type: isZoom ? BookingType.UNBAPTIZED_ZOOM : BookingType.UNBAPTIZED_CONTACT,
             activity: Activity.BIBLE_STUDY,
             subject: contact.currentSubject,
@@ -799,7 +1106,6 @@ studyingContacts.forEach((contact, i) => {
             participants: [teacher.id],
           });
           if (added) {
-            // Increment the contact's actual session counter for this week
             contact.totalSessions += 1;
             contact.lastSessionDate = slot.start.toISOString();
           }
@@ -819,14 +1125,14 @@ const cancelReasons = [
   'Room unavailable due to maintenance',
 ];
 for (let i = 0; i < Math.min(3, bookings.length); i++) {
-  const idx = 5 + i * 8; // spread them out
+  const idx = 5 + i * 8;
   if (bookings[idx]) {
     bookings[idx] = {
       ...bookings[idx],
       status: BookingStatus.CANCELLED,
       cancelledAt: new Date(Date.now() - (3 - i) * 86400000).toISOString(),
       cancelReason: cancelReasons[i],
-      cancelledBy: 'u-michael',
+      cancelledBy: uMichael.id,
     } as Booking;
   }
 }
@@ -834,11 +1140,12 @@ for (let i = 0; i < Math.min(3, bookings.length); i++) {
 export const scenarioBookings: Booking[] = bookings;
 
 // ---------------------------------------------------------------------------
-// Teacher metrics — now computed per MEMBER, since contacts are owned by
-// the member who is preaching to them. Also includes teachers/team/group
-// leaders with 0 counts since they don't have direct contacts anymore.
+// Teacher metrics — per-user counts derived from the contacts the user owns
 // ---------------------------------------------------------------------------
-const metricUsers = [...members, ...teacherPool]; // members + leaders
+const metricUsers = [
+  ...members,
+  ...branchLeaders, ...groupLeaders, ...teamLeaders,
+];
 export const scenarioTeacherMetrics: TeacherMetrics[] = metricUsers.map((u) => {
   const myContacts = scenarioContacts.filter((c) => c.assignedTeacherId === u.id);
   const studying = myContacts.filter((c) => c.currentlyStudying).length;
@@ -855,7 +1162,7 @@ export const scenarioTeacherMetrics: TeacherMetrics[] = metricUsers.map((u) => {
 });
 
 // ---------------------------------------------------------------------------
-// Org tree — nested structure with rolled-up metrics per level
+// Org tree — nested, with rolled-up metrics per level
 // ---------------------------------------------------------------------------
 function rollupMetrics(userIds: string[]) {
   const rows = scenarioTeacherMetrics.filter((m) => userIds.includes(m.userId));
@@ -899,9 +1206,7 @@ function teamNode(team: User): OrgNode {
 function groupNode(group: User): OrgNode {
   const myTeams = teamLeaders.filter((t) => t.parentId === group.id);
   const teamIds = myTeams.map((t) => t.id);
-  const memberIds = members
-    .filter((m) => teamIds.includes(m.parentId!))
-    .map((m) => m.id);
+  const memberIds = members.filter((m) => teamIds.includes(m.parentId!)).map((m) => m.id);
   return {
     id: group.id,
     name: `${group.firstName} ${group.lastName}`.trim(),
@@ -913,23 +1218,30 @@ function groupNode(group: User): OrgNode {
   };
 }
 
-function branchNode(branch: User): OrgNode {
+function branchNodeFor(branch: User): OrgNode {
   const myGroups = groupLeaders.filter((g) => g.parentId === branch.id);
   const groupIds = myGroups.map((g) => g.id);
   const teamIds = teamLeaders.filter((t) => groupIds.includes(t.parentId!)).map((t) => t.id);
   const memberIds = members.filter((m) => teamIds.includes(m.parentId!)).map((m) => m.id);
+  const areaId = areaIdForBranch(branch);
+  const branchAreaName = scenarioAreas.find((a) => a.id === areaId)?.name ?? 'Branch';
   return {
     id: branch.id,
     name: `${branch.firstName} ${branch.lastName}`.trim(),
     role: branch.role,
     avatarUrl: branch.avatarUrl,
-    groupName: `Branch ${branch.username.replace('branch', '')}`,
+    groupName: branchAreaName,
     metrics: rollupMetrics([...groupIds, ...teamIds, ...memberIds]),
     children: myGroups.map(groupNode),
   };
 }
 
-const overseerMetrics = rollupMetrics([...teacherPool.map((t) => t.id), ...members.map((m) => m.id)]);
+const overseerMetrics = rollupMetrics([
+  ...branchLeaders.map((b) => b.id),
+  ...groupLeaders.map((g) => g.id),
+  ...teamLeaders.map((t) => t.id),
+  ...members.map((m) => m.id),
+]);
 
 export const scenarioOrgTree: OrgNode[] = [
   {
@@ -940,11 +1252,11 @@ export const scenarioOrgTree: OrgNode[] = [
     children: [
       {
         id: uOverseer.id,
-        name: 'David Park',
+        name: `${uOverseer.firstName} ${uOverseer.lastName}`.trim(),
         role: uOverseer.role,
         avatarUrl: uOverseer.avatarUrl,
         metrics: overseerMetrics,
-        children: branchLeaders.map(branchNode),
+        children: branchLeaders.map(branchNodeFor),
       },
     ],
   },
@@ -958,8 +1270,7 @@ export const scenarioOrgTree: OrgNode[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Audit log — ~120 entries spread across the past 30 days so the Reports
-// page has real data for charts, filtering, pagination, and search.
+// Audit log — ~120 entries across the past 30 days
 // ---------------------------------------------------------------------------
 function generateAuditLog(): AuditLogEntry[] {
   const entries: AuditLogEntry[] = [];
@@ -967,11 +1278,10 @@ function generateAuditLog(): AuditLogEntry[] {
   const now = Date.now();
   const DAY = 86400000;
 
-  // Gather all teachers/leaders for realistic attribution
   const actors = [
     { id: uMichael.id, name: 'Michael' },
     { id: uStephen.id, name: 'Stephen Wright' },
-    { id: uOverseer.id, name: 'David Park' },
+    { id: uOverseer.id, name: `${uOverseer.firstName} ${uOverseer.lastName}`.trim() },
     ...branchLeaders.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
     ...groupLeaders.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
     ...teamLeaders.slice(0, 6).map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
@@ -982,15 +1292,14 @@ function generateAuditLog(): AuditLogEntry[] {
 
   const detailTemplates: Record<string, string[]> = {
     'create-booking': [
-      'Created Bible Study booking for Room {r}',
-      'Created Fellowship event booking',
-      'Created Sabbath Morning Service booking',
+      'Created Bible Study booking for {area}',
+      'Created Group Meeting booking',
       'Created Team Activity booking',
       'Created Branch Committee meeting',
     ],
     'update-booking': [
       'Rescheduled booking to a later time slot',
-      'Changed booking room from BS1 to BS3',
+      'Changed booking room',
       'Updated booking participants list',
       'Extended booking duration by 30 minutes',
     ],
@@ -1042,26 +1351,25 @@ function generateAuditLog(): AuditLogEntry[] {
   };
 
   const contactNames = scenarioContacts.slice(0, 20).map((c) => `${c.firstName} ${c.lastName}`);
+  const areaNames = scenarioAreas.map((a) => a.name);
 
-  // Generate entries spread across the past 30 days
   for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
-    // More entries for recent days (weighted: ~6/day recent, ~2/day older)
     const entriesForDay = dayOffset < 7 ? 4 + Math.floor(rand() * 4) : 1 + Math.floor(rand() * 3);
     for (let j = 0; j < entriesForDay; j++) {
       const actor = actors[Math.floor(rand() * actors.length)];
-      const action = actions[Math.floor(rand() * (dayOffset < 7 ? 4 : 3))]; // exports only in recent week
+      const action = actions[Math.floor(rand() * (dayOffset < 7 ? 4 : 3))];
       const entityType = action === 'export'
         ? 'report'
-        : entityTypes[Math.floor(rand() * 4)]; // skip 'report' for non-export
+        : entityTypes[Math.floor(rand() * 4)];
 
       const key = `${action}-${entityType}`;
       const templates = detailTemplates[key] || [`${action} ${entityType} record`];
       let detail = templates[Math.floor(rand() * templates.length)];
       detail = detail
-        .replace('{r}', `BS${1 + Math.floor(rand() * 4)}`)
+        .replace('{area}', areaNames[Math.floor(rand() * areaNames.length)])
         .replace('{name}', contactNames[Math.floor(rand() * contactNames.length)]);
 
-      const hour = 8 + Math.floor(rand() * 12); // 8am-8pm
+      const hour = 8 + Math.floor(rand() * 12);
       const minute = Math.floor(rand() * 60);
       const ts = new Date(now - dayOffset * DAY);
       ts.setHours(hour, minute, 0, 0);
@@ -1079,7 +1387,6 @@ function generateAuditLog(): AuditLogEntry[] {
     }
   }
 
-  // Sort newest first
   entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   return entries;
 }

@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { canAccessReports } from '@/lib/utils/permissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { groupsApi } from '@/lib/api/groups';
 import type { AuditLogEntry } from '@/lib/types';
+import { exportCSV as sharedExportCSV } from '@/lib/utils/csv';
 import {
   Ban,
   Download,
@@ -100,28 +104,38 @@ const PIE_COLORS = ['#22c55e', '#3b82f6', '#ef4444', '#f97316', '#a855f7'];
 const PAGE_SIZE = 15;
 
 // ---------------------------------------------------------------------------
-// CSV Export
+// CSV Export — uses the shared `lib/utils/csv` helper so escape rules
+// stay consistent with the contacts page and any future export surface.
+// (EXPORT-4: replaces the prior hand-rolled local exportCSV which mishandled
+// names containing literal quotes.)
 // ---------------------------------------------------------------------------
-function exportCSV(entries: AuditLogEntry[], filename = 'diamond-audit-log.csv') {
-  const header = 'Timestamp,Action,Entity Type,Entity ID,User,Details';
-  const rows = entries.map((e) =>
-    [
-      format(parseISO(e.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-      e.action,
-      e.entityType,
-      e.entityId,
-      `"${e.userName}"`,
-      `"${e.details.replace(/"/g, '""')}"`,
-    ].join(','),
-  );
-  const csv = [header, ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function exportAuditCSV(entries: AuditLogEntry[], filename = 'diamond-audit-log.csv') {
+  const headers = [
+    'Timestamp',
+    'Action',
+    'Entity Type',
+    'Entity ID',
+    'User',
+    'Details',
+    'Before',
+    'After',
+    'Reason',
+  ];
+  const rows = entries.map((e) => [
+    format(parseISO(e.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+    e.action,
+    e.entityType,
+    e.entityId,
+    e.userName,
+    e.details,
+    // RPT-5: include before/after JSON snippets in the export so audit
+    // reviewers can reconstruct what changed without round-tripping to
+    // the detail dialog.
+    e.before === undefined ? '' : JSON.stringify(e.before),
+    e.after === undefined ? '' : JSON.stringify(e.after),
+    e.reason ?? '',
+  ]);
+  sharedExportCSV(headers, rows, filename);
   toast.success(`Exported ${entries.length} entries`);
 }
 
@@ -130,6 +144,16 @@ function exportCSV(entries: AuditLogEntry[], filename = 'diamond-audit-log.csv')
 // ---------------------------------------------------------------------------
 export default function ReportsPage() {
   const { t } = useTranslation();
+  // RPT-1: Belt-and-suspenders route guard. Sidebar link is hidden for
+  // sub-Branch-Leader, but a deep link (typing /reports in the URL) used
+  // to slip through and render the full audit log. Mirrors admin/page.tsx.
+  const { user, hydrated } = useAuthStore();
+  const router = useRouter();
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!canAccessReports(user as never)) router.replace('/dashboard');
+  }, [hydrated, user, router]);
+
   // All entries (unfiltered, for charts + summary)
   const [allEntries, setAllEntries] = useState<AuditLogEntry[]>([]);
   // Filtered + paginated entries (for table)
@@ -300,8 +324,11 @@ export default function ReportsPage() {
         )}
       </div>
 
+      {/* RPT-4: extended action filter with the new audit verbs from
+          AUDIT-1 (login, login_failed, reset_password, rename, role_change,
+          tag_grant, tag_revoke, restore, reassign). */}
       <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '')}>
-        <SelectTrigger className="w-[130px]">
+        <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Action" />
         </SelectTrigger>
         <SelectContent>
@@ -310,12 +337,25 @@ export default function ReportsPage() {
           <SelectItem value="update">Update</SelectItem>
           <SelectItem value="delete">Delete</SelectItem>
           <SelectItem value="cancel">Cancel</SelectItem>
+          <SelectItem value="restore">Restore</SelectItem>
           <SelectItem value="export">Export</SelectItem>
+          <SelectItem value="login">Login (success)</SelectItem>
+          <SelectItem value="login_failed">Login (failed)</SelectItem>
+          <SelectItem value="reset_password">Password reset</SelectItem>
+          <SelectItem value="rename">Rename</SelectItem>
+          <SelectItem value="role_change">Role change</SelectItem>
+          <SelectItem value="tag_grant">Tag grant</SelectItem>
+          <SelectItem value="tag_revoke">Tag revoke</SelectItem>
+          <SelectItem value="reassign">Reassignment</SelectItem>
         </SelectContent>
       </Select>
 
+      {/* RPT-3: extended entity filter with the 9 new entityType values
+          documented in PERMISSIONS.md (tag, blocked_slot, password_reset,
+          username_change, login_success, login_failed, role_change,
+          group_assignment, plus the existing five). */}
       <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v ?? '')}>
-        <SelectTrigger className="w-[140px]">
+        <SelectTrigger className="w-[170px]">
           <SelectValue placeholder="Entity" />
         </SelectTrigger>
         <SelectContent>
@@ -325,6 +365,14 @@ export default function ReportsPage() {
           <SelectItem value="user">User</SelectItem>
           <SelectItem value="group">Group</SelectItem>
           <SelectItem value="report">Report</SelectItem>
+          <SelectItem value="tag">Tag</SelectItem>
+          <SelectItem value="blocked_slot">Blocked slot</SelectItem>
+          <SelectItem value="password_reset">Password reset</SelectItem>
+          <SelectItem value="username_change">Username change</SelectItem>
+          <SelectItem value="login_success">Login (success)</SelectItem>
+          <SelectItem value="login_failed">Login (failed)</SelectItem>
+          <SelectItem value="role_change">Role change</SelectItem>
+          <SelectItem value="group_assignment">Group assignment</SelectItem>
         </SelectContent>
       </Select>
 
@@ -460,6 +508,23 @@ export default function ReportsPage() {
     </>
   );
 
+  // ── Render guard (RPT-1) ───────────────────────────────────────
+  // Block render until hydrated; then null-render for sub-Branch-Leader
+  // so the redirect above doesn't briefly flash audit-log content.
+  if (!hydrated) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div
+          className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"
+          aria-label="Loading reports"
+        />
+      </div>
+    );
+  }
+  if (!canAccessReports(user as never)) {
+    return null;
+  }
+
   // ── Render ─────────────────────────────────────────────────────
   return (
     <motion.div
@@ -476,8 +541,22 @@ export default function ReportsPage() {
           </div>
           <p className="text-sm text-muted-foreground">{t('reports.accessNote')}</p>
         </div>
+        {/* RPT-6: header export now uses the same fetch shape as the
+            in-tab export so both buttons agree on what "all" means and
+            stay branch-scoped server-side once Mike's backend lands. */}
         <Button
-          onClick={() => exportCSV(allEntries)}
+          onClick={() => {
+            groupsApi
+              .getAuditLog({
+                limit: 9999,
+                action: effectiveAction || undefined,
+                entityType: effectiveEntity || undefined,
+                userId: effectiveUser || undefined,
+                search: search || undefined,
+                ...dateBounds,
+              })
+              .then((data) => exportAuditCSV(data.entries));
+          }}
           className="gap-2"
         >
           <Download className="h-4 w-4" />
@@ -712,7 +791,7 @@ export default function ReportsPage() {
                     search: search || undefined,
                     ...dateBounds,
                   })
-                  .then((data) => exportCSV(data.entries, 'diamond-change-log.csv'));
+                  .then((data) => exportAuditCSV(data.entries, 'diamond-change-log.csv'));
               }}
               className="gap-1.5"
             >
@@ -818,7 +897,7 @@ export default function ReportsPage() {
                     size="sm"
                     className="gap-1.5"
                     onClick={() =>
-                      exportCSV(
+                      exportAuditCSV(
                         statDialog.entries,
                         `diamond-${statDialog.label.toLowerCase().replace(/\s+/g, '-')}.csv`,
                       )

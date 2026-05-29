@@ -15,9 +15,15 @@ import { Badge } from '@/components/ui/badge';
 import { Combobox, type ComboOption } from '@/components/shared/Combobox';
 import { useBookingStore } from '@/lib/stores/booking-store';
 import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { Activity, BookingType } from '@/lib/types';
-import type { Area, Booking, BookingFormData, Contact, User } from '@/lib/types';
+import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { getDaySlots } from '@/lib/utils/availability';
+import {
+  buildVisibilityScope,
+  canEditBooking,
+  canViewContact,
+} from '@/lib/utils/permissions';
 import {
   ArrowLeft,
   ArrowRight,
@@ -48,6 +54,10 @@ interface WizardProps {
   bookings: Booking[];
   users: User[];
   contacts: Contact[];
+  /** Service times + admin blackouts. The wizard greys out any slot that
+   *  overlaps one of these so the user can't pick a window the backend
+   *  will 409-reject. (BLOCK-1.) */
+  blockedSlots?: BlockedSlot[];
   onSubmit: (data: BookingFormData) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   onCancel?: (id: string, reason: string) => Promise<void>;
@@ -111,11 +121,22 @@ type Step =
   | 'time'
   | 'confirm';
 
-export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDelete, onCancel, onRestore }: WizardProps) {
+export function BookingWizard({ areas, bookings, users, contacts, blockedSlots = [], onSubmit, onDelete, onCancel, onRestore }: WizardProps) {
   const { t } = useTranslation();
   const { isBookingModalOpen, closeBookingModal, selectedBooking, bookingSlot } = useBookingStore();
   const isEdit = !!selectedBooking;
   const { entities, add: addCustom } = useCustomEntitiesStore();
+  // CAL-4 / CAL-6: pull viewer + build visibility scope so the contact
+  // picker can filter to viewer's subtree and the cancel/restore buttons
+  // can hide when canEditBooking is false.
+  const viewer = useAuthStore((s) => s.user);
+  const scope = useMemo(
+    () => buildVisibilityScope(viewer, users),
+    [viewer, users],
+  );
+  const canEditCurrent = !selectedBooking
+    ? true
+    : !!viewer && canEditBooking(viewer, selectedBooking, scope.userIds);
 
   const [step, setStep] = useState<Step>('activity');
   const [activityGroup, setActivityGroup] = useState<ActivityGroup | null>(null);
@@ -132,7 +153,13 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReasonInput, setCancelReasonInput] = useState('');
 
-  const allRooms = useMemo(() => areas.flatMap((a) => a.rooms), [areas]);
+  // ROOM-1: only show rooms that accept bookings — Sanctuary + Fellowship
+  // (service-only spaces) are flagged isBookable=false so they don't
+  // appear in the picker.
+  const allRooms = useMemo(
+    () => areas.flatMap((a) => a.rooms).filter((r) => r.isBookable !== false),
+    [areas],
+  );
   const customRooms = entities.filter((e) => e.kind === 'room');
   const customTeachers = entities.filter((e) => e.kind === 'teacher');
   const customContacts = entities.filter((e) => e.kind === 'contact');
@@ -182,7 +209,10 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
   // Build room options with availability
   const roomOptions: ComboOption[] = useMemo(() => {
     const base: ComboOption[] = allRooms.map((r) => {
-      const slots = getDaySlots(date, r.id, bookings);
+      const slots = getDaySlots(date, r.id, bookings, {
+        blockedSlots,
+        areaId: r.areaId,
+      });
       const free = slots.filter((s) => !s.occupied).length;
       return {
         id: r.id,
@@ -200,9 +230,16 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
     return [...base, ...custom];
   }, [allRooms, customRooms, date, bookings]);
 
+  // Anyone with the 'teacher' tag is eligible to lead a Bible Study,
+  // regardless of role. (Teacher used to be a role; in v1 it became a tag.)
+  // CAL-3: filter out soft-deleted users so deactivated teachers don't
+  // appear in the picker.
   const teacherOptions: ComboOption[] = useMemo(() => {
-    const teachers = users.filter((u) =>
-      ['teacher', 'team_leader', 'group_leader', 'branch_leader', 'overseer', 'dev'].includes(u.role),
+    const teachers = users.filter(
+      (u) =>
+        u.isActive !== false &&
+        Array.isArray(u.tags) &&
+        u.tags.includes('teacher'),
     );
     const base = teachers.map((t) => ({
       id: t.id,
@@ -217,8 +254,14 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
     return [...custom, ...base];
   }, [users, customTeachers]);
 
+  // CAL-4: contact picker scoped to what the viewer is allowed to see.
+  // Members and Team / Group leaders only see contacts in their subtree;
+  // Branch Leader+ see all contacts.
   const contactOptions: ComboOption[] = useMemo(() => {
-    const base = contacts.map((c) => ({
+    const visible = viewer
+      ? contacts.filter((c) => canViewContact(viewer, c, scope.userIds))
+      : [];
+    const base = visible.map((c) => ({
       id: c.id,
       label: `${c.firstName} ${c.lastName}`,
       sublabel: c.currentlyStudying ? `Step ${c.currentStep}` : c.pipelineStage,
@@ -229,13 +272,20 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
       sublabel: 'Custom contact',
     }));
     return [...custom, ...base];
-  }, [contacts, customContacts]);
+  }, [contacts, customContacts, viewer, scope.userIds]);
 
-  // Time slots for selected room + date
+  // Time slots for selected room + date — now blocked-slot- and
+  // teacher-conflict aware. (BLOCK-1, CAL-2.)
   const daySlots = useMemo(() => {
     if (!roomId) return [];
-    return getDaySlots(date, roomId, bookings);
-  }, [roomId, date, bookings]);
+    const room = allRooms.find((r) => r.id === roomId);
+    return getDaySlots(date, roomId, bookings, {
+      blockedSlots,
+      areaId: room?.areaId,
+      teacherId: leaderId || undefined,
+      teacherBookings: bookings,
+    });
+  }, [roomId, date, bookings, blockedSlots, allRooms, leaderId]);
 
   // Total steps for progress bar
   const stepsNeeded: Step[] = useMemo(() => {
@@ -701,7 +751,8 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
                 <ArrowLeft className="h-4 w-4" />
                 {t('btn.back')}
               </Button>
-              {isEdit && selectedBooking?.status !== 'cancelled' && onCancel && (
+              {/* CAL-6: hide cancel button when viewer can't edit this booking. */}
+              {isEdit && canEditCurrent && selectedBooking?.status !== 'cancelled' && onCancel && (
                 <Button
                   type="button"
                   variant="destructive"
@@ -713,7 +764,7 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
                   {t('btn.cancelBooking')}
                 </Button>
               )}
-              {isEdit && selectedBooking?.status === 'cancelled' && onRestore && (
+              {isEdit && canEditCurrent && selectedBooking?.status === 'cancelled' && onRestore && (
                 <Button
                   type="button"
                   variant="outline"
@@ -734,11 +785,17 @@ export function BookingWizard({ areas, bookings, users, contacts, onSubmit, onDe
                   {t('btn.restore')}
                 </Button>
               )}
-              {selectedBooking?.status !== 'cancelled' && (
+              {/* CAL-6: hide save when viewer can't edit this booking. */}
+              {canEditCurrent && selectedBooking?.status !== 'cancelled' && (
                 <Button type="button" onClick={handleSubmit} disabled={loading} className="ml-auto gap-2">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isEdit ? t('btn.saveChanges') : t('btn.createBooking')}
                 </Button>
+              )}
+              {!canEditCurrent && (
+                <Badge variant="outline" className="ml-auto text-xs">
+                  Read-only — outside your scope
+                </Badge>
               )}
             </>
           )}

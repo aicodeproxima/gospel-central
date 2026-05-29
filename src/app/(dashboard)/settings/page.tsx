@@ -50,6 +50,10 @@ import { settingsHelp } from '@/components/shared/pageHelp';
 import { avatarsForRole, canPickGospelWorker } from '@/lib/avatars';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import {
+  ANIMATED_DARK_THEMES,
+  ANIMATED_LIGHT_THEMES,
+} from '@/components/shared/ThemedBackground';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -57,10 +61,12 @@ interface ThemeOption {
   id: ColorTheme;
   label: string;
   color: string;
-  /** If true, only the `admin` account can see/pick this theme. */
-  adminOnly?: boolean;
 }
 
+// All themes are available to every authenticated user. The 11 decorative
+// / animated themes (starfield → deepspace) used to be gated behind the
+// literal username='admin' check in the picker; that gate was lifted so
+// Stephen, Branch Leaders, Members, etc. can pick any theme too.
 const THEME_OPTIONS: ThemeOption[] = [
   { id: 'default', label: 'Default', color: 'bg-gray-500' },
   { id: 'ocean', label: 'Ocean', color: 'bg-blue-500' },
@@ -68,27 +74,18 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: 'forest', label: 'Forest', color: 'bg-green-500' },
   { id: 'sunset', label: 'Sunset', color: 'bg-orange-500' },
   { id: 'rose', label: 'Rose', color: 'bg-rose-500' },
-  {
-    id: 'marble',
-    label: 'Marble',
-    color: 'bg-gradient-to-br from-[#fdfaf2] via-[#e6c458] to-[#b8941f]',
-  },
-  {
-    id: 'starfield',
-    label: 'Starfield',
-    color: 'bg-gradient-to-br from-[#1a0b3d] via-[#6d28d9] to-[#a855f7]',
-    adminOnly: true,
-  },
-  { id: 'aurora', label: 'Aurora', color: 'bg-gradient-to-br from-[#0a2e1a] via-[#2dbd6e] to-[#8b5cf6]', adminOnly: true },
-  { id: 'galaxy', label: 'Galaxy', color: 'bg-gradient-to-br from-[#04021a] via-[#a855f7] to-[#fce7f3]', adminOnly: true },
-  { id: 'jellyfish', label: 'Jellyfish', color: 'bg-gradient-to-br from-[#04101e] via-[#0891b2] to-[#a855f7]', adminOnly: true },
-  { id: 'rain', label: 'Rain', color: 'bg-gradient-to-br from-[#0a0f1a] via-[#64748b] to-[#a8c5ff]', adminOnly: true },
-  { id: 'matrix', label: 'Matrix', color: 'bg-gradient-to-br from-[#000a08] via-[#065f46] to-[#10b981]', adminOnly: true },
-  { id: 'voronoi', label: 'Voronoi', color: 'bg-gradient-to-br from-[#0a0616] via-[#7c3aed] to-[#ec4899]', adminOnly: true },
-  { id: 'constellation', label: 'Constellation', color: 'bg-gradient-to-br from-[#040811] via-[#1e40af] to-[#60a5fa]', adminOnly: true },
-  { id: 'smoke', label: 'Smoke', color: 'bg-gradient-to-br from-[#060410] via-[#9333ea] to-[#ec4899]', adminOnly: true },
-  { id: 'synapse', label: 'Synapse', color: 'bg-gradient-to-br from-[#040814] via-[#0891b2] to-[#38bdf8]', adminOnly: true },
-  { id: 'deepspace', label: 'Deep Space', color: 'bg-gradient-to-br from-[#02010a] via-[#1e1b4b] to-[#f59e0b]', adminOnly: true },
+  { id: 'marble', label: 'Marble', color: 'bg-gradient-to-br from-[#fdfaf2] via-[#e6c458] to-[#b8941f]' },
+  { id: 'starfield', label: 'Starfield', color: 'bg-gradient-to-br from-[#1a0b3d] via-[#6d28d9] to-[#a855f7]' },
+  { id: 'aurora', label: 'Aurora', color: 'bg-gradient-to-br from-[#0a2e1a] via-[#2dbd6e] to-[#8b5cf6]' },
+  { id: 'galaxy', label: 'Galaxy', color: 'bg-gradient-to-br from-[#04021a] via-[#a855f7] to-[#fce7f3]' },
+  { id: 'jellyfish', label: 'Jellyfish', color: 'bg-gradient-to-br from-[#04101e] via-[#0891b2] to-[#a855f7]' },
+  { id: 'rain', label: 'Rain', color: 'bg-gradient-to-br from-[#0a0f1a] via-[#64748b] to-[#a8c5ff]' },
+  { id: 'matrix', label: 'Matrix', color: 'bg-gradient-to-br from-[#000a08] via-[#065f46] to-[#10b981]' },
+  { id: 'voronoi', label: 'Voronoi', color: 'bg-gradient-to-br from-[#0a0616] via-[#7c3aed] to-[#ec4899]' },
+  { id: 'constellation', label: 'Constellation', color: 'bg-gradient-to-br from-[#040811] via-[#1e40af] to-[#60a5fa]' },
+  { id: 'smoke', label: 'Smoke', color: 'bg-gradient-to-br from-[#060410] via-[#9333ea] to-[#ec4899]' },
+  { id: 'synapse', label: 'Synapse', color: 'bg-gradient-to-br from-[#040814] via-[#0891b2] to-[#38bdf8]' },
+  { id: 'deepspace', label: 'Deep Space', color: 'bg-gradient-to-br from-[#02010a] via-[#1e1b4b] to-[#f59e0b]' },
 ];
 
 const SHORTCUTS = [
@@ -353,66 +350,83 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Dark/Light toggle */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant={theme === 'dark' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setTheme('dark')}
-            >
-              {t('settings.theme.dark')}
-            </Button>
-            <Button
-              variant={theme === 'light' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setTheme('light')}
-            >
-              {t('settings.theme.light')}
-            </Button>
-            <Button
-              variant={theme === 'system' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setTheme('system')}
-            >
-              {t('settings.theme.system')}
-            </Button>
-          </div>
+          {/* Dark/Light toggle — disabled on themes that override the
+              foundational CSS variables for both :root and .dark
+              selectors and therefore ignore next-themes' light/dark
+              class entirely (theme audit L-1 + STATIC-1). Toggling
+              mode would otherwise produce no visible change.
+              Mode-fixed themes today: the 11 animated themes
+              (canvas-dark) + marble (gold-on-cream texture). */}
+          {(() => {
+            const themeIsModeFixed =
+              ANIMATED_DARK_THEMES.has(prefs.colorTheme) ||
+              ANIMATED_LIGHT_THEMES.has(prefs.colorTheme) ||
+              prefs.colorTheme === 'marble';
+            return (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant={theme === 'dark' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTheme('dark')}
+                    disabled={themeIsModeFixed}
+                  >
+                    {t('settings.theme.dark')}
+                  </Button>
+                  <Button
+                    variant={theme === 'light' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTheme('light')}
+                    disabled={themeIsModeFixed}
+                  >
+                    {t('settings.theme.light')}
+                  </Button>
+                  <Button
+                    variant={theme === 'system' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTheme('system')}
+                    disabled={themeIsModeFixed}
+                  >
+                    {t('settings.theme.system')}
+                  </Button>
+                </div>
+                {themeIsModeFixed && (
+                  <p className="text-xs text-muted-foreground">
+                    This color theme manages its own surfaces and ignores Dark / Light / System.
+                    Pick a different color theme below to re-enable mode switching.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           <Separator />
 
-          {/* Color themes */}
+          {/* Color themes — all 18 available to every authenticated user. */}
           <div>
             <p className="text-xs text-muted-foreground mb-2">{t('settings.colorAccent')}</p>
             <div className="flex flex-wrap gap-3">
-              {THEME_OPTIONS
-                .filter((opt) => !opt.adminOnly || user?.username === 'admin')
-                .map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => prefs.setColorTheme(opt.id)}
-                    aria-label={`${opt.label} theme${opt.adminOnly ? ' (admin only)' : ''}`}
-                    aria-pressed={prefs.colorTheme === opt.id}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all',
-                      prefs.colorTheme === opt.id
-                        ? 'border-primary ring-2 ring-primary/30'
-                        : 'border-border hover:border-primary/40',
-                      opt.adminOnly && 'relative',
-                    )}
-                  >
-                    <div className={cn('h-8 w-8 rounded-full shadow-inner', opt.color)} />
-                    <span className="text-[10px] text-muted-foreground">{opt.label}</span>
-                    {opt.adminOnly && (
-                      <span className="absolute -top-1.5 -right-1.5 text-[8px] font-semibold rounded-full bg-amber-500/90 text-white px-1.5 py-0.5 leading-none">
-                        ADMIN
-                      </span>
-                    )}
-                    {prefs.colorTheme === opt.id && (
-                      <Check className="h-3 w-3 text-primary" />
-                    )}
-                  </button>
-                ))}
+              {THEME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => prefs.setColorTheme(opt.id)}
+                  aria-label={`${opt.label} theme`}
+                  aria-pressed={prefs.colorTheme === opt.id}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all',
+                    prefs.colorTheme === opt.id
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border hover:border-primary/40',
+                  )}
+                >
+                  <div className={cn('h-8 w-8 rounded-full shadow-inner', opt.color)} />
+                  <span className="text-[10px] text-muted-foreground">{opt.label}</span>
+                  {prefs.colorTheme === opt.id && (
+                    <Check className="h-3 w-3 text-primary" />
+                  )}
+                </button>
+              ))}
             </div>
           </div>
         </CardContent>

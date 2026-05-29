@@ -32,6 +32,14 @@ import { ContactDetailDialog } from '@/components/groups/ContactDetailDialog';
 import { ImportCSVDialog } from '@/components/contacts/ImportCSVDialog';
 import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import {
+  buildVisibilityScope,
+  canCreateContact,
+  canEditContact,
+  canExportImport,
+  canViewContact,
+} from '@/lib/utils/permissions';
 import {
   BOOKING_TYPE_CONFIG,
   PIPELINE_STAGE_CONFIG,
@@ -51,6 +59,11 @@ type SortKey = 'name' | 'sessions' | 'stage' | 'updated';
 
 export default function ContactsPage() {
   const { t, tStage, tBookingType } = useTranslation();
+  // CONT-1 / CONT-2: viewer + visibility scope so the contacts list, the
+  // header buttons, and the per-card actions are all role-gated. Members
+  // see only their own + assigned-to-me; Team / Group leaders see their
+  // subtree; Branch Leader+ sees everything.
+  const viewer = useAuthStore((s) => s.user);
 
   const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
     { value: 'name', label: t('contacts.sortName') },
@@ -62,6 +75,22 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const scope = useMemo(
+    () => buildVisibilityScope(viewer, users),
+    [viewer, users],
+  );
+
+  // CONT-1: scope-filtered list — every downstream useMemo (filtered, stage
+  // counts, kanban) runs against this so a Member never even sees Branch
+  // Leader contacts in the empty state count.
+  const visibleContacts = useMemo(
+    () =>
+      viewer
+        ? contacts.filter((c) => canViewContact(viewer, c, scope.userIds))
+        : [],
+    [contacts, viewer, scope.userIds],
+  );
 
   // Filters
   const [search, setSearch] = useState('');
@@ -114,11 +143,15 @@ export default function ContactsPage() {
 
   // Client-side filtering + sorting (all data is in memory from MSW)
   const filtered = useMemo(() => {
-    let result = contacts;
+    let result = visibleContacts;
     if (search) {
       const q = search.toLowerCase();
+      // CONT-7: predicate now also matches against notes + currentSubject so
+      // imported records with metadata in those fields are findable.
       result = result.filter((c) =>
-        `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''}`.toLowerCase().includes(q),
+        `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''} ${c.notes || ''} ${c.currentSubject || ''}`
+          .toLowerCase()
+          .includes(q),
       );
     }
     const effectiveType = typeFilter.startsWith('all') ? '' : typeFilter;
@@ -140,15 +173,24 @@ export default function ContactsPage() {
     });
 
     return result;
-  }, [contacts, search, typeFilter, stageFilter, sortKey]);
+  }, [visibleContacts, search, typeFilter, stageFilter, sortKey]);
 
-  // Pipeline stage counts (from ALL contacts, not filtered)
+  // Pipeline stage counts (from in-scope contacts; CONT-1: don't leak
+  // out-of-scope counts via the chip totals).
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const stage of Object.keys(PIPELINE_STAGE_CONFIG)) counts[stage] = 0;
-    for (const c of contacts) counts[c.pipelineStage] = (counts[c.pipelineStage] || 0) + 1;
+    for (const c of visibleContacts) counts[c.pipelineStage] = (counts[c.pipelineStage] || 0) + 1;
     return counts;
-  }, [contacts]);
+  }, [visibleContacts]);
+
+  // CONT-4: per-row edit gate — passed into ContactCard / Kanban / dialogs
+  // so action affordances only appear when the viewer can act on the row.
+  const canEditAny = useCallback(
+    (contact: Contact) =>
+      !!viewer && canEditContact(viewer, contact, scope.userIds),
+    [viewer, scope.userIds],
+  );
 
   const hasFilters = search || typeFilter !== 'all' || stageFilter !== 'all';
 
@@ -194,6 +236,28 @@ export default function ContactsPage() {
     setViewingContactId(null);
     toast.success('Contact deleted');
   }, []);
+
+  // CONT-5: Convert a contact into a User account. Refetches both contacts
+  // (status flips to 'converted', convertedToUserId set) and the users
+  // list (so the new User shows up immediately in /admin/users).
+  const handleDetailConvert = useCallback(
+    async (id: string, payload: { role: import('@/lib/types').UserRole; parentId?: string; groupId?: string; actorId?: string }) => {
+      try {
+        const result = await contactsApi.convertToUser(id, payload);
+        toast.success(
+          `Converted to user @${result.user.username}`,
+        );
+        await refetchContacts();
+        // Refetch users so the rest of the app sees the new account.
+        const fresh = await usersApi.getAll();
+        setUsers(Array.isArray(fresh) ? fresh : []);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Conversion failed');
+        throw e;
+      }
+    },
+    [refetchContacts],
+  );
 
   const viewingContact = useMemo(
     () => contacts.find((c) => c.id === viewingContactId) || null,
@@ -270,24 +334,37 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setImportOpen(true)}
-            className="gap-1.5"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {t('btn.import')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => doExport(filtered)}
-            className="gap-1.5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {t('btn.export')}
-          </Button>
+          {/* Import + export are admin-tier only unless canExportImport's
+              feature flag is enabled. */}
+          {canExportImport(viewer) && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {t('btn.import')}
+              </Button>
+              {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
+              <Select
+                onValueChange={(v) => {
+                  if (v === 'current') doExport(filtered);
+                  else if (v === 'all') doExport(visibleContacts);
+                }}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  <SelectValue placeholder={t('btn.export')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Export current view</SelectItem>
+                  <SelectItem value="all">Export all I can see</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           <Button
             variant={selectMode ? 'secondary' : 'outline'}
             size="sm"
@@ -326,7 +403,7 @@ export default function ContactsPage() {
               : 'border-border text-muted-foreground hover:border-primary/40',
           )}
         >
-          {t('misc.all')} ({contacts.length})
+          {t('misc.all')} ({visibleContacts.length})
         </button>
         {Object.entries(PIPELINE_STAGE_CONFIG).map(([key, cfg]) => (
           <button
@@ -364,9 +441,11 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={handleExportSelected} className="gap-1 h-8 text-xs">
-            <Download className="h-3 w-3" /> {t('btn.export')}
-          </Button>
+          {canExportImport(viewer) && (
+            <Button variant="outline" size="sm" onClick={handleExportSelected} className="gap-1 h-8 text-xs">
+              <Download className="h-3 w-3" /> {t('btn.export')}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={selectAll} className="h-8 text-xs">{t('btn.selectAll')}</Button>
           <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8 text-xs">{t('btn.clear')}</Button>
         </motion.div>
@@ -501,7 +580,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Contact detail popup (view-first, then edit) */}
+      {/* Contact detail popup (view-first, then edit, then optional convert) */}
       <ContactDetailDialog
         open={!!viewingContact}
         onClose={() => setViewingContactId(null)}
@@ -510,6 +589,9 @@ export default function ContactsPage() {
         allContacts={contacts}
         onSave={handleDetailSave}
         onDelete={handleDetailDelete}
+        viewer={viewer ?? undefined}
+        subtreeUserIds={scope.userIds}
+        onConvert={handleDetailConvert}
       />
 
       {/* Create/Edit form dialog */}

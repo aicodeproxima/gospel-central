@@ -29,7 +29,6 @@ type ContactFilter = null | 'studying' | 'total' | 'fruit';
 
 const ROLE_RGB: Record<UserRole, [number, number, number]> = {
   member: [0.4, 0.4, 0.45],
-  teacher: [0.25, 0.55, 0.95], // blue
   team_leader: [0.2, 0.75, 0.45], // green
   group_leader: [0.65, 0.35, 0.95], // purple
   branch_leader: [0.95, 0.55, 0.2], // orange
@@ -39,7 +38,6 @@ const ROLE_RGB: Record<UserRole, [number, number, number]> = {
 
 const ROLE_HEX: Record<UserRole, string> = {
   member: '#6b7280',
-  teacher: '#3b82f6',
   team_leader: '#22c55e',
   group_leader: '#a855f7',
   branch_leader: '#f97316',
@@ -49,7 +47,6 @@ const ROLE_HEX: Record<UserRole, string> = {
 
 const METRIC_ROLES = new Set<UserRole>([
   UserRole.MEMBER,
-  UserRole.TEACHER,
   UserRole.TEAM_LEADER,
   UserRole.GROUP_LEADER,
   UserRole.BRANCH_LEADER,

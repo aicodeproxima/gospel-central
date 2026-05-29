@@ -7,7 +7,7 @@ export interface SearchEntry {
   role: string;
   roleLabel: string;
   groupName?: string;
-  /** Full chain from root to this node, e.g. ["Michael", "David Park", "Sarah Johnson"] */
+  /** Full chain from root to this node, e.g. ["Michael", "Gabriel", "Joseph"] */
   ancestors: string[];
   /** Ancestor IDs for expansion */
   ancestorIds: string[];

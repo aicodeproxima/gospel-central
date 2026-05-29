@@ -25,8 +25,12 @@ import {
   PipelineStage,
   PIPELINE_STAGE_CONFIG,
   ContactStatus,
+  UserRole,
+  ROLE_LABELS,
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
+import { canConvertContact, assignableRoles } from '@/lib/utils/permissions';
+import type { ConvertContactPayload } from '@/lib/api/contacts';
 import {
   Pencil,
   Check,
@@ -42,6 +46,7 @@ import {
   Calendar,
   User as UserIcon,
   Plus,
+  UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -77,6 +82,13 @@ interface ContactDetailDialogProps {
   allContacts: Contact[];
   onSave: (id: string, data: Partial<Contact>) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
+  /** CONT-5: viewer + scope so the dialog can gate the Convert button on
+   *  canConvertContact. If absent, the button is hidden. */
+  viewer?: User;
+  subtreeUserIds?: string[];
+  /** CONT-5: convert callback. Caller wires to contactsApi.convertToUser
+   *  + refetch contacts/users. If absent, the button is hidden. */
+  onConvert?: (contactId: string, payload: ConvertContactPayload) => Promise<void>;
 }
 
 export function ContactDetailDialog({
@@ -87,8 +99,11 @@ export function ContactDetailDialog({
   allContacts,
   onSave,
   onDelete,
+  viewer,
+  subtreeUserIds = [],
+  onConvert,
 }: ContactDetailDialogProps) {
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [mode, setMode] = useState<'view' | 'edit' | 'convert'>('view');
 
   // Reset to view mode whenever a different contact is opened
   useEffect(() => {
@@ -97,17 +112,27 @@ export function ContactDetailDialog({
 
   if (!contact) return null;
 
+  const canShowConvert =
+    !!viewer &&
+    !!onConvert &&
+    !contact.convertedToUserId &&
+    canConvertContact(viewer, contact, subtreeUserIds);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            {mode === 'view' ? 'Contact Details' : 'Edit Contact'}
+            {mode === 'view'
+              ? 'Contact Details'
+              : mode === 'edit'
+              ? 'Edit Contact'
+              : 'Convert to user account'}
           </DialogTitle>
         </DialogHeader>
 
         <AnimatePresence mode="wait">
-          {mode === 'view' ? (
+          {mode === 'view' && (
             <motion.div
               key="view"
               initial={{ opacity: 0, x: -8 }}
@@ -119,10 +144,12 @@ export function ContactDetailDialog({
                 contact={contact}
                 users={users}
                 onEdit={() => setMode('edit')}
+                onConvert={canShowConvert ? () => setMode('convert') : undefined}
                 onClose={onClose}
               />
             </motion.div>
-          ) : (
+          )}
+          {mode === 'edit' && (
             <motion.div
               key="edit"
               initial={{ opacity: 0, x: 8 }}
@@ -143,6 +170,28 @@ export function ContactDetailDialog({
               />
             </motion.div>
           )}
+          {mode === 'convert' && viewer && onConvert && (
+            <motion.div
+              key="convert"
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.15 }}
+            >
+              <ConvertMode
+                contact={contact}
+                viewer={viewer}
+                users={users}
+                onCancel={() => setMode('view')}
+                onConfirm={async (payload) => {
+                  await onConvert(contact.id, payload);
+                  // After successful conversion the contact is now linked
+                  // to a user; close the dialog so the parent can refetch.
+                  onClose();
+                }}
+              />
+            </motion.div>
+          )}
         </AnimatePresence>
       </DialogContent>
     </Dialog>
@@ -156,11 +205,13 @@ function ViewMode({
   contact,
   users,
   onEdit,
+  onConvert,
   onClose,
 }: {
   contact: Contact;
   users: User[];
   onEdit: () => void;
+  onConvert?: () => void;
   onClose: () => void;
 }) {
   const { t, tStage } = useTranslation();
@@ -322,17 +373,162 @@ function ViewMode({
       )}
 
       {/* Actions */}
-      <div className="flex gap-3">
-        <Button type="button" variant="outline" onClick={onClose} className="flex-1 h-11 text-base">
+      <div className="flex gap-2 flex-wrap">
+        <Button type="button" variant="outline" onClick={onClose} className="flex-1 min-w-[100px] h-11 text-base">
           Close
         </Button>
+        {/* CONT-5: convert is gated by canConvertContact — shown only when
+             onConvert is supplied (i.e. the parent passed a viewer + scope
+             and the contact is not already converted). */}
+        {onConvert && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onConvert}
+            className="gap-2 h-11 text-base"
+          >
+            <UserPlus className="h-5 w-5" />
+            Convert to user
+          </Button>
+        )}
+        {contact.convertedToUserId && (
+          <Badge variant="outline" className="self-center text-xs">
+            Already converted
+          </Badge>
+        )}
         <Button
           type="button"
           onClick={onEdit}
-          className="flex-1 gap-2 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black"
+          className="flex-1 min-w-[100px] gap-2 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black"
         >
           <Pencil className="h-5 w-5" />
           Edit
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CONVERT MODE — promote the contact into a full User account
+// ---------------------------------------------------------------------------
+function ConvertMode({
+  contact,
+  viewer,
+  users,
+  onCancel,
+  onConfirm,
+}: {
+  contact: Contact;
+  viewer: User;
+  users: User[];
+  onCancel: () => void;
+  onConfirm: (payload: ConvertContactPayload) => Promise<void>;
+}) {
+  const allowedRoles = useMemo(() => assignableRoles(viewer.role), [viewer.role]);
+  // Default to the lowest assignable role (Member if available; otherwise
+  // the highest the viewer can grant).
+  const defaultRole = allowedRoles.includes(UserRole.MEMBER)
+    ? UserRole.MEMBER
+    : allowedRoles[0] ?? UserRole.MEMBER;
+  const [role, setRole] = useState<UserRole>(defaultRole);
+
+  // Eligible parents: matches the CreateUserWizard rule — at-or-above the
+  // new user's role, not a Member, active. Plus the viewer themselves
+  // (creator-as-parent is allowed by canCreateUser).
+  const eligibleParents = useMemo(() => {
+    const ix = (r: UserRole) => Object.values(UserRole).indexOf(r);
+    return users.filter(
+      (u) =>
+        u.isActive !== false &&
+        u.role !== UserRole.MEMBER &&
+        ix(u.role) >= ix(role),
+    );
+  }, [users, role]);
+  const [parentId, setParentId] = useState<string>(viewer.id);
+  const [busy, setBusy] = useState(false);
+
+  const handleConvert = async () => {
+    setBusy(true);
+    try {
+      await onConfirm({ role, parentId, actorId: viewer.id });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+        <p className="font-medium">
+          Promote {contact.firstName} {contact.lastName} into a Diamond user account.
+        </p>
+        <p className="mt-1 text-muted-foreground text-xs">
+          The contact record stays in the system (status = <span className="font-mono">converted</span>) and
+          the new user can log in. They&apos;ll be required to set a password on their first login.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+          New user&apos;s role
+        </Label>
+        <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)}>
+          <SelectTrigger>
+            <span>{ROLE_LABELS[role] ?? role}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {allowedRoles.map((r) => (
+              <SelectItem key={r} value={r}>
+                {ROLE_LABELS[r] ?? r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+          Reports to
+        </Label>
+        <Select value={parentId} onValueChange={(v) => v && setParentId(v)}>
+          <SelectTrigger>
+            <span>
+              {(() => {
+                const p = users.find((u) => u.id === parentId);
+                return p
+                  ? `${p.firstName} ${p.lastName}`.trim() || p.username
+                  : 'Pick a parent';
+              })()}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {eligibleParents.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {`${u.firstName} ${u.lastName}`.trim() || u.username}
+                {' · '}
+                {ROLE_LABELS[u.role] ?? u.role}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          The new user&apos;s parent in the org tree. Defaults to you.
+        </p>
+      </div>
+
+      <div className="flex gap-3 pt-3 border-t border-border">
+        <Button type="button" variant="outline" onClick={onCancel} className="gap-2" disabled={busy}>
+          <X className="h-4 w-4" /> Cancel
+        </Button>
+        <Button
+          type="button"
+          onClick={handleConvert}
+          disabled={busy || !parentId}
+          className="flex-1 gap-2"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+          Convert
         </Button>
       </div>
     </div>
@@ -439,11 +635,14 @@ function EditMode({
     return Array.from(new Set([...fromContacts, ...fromCustom])).sort();
   }, [allContacts, entities]);
 
+  // Preaching partner options = every active user (any role can be a
+  // partner — partnership isn't gated by tags). Plus user-added custom
+  // names persisted to the custom-entities store.
   const partnerOptions = useMemo(() => {
-    const teacherRoles = new Set(['teacher', 'team_leader', 'group_leader', 'branch_leader', 'overseer', 'dev', 'member']);
-    const base = users
-      .filter((u) => teacherRoles.has(u.role))
-      .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+    const base = users.map((u) => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim(),
+    }));
     const custom = entities.filter((e) => e.kind === 'teacher').map((e) => ({ id: e.id, name: e.name }));
     return [...custom, ...base];
   }, [users, entities]);

@@ -24,7 +24,6 @@ import {
 
 const ROLE_COLORS: Record<UserRole, string> = {
   member: 'bg-gray-500',
-  teacher: 'bg-blue-500',
   team_leader: 'bg-green-500',
   group_leader: 'bg-purple-500',
   branch_leader: 'bg-orange-500',
@@ -33,9 +32,10 @@ const ROLE_COLORS: Record<UserRole, string> = {
 };
 
 // Members AND all leader roles get icons. Overseer & admins do not.
+// (Teacher used to be its own role but is a tag in v1; tag-bearing
+// users still get metric icons via their underlying role membership.)
 const METRIC_ROLES = new Set<UserRole>([
   UserRole.MEMBER,
-  UserRole.TEACHER,
   UserRole.TEAM_LEADER,
   UserRole.GROUP_LEADER,
   UserRole.BRANCH_LEADER,

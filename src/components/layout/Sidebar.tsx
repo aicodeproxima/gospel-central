@@ -13,9 +13,10 @@ import {
   BookOpen,
   LogOut,
   ChevronLeft,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
-import { canAccessReports } from '@/lib/utils/permissions';
+import { canAccessReports, canSeeAdminPage } from '@/lib/utils/permissions';
 import { Button } from '@/components/ui/button';
 import { ROLE_LABELS } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
@@ -42,6 +43,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const items = [
     ...navItems,
     ...(user && canAccessReports(user.role) ? [{ href: '/reports', label: t('nav.reports'), icon: BarChart3 }] : []),
+    // Admin: Branch Leader and above. Hidden for Group Leader / Team Leader /
+    // Member — those tiers manage their people via /groups.
+    ...(canSeeAdminPage(user) ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
   ];
 
   return (

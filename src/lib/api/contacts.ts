@@ -1,5 +1,17 @@
 import { api } from './client';
-import type { Contact } from '../types';
+import type { Contact, User, UserRole } from '../types';
+
+export interface ConvertContactPayload {
+  role: UserRole;
+  parentId?: string;
+  groupId?: string;
+  actorId?: string;
+}
+
+export interface ConvertContactResponse {
+  user: User;
+  contact: Contact;
+}
 
 export const contactsApi = {
   getContacts(params?: {
@@ -31,7 +43,12 @@ export const contactsApi = {
   deleteContact(id: string) {
     return api.delete<void>(`/contacts/${id}`);
   },
-  convertToUser(id: string, data: { role: string; groupId: string }) {
-    return api.post<void>(`/contacts/${id}/convert`, data);
+  /**
+   * CONT-5: convert a contact into a full User account. Returns the
+   * newly-created user + the patched contact (status=converted,
+   * convertedToUserId set).
+   */
+  convertToUser(id: string, data: ConvertContactPayload) {
+    return api.post<ConvertContactResponse>(`/contacts/${id}/convert`, data);
   },
 };

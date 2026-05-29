@@ -38,6 +38,12 @@ interface Props {
   users: User[];
   /** Called after a successful create; lets the parent refresh data. */
   onCreated?: (newUser: User) => void;
+  /** Pre-fill the role on the placement step (e.g. GroupsTab opens the
+   *  wizard with role already locked to "Team Leader" when adding a team). */
+  initialRole?: UserRole;
+  /** Pre-fill the reports-to picker — used when invoking from a node in
+   *  the GroupsTab so we drop straight into "creating a child of THIS node". */
+  initialParentId?: string;
 }
 
 type Step = 'identity' | 'placement' | 'review' | 'success';
@@ -63,7 +69,15 @@ function generatePassword(): string {
   return `${adj[Math.floor(Math.random() * adj.length)]}${noun[Math.floor(Math.random() * noun.length)]}${n}`;
 }
 
-export function CreateUserWizard({ open, onClose, creator, users, onCreated }: Props) {
+export function CreateUserWizard({
+  open,
+  onClose,
+  creator,
+  users,
+  onCreated,
+  initialRole,
+  initialParentId,
+}: Props) {
   const [step, setStep] = useState<Step>('identity');
   const [submitting, setSubmitting] = useState(false);
 
@@ -77,8 +91,15 @@ export function CreateUserWizard({ open, onClose, creator, users, onCreated }: P
 
   // Placement
   const allowedRoles = useMemo(() => assignableRoles(creator.role), [creator.role]);
-  const [role, setRole] = useState<UserRole>(allowedRoles[allowedRoles.length - 1]);
-  const [parentId, setParentId] = useState<string>(creator.id);
+  // Honor an `initialRole` hint when the caller wants to pre-fill (e.g. the
+  // GroupsTab "Add Group" button locks role to GROUP_LEADER). Fall back to
+  // the highest-rank role this creator can grant.
+  const defaultRole =
+    initialRole && allowedRoles.includes(initialRole)
+      ? initialRole
+      : allowedRoles[allowedRoles.length - 1];
+  const [role, setRole] = useState<UserRole>(defaultRole);
+  const [parentId, setParentId] = useState<string>(initialParentId ?? creator.id);
 
   // Result
   const [createdUser, setCreatedUser] = useState<User | null>(null);
@@ -100,20 +121,24 @@ export function CreateUserWizard({ open, onClose, creator, users, onCreated }: P
     setPhone('');
     setUsername('');
     setUsernameTouched(false);
-    setRole(allowedRoles[allowedRoles.length - 1]);
-    setParentId(creator.id);
+    setRole(defaultRole);
+    setParentId(initialParentId ?? creator.id);
     setCreatedUser(null);
     setCreatedPassword('');
-  }, [open, creator.id, allowedRoles]);
+  }, [open, creator.id, allowedRoles, defaultRole, initialParentId]);
 
   // Eligible parents: anyone within creator's "reach" (creator + same-role peers
   // are NOT valid parents — only people at or above the new role's level who
   // sit inside creator's subtree). For the prototype we keep it simple: allow
-  // any existing user whose role is >= the new role and != Member/Teacher.
+  // any existing user whose role is >= the new role and != Member.
+  // (Teacher is no longer a role in v1 — it's a tag.)
   const eligibleParents = useMemo(() => {
     return users.filter((u) => {
       const ix = (r: UserRole) => Object.values(UserRole).indexOf(r);
-      return ix(u.role) >= ix(role) && u.role !== UserRole.MEMBER && u.role !== UserRole.TEACHER;
+      // ADMIN-3: skip soft-deleted users so a deactivated leader doesn't
+      // appear in the parent picker.
+      if (u.isActive === false) return false;
+      return ix(u.role) >= ix(role) && u.role !== UserRole.MEMBER;
     });
   }, [users, role]);
 

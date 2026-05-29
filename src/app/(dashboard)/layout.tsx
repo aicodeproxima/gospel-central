@@ -8,12 +8,13 @@ import { Topbar } from '@/components/layout/Topbar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { TopbarSlotProvider } from '@/components/layout/TopbarSlot';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { Menu, X } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [immersiveOpen, setImmersiveOpen] = useState(false);
-  const { isAuthenticated, hydrated, hydrate } = useAuthStore();
+  const { isAuthenticated, hydrated, hydrate, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const isImmersive = pathname === '/groups';
@@ -30,10 +31,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Only redirect AFTER hydration has settled — prevents a login flash
   // on the first paint when the store is still empty but localStorage
   // does in fact have a valid session.
+  // Phase 6: also redirect to /first-login when the user is authenticated
+  // but carries the `mustChangePassword` flag (set on account creation +
+  // admin password reset). Locks the rest of the app until they choose
+  // their own password.
   useEffect(() => {
     if (!hydrated) return;
-    if (!isAuthenticated) router.replace('/login');
-  }, [hydrated, isAuthenticated, router]);
+    if (!isAuthenticated) {
+      router.replace('/login');
+      return;
+    }
+    if (user?.mustChangePassword === true) {
+      router.replace('/first-login');
+    }
+  }, [hydrated, isAuthenticated, user, router]);
 
   // Close the overlay sidebar when leaving the immersive page.
   // Kept ABOVE the hydration gate so rules-of-hooks order is preserved.
@@ -59,8 +70,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (isImmersive) {
     return (
       <div className="relative h-full w-full overflow-hidden">
-        {/* Fullscreen content */}
-        <div className="h-full w-full">{children}</div>
+        {/* Fullscreen content — wrapped so a render error in /groups
+             reports to /api/error-log with the viewer's id/role/url */}
+        <div className="h-full w-full">
+          <ErrorBoundary viewer={user} url={pathname}>
+            {children}
+          </ErrorBoundary>
+        </div>
 
         {/* Floating hamburger / close button — slides to the sidebar's right
             edge when the menu is open so it doesn't cover the sidebar header. */}
@@ -126,15 +142,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           {needsTopbar && <Topbar />}
           <div className="flex-1 overflow-auto p-6">
-            {children}
+            <ErrorBoundary viewer={user} url={pathname}>
+              {children}
+            </ErrorBoundary>
           </div>
         </motion.main>
 
-        {/* Mobile layout */}
-        <div className="flex flex-1 flex-col md:hidden">
+        {/* Mobile layout — H-03/H-05 follow-up: min-w-0 lets the flex
+             column shrink below its content's intrinsic min-width so
+             pages like /admin?tab=blocked don't blow out the viewport
+             when an inner element (mobile pill nav, matrix table) has
+             a natural width > 430px. Without this the column inherits
+             min-width: auto from its row-flex parent and the whole
+             page horizontally scrolls. */}
+        <div className="flex min-w-0 flex-1 flex-col md:hidden">
           {needsTopbar && <Topbar />}
-          <div className="flex-1 overflow-auto p-4 pb-20">
-            {children}
+          <div className="min-w-0 flex-1 overflow-auto p-4 pb-20">
+            <ErrorBoundary viewer={user} url={pathname}>
+              {children}
+            </ErrorBoundary>
           </div>
           <MobileNav />
         </div>

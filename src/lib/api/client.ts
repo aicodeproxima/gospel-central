@@ -4,17 +4,21 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
  * Thin fetch wrapper with:
  *  - Bearer auth pulled from localStorage.
  *  - Global 401 → wipe token + redirect to /login.
- *  - **Per-call AbortSignal** (audit M-2). Pages kick off queries inside
- *    useEffect; when the user navigates or a new query supersedes the
- *    old one, they can abort via `AbortController.abort()` and we'll
- *    throw a typed `AbortError` instead of racing out-of-order writes
- *    into component state.
+ *  - **Per-call AbortSignal** (audit M-2).
+ *  - **Typed `ApiError` for non-2xx responses** (audit BE-3) — callers can
+ *    distinguish 403 (permission) from 409 (conflict, e.g. blocked-slot
+ *    overlap, taken username) without parsing message strings.
  *
  * Error thrown is `AbortError` (DOMException name) when cancelled,
- * regular `Error` otherwise. Callers can do:
+ * `ApiError` for HTTP failures, regular `Error` for network failures.
+ * Callers can do:
  *
  *     try { await api.get(path, { signal: ctrl.signal }); }
- *     catch (e) { if (isAbortError(e)) return; throw e; }
+ *     catch (e) {
+ *       if (isAbortError(e)) return;
+ *       if (isApiError(e) && e.status === 409) showConflict(e.details);
+ *       throw e;
+ *     }
  */
 
 export interface RequestOptions {
@@ -27,6 +31,52 @@ export function isAbortError(err: unknown): boolean {
     err instanceof DOMException &&
     (err.name === 'AbortError' || err.name === 'TimeoutError')
   );
+}
+
+/**
+ * Documented error codes the backend should mirror — see
+ * docs/BACKEND_GAPS.md "Cross-cutting contracts" section.
+ */
+export type ApiErrorCode =
+  | 'PERMISSION_DENIED'
+  | 'BLOCKED_SLOT_CONFLICT'
+  | 'USERNAME_TAKEN'
+  | 'EMAIL_TAKEN'
+  | 'ROOM_NAME_TAKEN'
+  | 'INVALID_USERNAME'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'UNKNOWN';
+
+/**
+ * ApiError — typed wrapper for non-2xx responses.
+ *
+ * Properties:
+ *   - status: HTTP status code (403, 409, etc.)
+ *   - code:   stable string code from the backend body, or 'UNKNOWN'
+ *   - message: human-readable text (safe to display)
+ *   - details: anything extra the backend returned (conflict context, etc.)
+ */
+export class ApiError extends Error {
+  status: number;
+  code: ApiErrorCode;
+  details?: unknown;
+  constructor(opts: {
+    status: number;
+    code?: ApiErrorCode;
+    message: string;
+    details?: unknown;
+  }) {
+    super(opts.message);
+    this.name = 'ApiError';
+    this.status = opts.status;
+    this.code = opts.code ?? 'UNKNOWN';
+    this.details = opts.details;
+  }
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError;
 }
 
 class ApiClient {
@@ -73,8 +123,17 @@ class ApiClient {
     }
 
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      throw new Error(body.message || `Request failed: ${res.status}`);
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        code?: ApiErrorCode;
+        details?: unknown;
+      };
+      throw new ApiError({
+        status: res.status,
+        code: body.code,
+        message: body.message || `Request failed: ${res.status}`,
+        details: body.details,
+      });
     }
 
     return res.json();

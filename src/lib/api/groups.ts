@@ -2,12 +2,31 @@ import { api } from './client';
 import type { Group, OrgNode, AuditLogEntry } from '../types';
 import type { TeacherMetrics } from '../types/user';
 
+/** Shape returned by GET/PUT /settings/export-import. */
+export interface ExportImportSettings {
+  /** Node-id (Branch/Group/Team leader user id) → explicit On(true)/Off(false). */
+  overrides: Record<string, boolean>;
+  /** Global EXPORT_IMPORT_FOR_NON_ADMINS fallback for nodes with no override. */
+  default: boolean;
+}
+
 export const groupsApi = {
   getGroups() {
     return api.get<Group[]>('/groups');
   },
   getOrgTree() {
     return api.get<OrgNode[]>('/groups/tree');
+  },
+  /** Per-group CSV export/import overrides + the global default. */
+  getExportImportSettings() {
+    return api.get<ExportImportSettings>('/settings/export-import');
+  },
+  /**
+   * Set (value true/false) or clear (value null = inherit) one org node's
+   * export/import override. Returns the updated settings.
+   */
+  setExportImportOverride(nodeId: string, value: boolean | null) {
+    return api.put<ExportImportSettings>('/settings/export-import', { nodeId, value });
   },
   getTeacherMetrics(userId?: string) {
     const qs = userId ? `?userId=${userId}` : '';

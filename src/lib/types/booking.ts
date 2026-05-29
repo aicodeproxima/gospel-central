@@ -73,6 +73,9 @@ export interface Area {
   name: string;
   description?: string;
   rooms: Room[];
+  /** Soft-delete flag. When false the area + all its rooms are hidden from
+   *  the calendar's room picker but historical bookings are preserved. */
+  isActive?: boolean;
 }
 
 export interface Room {
@@ -81,6 +84,17 @@ export interface Room {
   name: string;
   capacity: number;
   features?: string[];
+  /** Soft-delete flag. When false the room is hidden from the picker but
+   *  historical bookings to it are preserved. */
+  isActive?: boolean;
+  /**
+   * ROOM-1: when false, the room is filtered out of the BookingWizard's
+   *  picker but otherwise behaves normally — used for service-only spaces
+   *  (e.g. Newport News Sanctuary + Fellowship) that exist in the room
+   *  list for completeness but never accept Bible-study bookings. Defaults
+   *  to true (any room without the flag is bookable).
+   */
+  isBookable?: boolean;
 }
 
 export interface Booking {
@@ -121,4 +135,39 @@ export interface BookingFormData {
   contactId?: string;
   participants: string[];
   editReason?: string;
+}
+
+/**
+ * A reserved time window that prevents bookings. No role can override.
+ *
+ * Two recurrence kinds:
+ *   - 'weekly'  → repeats every week on `dayOfWeek` from `startTime` to `endTime`
+ *                 (these are the seeded service times: Tue 8pm, Sat 9am/3pm/8pm)
+ *   - 'one-off' → a single absolute window via `startDateTime`/`endDateTime`
+ *                 (e.g. Christmas Day all-day, room maintenance, etc.)
+ *
+ * Two scopes:
+ *   - 'global' → applies to every area (every branch's calendar)
+ *   - 'area'   → applies only to the area whose id matches `areaId`
+ */
+export interface BlockedSlot {
+  id: string;
+  scope: 'global' | 'area';
+  /** Required when scope === 'area'. */
+  areaId?: string;
+  recurrence: 'weekly' | 'one-off';
+  /** 0=Sunday, 1=Monday, ..., 6=Saturday. Required for weekly. */
+  dayOfWeek?: number;
+  /** 'HH:mm' (24-hour). Required for weekly. */
+  startTime?: string;
+  endTime?: string;
+  /** ISO datetime. Required for one-off. */
+  startDateTime?: string;
+  endDateTime?: string;
+  /** Free text shown in the hover tooltip on the calendar block. */
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+  /** When true, hides the slot from the calendar without deleting it. */
+  isActive?: boolean;
 }

@@ -42,10 +42,10 @@ If you skip the deploy step, the user won't be able to test your change and will
 
 ---
 
-## 🧪 Verification (Chrome browser, NOT preview)
+## 🧪 Verification (Playwright, NOT preview)
 
-### Use Chrome MCP for verification
-The user has an **actual Chrome browser open** on their machine. They also explicitly told me to use Chrome MCP (`mcp__Claude_in_Chrome__*` tools) instead of `mcp__Claude_Preview__*` tools going forward — saved as a feedback memory.
+### Use Playwright MCP for verification (UPDATED)
+The user has switched to Playwright MCP (`mcp__playwright__*`) as the primary browser-automation tool — see global `~/.claude/CLAUDE.md`. Always run Playwright in headed (visible) mode so the user can watch. Do NOT use `mcp__Claude_in_Chrome__*` unless the user explicitly asks for it; do NOT use `preview_*` tools either.
 
 **Never use `preview_start` / `preview_screenshot` for verification on this project.** The Claude Preview server has a serious issue where its tab context blocks `requestAnimationFrame` entirely, which freezes the Three.js render loop in the 3D tree. You'll see cards in the DOM but a blank black canvas, and camera animations won't play.
 
@@ -105,7 +105,7 @@ There's a stop hook that fires when you edit code without running preview verifi
 The user is on Windows 11 running bash (use Unix-style paths inside bash commands, e.g. `/c/Users/aicod/Diamond`).
 
 ### Git
-**No git repo in this project.** All changes are deployed directly to Vercel. No branches, no PRs, no commits. Just edit → build → deploy.
+A git repo lives at `C:\Users\aicod\Diamond`. The active feature branch is **`feat/admin-system`**, which is intentionally **local-only until Phase 8** — Mike's backend auto-scanner watches the GitHub repo and would clobber his WIP if it saw this branch. Don't push it. Local commits are encouraged; deploy via the `vercel --prod` CLI (which uploads the working dir directly, no git push needed).
 
 ### Package manager
 `npm`. `npm run build` to type-check, `npm run dev` works but you won't use it — deploy to Vercel instead.
@@ -116,11 +116,11 @@ The user is on Windows 11 running bash (use Unix-style paths inside bash command
 All 132 mock accounts use password `admin`. Useful logins:
 - `admin` / `admin` — Michael (Developer, top of tree)
 - `stephen` / `admin` — Stephen Wright (Developer, sibling)
-- `overseer1` — David Park
-- `branch1–4` — Branch Leaders (Sarah Johnson, James Wilson, Rachel Kim, Daniel Lee)
-- `group1–10` — Group Leaders (also Teachers)
-- `team1–15` — Team Leaders (also Teachers)
-- `member1–100` — Members (all baptized)
+- `overseer1` — Gabriel (Overseer)
+- `branch1–5` — Branch Leaders (Joseph, Zechariah, John the Baptist, Simeon, Simon Peter — male biblical, one per Zion branch)
+- `group1–10` — Group Leaders (all carry the `teacher` tag)
+- `team1–15` — Team Leaders (all carry the `teacher` tag)
+- `member1–99` — Members (all baptized; ~20 carry the `teacher` tag)
 
 The mock login handler in `src/mocks/handlers.ts` validates `password === 'admin'` for any registered username.
 

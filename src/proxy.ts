@@ -4,25 +4,31 @@ import type { NextRequest } from 'next/server';
 /**
  * Server-side auth gate.
  *
+ * Renamed from `middleware.ts` → `proxy.ts` (audit M-08) — the
+ * `middleware` filename + export was deprecated in Next.js 16 in favor of
+ * `proxy`. Behavior is unchanged.
+ *
  * Current state: there is no real backend, so tokens are minted by the
  * MSW mock login handler and mirrored from localStorage into a
  * `diamond-session` cookie (see lib/stores/auth-store.ts) so this
- * middleware can observe them. The cookie is NOT httpOnly — it is
+ * proxy can observe them. The cookie is NOT httpOnly — it is
  * readable from JS — so XSS exfiltration is still a risk. This is a
  * known deferred item (audit C-2). When the real Go backend is wired,
  * tokens must move to a Set-Cookie httpOnly SameSite=Lax flow and the
  * localStorage/cookie mirror must be removed.
  *
- * For now this middleware does:
+ * For now this proxy does:
  *   - allow `/login`, `/_next`, `/favicon.ico`, `/mockServiceWorker.js`,
  *     and avatar assets through unconditionally
  *   - redirect any other route to `/login` when the session cookie is
  *     missing or empty
  *   - forward everything else
  *
- * Role-based gating (Reports = Branch Leader+, Settings avatar picker =
- * Team Leader+) is still client-side only until the real backend can
- * attest a role claim we can trust. Flagged in audit C-1.
+ * Role-based gating (Reports = Branch Leader+, Admin = Branch Leader+,
+ * Settings avatar picker = Team Leader+) is still client-side only until
+ * the real backend can attest a role claim we can trust. Pages that need
+ * gating call canSeeX() in a useEffect and redirect to /dashboard.
+ * Flagged in audit C-1.
  */
 const PUBLIC_PREFIXES = [
   '/login',
@@ -32,7 +38,7 @@ const PUBLIC_PREFIXES = [
   '/avatars',
 ];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Root is handled client-side by src/app/page.tsx, which hydrates
