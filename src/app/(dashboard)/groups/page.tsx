@@ -84,7 +84,9 @@ export default function GroupsPage() {
   // nodes are never hidden behind it; clear the bottom nav on phones too.
   // Desktop (≥xl) keeps the canvas at inset-0 (unchanged).
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const [toolbarH, setToolbarH] = useState(0);
+  // Sane default (~2-row mobile toolbar) so the canvas is offset on the very
+  // first paint even before the ResizeObserver measures; refined below.
+  const [toolbarH, setToolbarH] = useState(150);
   const [isBelowXl, setIsBelowXl] = useState(false);
   const [isPhone, setIsPhone] = useState(false);
   useEffect(() => {
@@ -105,8 +107,14 @@ export default function GroupsPage() {
   useEffect(() => {
     const el = toolbarRef.current;
     if (!el) return;
-    const update = () => setToolbarH(el.offsetHeight);
+    // Only accept positive measurements — keep the sane default if a layout
+    // race ever reports 0 (observed on cold mount).
+    const update = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setToolbarH(h);
+    };
     update();
+    requestAnimationFrame(update);
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();

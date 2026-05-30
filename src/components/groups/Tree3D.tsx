@@ -605,7 +605,11 @@ function SceneContent({
         let cx = centerX;
         let cy = centerY - 2;
         let distance = fitFor(width, height);
-        if (distance > cap) {
+        // Only cap WIDE subtrees — the cap exists to stop horizontally-adjacent
+        // sibling cards from overlapping when zoomed out. A tall, narrow subtree
+        // (e.g. a single-child chain) has no horizontal crowding, so fit its full
+        // height; otherwise the lowest card clips off the bottom of the screen.
+        if (width > 8 && distance > cap) {
           // Too wide/tall to show legibly — reframe on node + direct children.
           const near = new Set<string>([nodeId]);
           root.node.children.forEach((c) => near.add(c.id));
