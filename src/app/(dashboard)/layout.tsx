@@ -156,12 +156,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
         </div>
 
-        {/* Main content */}
+        {/* Main content. min-w-0 lets this flex column shrink below its
+            content's intrinsic width so the 768–1279 tablet band reflows
+            within the viewport instead of overflowing (and getting clipped
+            by the global overflow-x:clip). Inert at ≥1280 where content
+            fits — desktop unchanged. */}
         <motion.main
           initial={false}
           animate={{ marginLeft: effectiveCollapsed ? 72 : 256 }}
           transition={{ duration: 0.2, ease: 'easeInOut' }}
-          className="hidden flex-1 flex-col md:flex"
+          className="hidden min-w-0 flex-1 flex-col md:flex"
         >
           {needsTopbar && <Topbar />}
           <div className="flex-1 overflow-auto p-6">
