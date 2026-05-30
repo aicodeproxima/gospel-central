@@ -113,29 +113,31 @@ export function RoomsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between max-xl:gap-3">
+        <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold">Rooms & Areas</h2>
           <p className="text-xs text-muted-foreground">
             Each area is a physical church location. Branch Leaders+ may add rooms in any area.
             Deactivating a room hides it from the booking picker; historical bookings are preserved.
           </p>
         </div>
-        <div className="flex gap-2">
+        {/* Buttons may wrap among themselves on <xl so they never push page
+            width; ≥1280 unchanged (single row). */}
+        <div className="flex gap-2 max-xl:shrink-0 max-xl:flex-wrap max-xl:justify-end">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowInactive((s) => !s)}
-            className="gap-1.5"
+            className="gap-1.5 touch-manipulation max-xl:h-11"
           >
             {showInactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {showInactive ? 'Hide inactive' : 'Show inactive'}
           </Button>
-          <Button variant="outline" size="icon" onClick={reload} title="Refresh">
+          <Button variant="outline" size="icon" onClick={reload} title="Refresh" aria-label="Refresh rooms and areas" className="touch-manipulation max-xl:h-11 max-xl:w-11">
             <RefreshCw className="h-4 w-4" />
           </Button>
           {canCreateArea(viewer) && (
-            <Button size="sm" className="gap-1.5" onClick={() => setCreateAreaOpen(true)}>
+            <Button size="sm" className="gap-1.5 touch-manipulation max-xl:h-11" onClick={() => setCreateAreaOpen(true)}>
               <Plus className="h-4 w-4" />
               Add Area
             </Button>
@@ -309,9 +311,9 @@ function AreaCard({
               <p className="mt-1 text-xs text-muted-foreground">{area.description}</p>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {canManageThis && (
-              <Button variant="ghost" size="icon" onClick={onEditArea} aria-label="Edit area">
+              <Button variant="ghost" size="icon" onClick={onEditArea} aria-label="Edit area" className="touch-manipulation max-xl:h-11 max-xl:w-11">
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
@@ -321,7 +323,7 @@ function AreaCard({
                 size="icon"
                 onClick={() => onToggleArea('deactivate')}
                 aria-label="Deactivate area"
-                className="text-destructive"
+                className="text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
               >
                 <Power className="h-4 w-4" />
               </Button>
@@ -332,6 +334,7 @@ function AreaCard({
                 size="icon"
                 onClick={() => onToggleArea('restore')}
                 aria-label="Restore area"
+                className="touch-manipulation max-xl:h-11 max-xl:w-11"
               >
                 <Power className="h-4 w-4" />
               </Button>
@@ -364,7 +367,7 @@ function AreaCard({
         {/* Footer — Add Room */}
         {canCreateRoomsHere && !inactive && (
           <div className="pt-1">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onAddRoom}>
+            <Button variant="outline" size="sm" className="gap-1.5 touch-manipulation max-xl:h-11" onClick={onAddRoom}>
               <Plus className="h-4 w-4" />
               Add Room
             </Button>
@@ -414,7 +417,7 @@ function RoomRow({
       </div>
       {canEdit && (
         <>
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit room" className="h-7 w-7">
+          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit room" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           {!inactive && (
@@ -423,7 +426,7 @@ function RoomRow({
               size="icon"
               onClick={() => onToggle('deactivate')}
               aria-label="Deactivate room"
-              className="h-7 w-7 text-destructive"
+              className="h-7 w-7 shrink-0 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <Power className="h-3.5 w-3.5" />
             </Button>
@@ -434,7 +437,7 @@ function RoomRow({
               size="icon"
               onClick={() => onToggle('restore')}
               aria-label="Restore room"
-              className="h-7 w-7"
+              className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <Power className="h-3.5 w-3.5" />
             </Button>

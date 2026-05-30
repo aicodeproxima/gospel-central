@@ -34,7 +34,7 @@ export function BookingTypeSelector({ value, onChange }: BookingTypeSelectorProp
             whileTap={{ scale: 0.97 }}
             onClick={() => onChange(type)}
             className={cn(
-              'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all',
+              'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all touch-manipulation',
               isSelected
                 ? 'border-primary bg-primary/10 shadow-md'
                 : 'border-border hover:border-primary/40 hover:bg-accent/50',

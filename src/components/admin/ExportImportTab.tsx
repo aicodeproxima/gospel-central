@@ -313,7 +313,8 @@ function NodeRow({
           type="button"
           onClick={() => hasChildren && onToggle(user.id)}
           className={cn(
-            'flex h-6 w-6 items-center justify-center rounded text-muted-foreground',
+            // h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl.
+            'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground touch-manipulation max-xl:h-11 max-xl:w-11',
             hasChildren ? 'hover:bg-accent' : 'opacity-0 pointer-events-none',
           )}
           aria-label={isOpen ? 'Collapse' : 'Expand'}
@@ -403,7 +404,8 @@ function TriState({
             disabled={busy}
             onClick={() => !active && onChange(o.v)}
             className={cn(
-              'px-2.5 py-1 text-xs transition-colors',
+              // ≥44px touch target below xl; unchanged compact size at ≥1280.
+              'px-2.5 py-1 text-xs transition-colors touch-manipulation max-xl:min-h-11 max-xl:px-3',
               i > 0 && 'border-l border-border',
               active
                 ? 'bg-primary text-primary-foreground'

@@ -14,6 +14,11 @@ import { Menu, X } from 'lucide-react';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [immersiveOpen, setImmersiveOpen] = useState(false);
+  // Tablet band (768–1279px) renders the sidebar as an icon rail for more
+  // content room. At ≥1280 `tabletRail` is always false, so the user's
+  // `collapsed` state drives the sidebar exactly as before (desktop
+  // unchanged). <768 uses the bottom-nav branch instead.
+  const [tabletRail, setTabletRail] = useState(false);
   const { isAuthenticated, hydrated, hydrate, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -51,6 +56,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isImmersive) setImmersiveOpen(false);
   }, [isImmersive]);
+
+  // Track the tablet band so the sidebar renders as an icon rail there.
+  // Client-only (post-hydration) so there's no SSR width mismatch.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px) and (max-width: 1279px)');
+    const apply = () => setTabletRail(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   // Block render until hydration finishes. Avoids both the flash and
   // the stale-user-data problem where a component reads `user` before
@@ -125,18 +140,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   // -- Standard layout ------------------------------------------------------
+  // Tablet forces the rail; ≥1280 uses the user's collapsed state unchanged.
+  const effectiveCollapsed = tabletRail || collapsed;
   return (
     <TopbarSlotProvider>
       <div className="flex h-full">
-        {/* Desktop sidebar */}
+        {/* Desktop + tablet sidebar. Tablet (768–1279) is forced to the icon
+            rail; ≥1280 keeps the user-togglable collapsed state (unchanged). */}
         <div className="hidden md:block">
-          <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+          <Sidebar
+            collapsed={effectiveCollapsed}
+            onToggle={() => {
+              if (!tabletRail) setCollapsed((c) => !c);
+            }}
+          />
         </div>
 
         {/* Main content */}
         <motion.main
           initial={false}
-          animate={{ marginLeft: collapsed ? 72 : 256 }}
+          animate={{ marginLeft: effectiveCollapsed ? 72 : 256 }}
           transition={{ duration: 0.2, ease: 'easeInOut' }}
           className="hidden flex-1 flex-col md:flex"
         >
@@ -157,7 +180,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
              page horizontally scrolls. */}
         <div className="flex min-w-0 flex-1 flex-col md:hidden">
           {needsTopbar && <Topbar />}
-          <div className="min-w-0 flex-1 overflow-auto p-4 pb-20">
+          <div className="min-w-0 flex-1 overflow-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
             <ErrorBoundary viewer={user} url={pathname}>
               {children}
             </ErrorBoundary>

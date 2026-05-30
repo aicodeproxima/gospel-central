@@ -452,8 +452,11 @@ export default function ContactsPage() {
       )}
 
       {/* Filter bar */}
+      {/* mobile: search spans full width and the filter selects go full-width
+          below md so the controls stack cleanly; ≥md (incl. desktop ≥xl)
+          keeps the inline fixed-width row unchanged. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1 min-w-[200px] max-w-sm max-md:w-full max-md:max-w-none max-md:flex-none">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 pr-9"
@@ -473,7 +476,7 @@ export default function ContactsPage() {
         </div>
 
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'all')}>
-          <SelectTrigger className="w-[170px]">
+          <SelectTrigger className="w-[170px] max-md:flex-1">
             <Filter className="mr-1.5 h-3.5 w-3.5" />
             <SelectValue placeholder="Type" />
           </SelectTrigger>
@@ -486,7 +489,7 @@ export default function ContactsPage() {
         </Select>
 
         <Select value={sortKey} onValueChange={(v) => setSortKey((v ?? 'name') as SortKey)}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px] max-md:flex-1">
             <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
             <SelectValue />
           </SelectTrigger>
@@ -498,11 +501,12 @@ export default function ContactsPage() {
         </Select>
 
         <div className="flex items-center rounded-md border border-border p-0.5">
+          {/* icon toggles: larger tap area below xl (touch), desktop ≥xl unchanged */}
           <button
             type="button"
             onClick={() => setViewMode('grid')}
             className={cn(
-              'rounded px-2 py-1 transition-colors',
+              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
               viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.gridView')}
@@ -513,7 +517,7 @@ export default function ContactsPage() {
             type="button"
             onClick={() => setViewMode('kanban')}
             className={cn(
-              'rounded px-2 py-1 transition-colors',
+              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
               viewMode === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.kanbanView')}
@@ -556,7 +560,8 @@ export default function ContactsPage() {
           }}
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        // mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged
+        <div className="grid gap-3 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-3">
           <AnimatePresence mode="popLayout">
             {filtered.map((contact) => (
               <motion.div

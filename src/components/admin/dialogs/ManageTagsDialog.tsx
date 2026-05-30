@@ -114,7 +114,7 @@ export function ManageTagsDialog({ open, user, actorId, allTagOptions, onClose }
                   key={tag}
                   type="button"
                   onClick={() => toggle(tag)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors touch-manipulation max-md:py-2 ${
                     on
                       ? 'border-primary/50 bg-primary/15 text-primary'
                       : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
@@ -144,7 +144,7 @@ export function ManageTagsDialog({ open, user, actorId, allTagOptions, onClose }
                 placeholder="e.g. worship_team"
                 className="flex-1"
               />
-              <Button onClick={addCustom} variant="outline" size="sm">
+              <Button onClick={addCustom} variant="outline" size="sm" className="touch-manipulation max-md:h-11 max-md:px-4">
                 Add
               </Button>
             </div>

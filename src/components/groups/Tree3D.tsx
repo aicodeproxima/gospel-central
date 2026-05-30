@@ -131,6 +131,8 @@ interface NodeCardProps {
   onFocus: () => void;
   /** Tight zoom on just the node — used on collapse. */
   onFocusTight: () => void;
+  /** <1280px (tablet/phone): narrower card so framed siblings don't overlap. */
+  compact: boolean;
 }
 
 function NodeCardInner({
@@ -146,6 +148,7 @@ function NodeCardInner({
   onFilter,
   onFocus,
   onFocusTight,
+  compact,
 }: NodeCardProps) {
   const { tRole, tStage } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
@@ -177,7 +180,7 @@ function NodeCardInner({
         position={[0, -1.3, 0]}
         center
         zIndexRange={[40, 0]}
-        style={{ width: 220, pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <div
           className="rounded-md border border-white/20 bg-card/95 backdrop-blur px-3 py-2 text-left shadow-xl"
@@ -204,7 +207,8 @@ function NodeCardInner({
                 onFocusTight();
               }
             }}
-            className="flex items-center gap-1.5 w-full text-left cursor-pointer"
+            className="flex items-center gap-1.5 w-full text-left cursor-pointer touch-manipulation"
+            style={{ minHeight: compact ? 44 : undefined }}
           >
             {hasChildrenOrContacts && (
               <ChevronRight
@@ -294,6 +298,7 @@ interface ContactLeaf3DProps {
   y: number;
   onOpen: () => void;
   onFocus: () => void;
+  compact: boolean;
 }
 
 function ContactLeaf3DInner({
@@ -302,6 +307,7 @@ function ContactLeaf3DInner({
   y,
   onOpen,
   onFocus,
+  compact,
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -328,7 +334,7 @@ function ContactLeaf3DInner({
         position={[0, -0.9, 0]}
         center
         zIndexRange={[30, 0]}
-        style={{ width: 220, pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <button
           type="button"
@@ -469,6 +475,17 @@ function SceneContent({
 }: Tree3DProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  // <1280px: compact cards + readability-capped framing so framed siblings
+  // don't overlap on a phone/tablet. ≥1280 keeps full-size cards + the
+  // original framing. Client-only (the Canvas is dynamically ssr:false).
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1279px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   // Compute which contacts to show for each expanded node
   const visibleContactsByNode = useMemo(() => {
@@ -556,10 +573,50 @@ function SceneContent({
       const width = maxX - minX;
       const height = maxY - minY;
 
-      // Pick a camera distance that fits the whole bounding box PLUS room
-      // for the cards (which extend ~3 units below each platform) and the
-      // glowing border margins. We bias the framing so the camera pulls
-      // back generously and never crops the subtree.
+      // Compact (<1280): aspect-aware fit with a readability CAP so the
+      // ~156px cards never zoom out into an unreadable, overlapping pile on
+      // a narrow phone/tablet. If the whole subtree can't fit at a readable
+      // zoom, frame the node + its DIRECT children instead and let the user
+      // pan/pinch to explore the rest (the "Smart-Fit" model).
+      if (compact) {
+        const aspect =
+          window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 0.5;
+        const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+        const fitFor = (w: number, h: number) =>
+          Math.max((h / 2 + 3) / tan, (w / 2 + 3) / (tan * aspect), 12);
+        // Distance beyond which adjacent ~156px cards would visually collide
+        // (derived from card px ÷ world-units-per-px at the given viewport).
+        const cap = ((5 * window.innerHeight) / (160 * 2 * tan)) * 0.95;
+        let cx = centerX;
+        let cy = centerY - 2;
+        let distance = fitFor(width, height);
+        if (distance > cap) {
+          // Too wide/tall to show legibly — reframe on node + direct children.
+          const near = new Set<string>([nodeId]);
+          root.node.children.forEach((c) => near.add(c.id));
+          const npts: Array<[number, number]> = [];
+          layout.nodes.forEach((n) => {
+            if (near.has(n.id)) npts.push([n.x, n.y]);
+          });
+          if (npts.length > 0) {
+            const nxs = npts.map((p) => p[0]);
+            const nys = npts.map((p) => p[1]);
+            const nMinX = Math.min(...nxs);
+            const nMaxX = Math.max(...nxs);
+            const nMinY = Math.min(...nys);
+            const nMaxY = Math.max(...nys);
+            cx = (nMinX + nMaxX) / 2;
+            cy = (nMinY + nMaxY) / 2 - 1.5;
+            distance = Math.min(cap, fitFor(nMaxX - nMinX, nMaxY - nMinY));
+          } else {
+            distance = cap;
+          }
+        }
+        return { center: [cx, cy, 0], distance };
+      }
+
+      // Desktop (≥1280) — original framing, unchanged. Pick a camera
+      // distance that fits the whole bounding box plus card/border margins.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
       const size = Math.max(paddedWidth, paddedHeight, 10);
@@ -572,7 +629,7 @@ function SceneContent({
         distance,
       };
     },
-    [layout, contacts],
+    [layout, contacts, compact],
   );
 
   /** Zoom in tight on a single node — used by the Jump-to picker. */
@@ -773,6 +830,7 @@ function SceneContent({
             onFilter={handleFilterById[ln.id]}
             onFocus={handleFocusById[ln.id]}
             onFocusTight={handleFocusTightById[ln.id]}
+            compact={compact}
           />
         );
       })}
@@ -786,6 +844,7 @@ function SceneContent({
           y={lc.y}
           onOpen={handleContactOpenById[lc.id]}
           onFocus={handleContactFocusById[lc.id]}
+          compact={compact}
         />
       ))}
 

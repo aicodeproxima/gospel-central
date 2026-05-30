@@ -243,7 +243,7 @@ export function ContactForm({
                   placeholder="New group name"
                   autoFocus
                 />
-                <Button type="button" variant="outline" size="sm" onClick={() => setNewGroupMode(false)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setNewGroupMode(false)} className="touch-manipulation max-md:h-11 max-md:px-4">
                   Cancel
                 </Button>
               </div>
@@ -262,7 +262,7 @@ export function ContactForm({
                   variant="outline"
                   size="sm"
                   onClick={() => setNewGroupMode(true)}
-                  className="gap-1"
+                  className="gap-1 touch-manipulation max-md:h-11 max-md:px-4"
                 >
                   <Plus className="h-3 w-3" />
                   New
@@ -337,9 +337,11 @@ export function ContactForm({
             />
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black">
+          {/* Actions — sticky bottom bar on phones so the primary Save stays
+              reachable while the form scrolls in the bottom sheet; pb-safe
+              clears the home indicator. Desktop keeps the inline row. */}
+          <div className="flex gap-3 pt-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:border-t max-md:border-border max-md:bg-popover max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:pt-3">
+            <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black touch-manipulation">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {contact ? 'Save Changes' : 'Create Contact'}
             </Button>
@@ -349,7 +351,7 @@ export function ContactForm({
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={loading}
-                className="h-11 gap-2"
+                className="h-11 gap-2 touch-manipulation"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete

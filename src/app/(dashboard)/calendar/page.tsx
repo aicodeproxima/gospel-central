@@ -117,7 +117,11 @@ export default function CalendarPage() {
 
   // Swipe-to-navigate: detect horizontal swipe gestures on the
   // calendar grid so users can swipe left/right to go forward/back.
-  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  // `fromHScroller` is set at touch-start when the gesture begins inside an
+  // element that can actually scroll horizontally (Day/Week grids on mobile).
+  // In that case we let the native inner scroll win and DON'T navigate, so
+  // dragging the week sideways scrolls the columns instead of jumping a week.
+  const touchStartRef = useRef<{ x: number; y: number; t: number; fromHScroller: boolean } | null>(null);
   const swipeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,15 +132,38 @@ export default function CalendarPage() {
     const MAX_VERTICAL = 80;    // px max vertical drift (ignore diagonal)
     const MAX_TIME = 500;       // ms max swipe duration
 
+    // Does the gesture start inside a horizontally-scrollable, overflowing
+    // element (between the touch target and the swipe container)? If so the
+    // user is scrolling the grid, not navigating periods.
+    const startedInHorizontalScroller = (target: EventTarget | null): boolean => {
+      let node = target as HTMLElement | null;
+      while (node && node !== el) {
+        if (node.scrollWidth > node.clientWidth + 1) {
+          const overflowX = getComputedStyle(node).overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll') return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
-      touchStartRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        t: Date.now(),
+        fromHScroller: startedInHorizontalScroller(e.target),
+      };
     };
 
     const onTouchEnd = (e: TouchEvent) => {
       const start = touchStartRef.current;
       if (!start) return;
       touchStartRef.current = null;
+
+      // Gesture was scrolling an inner horizontal scroller — leave it alone.
+      if (start.fromHScroller) return;
 
       const touch = e.changedTouches[0];
       const dx = touch.clientX - start.x;
@@ -213,6 +240,18 @@ export default function CalendarPage() {
     return format(selectedDate, 'MMMM yyyy');
   }, [selectedDate, view]);
 
+  // Short label for the compact (<xl) toolbar — the full `dateLabel` is too
+  // wide for a phone's single toolbar row.
+  const dateLabelShort = useMemo(() => {
+    if (view === 'day') return format(selectedDate, 'EEE, MMM d');
+    if (view === 'week') {
+      const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+      return `${format(ws, 'MMM d')} – ${format(we, 'MMM d')}`;
+    }
+    return format(selectedDate, 'MMM yyyy');
+  }, [selectedDate, view]);
+
   // EXPORT-3: row mapper + columns for the calendar CSV export. Resolves
   // foreign-key fields (room/area/teacher/contact) from the lists already
   // loaded on the page.
@@ -284,90 +323,184 @@ export default function CalendarPage() {
   // Mount the page's toolbar into the global Topbar so the calendar grid
   // gets the full content area below. Re-runs whenever any value the JSX
   // references changes — include them all in the deps.
+  //
+  // MOBILE: the Topbar is a fixed single 64px row (components/layout/Topbar),
+  // so the full desktop toolbar (8 controls) overflows it below xl. We
+  // dual-render: the ORIGINAL toolbar is gated `hidden xl:flex` (byte-identical
+  // ≥1280), and a COMPACT toolbar (`xl:hidden`) holds just the essentials in a
+  // single row that scrolls horizontally INSIDE itself (overflow-x-auto +
+  // overscroll-contain) so the page body never scrolls sideways. The search bar
+  // and CSV export are relocated out of the cramped topbar into a dedicated
+  // full-width control row at the top of the page body (also `xl:hidden`).
   useTopbarSlot(
     (
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
-          Today
-        </Button>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            aria-label="Previous period"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      <>
+        {/* ≥1280: untouched desktop toolbar. */}
+        <div className="hidden min-w-0 flex-1 items-center gap-3 xl:flex">
+          <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
+            Today
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(1)}
-            aria-label="Next period"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              aria-label="Previous period"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(1)}
+              aria-label="Next period"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          <h2 className="hidden whitespace-nowrap text-base font-semibold lg:block">
+            {dateLabel}
+          </h2>
+          <InfoButton {...calendarHelp} />
+
+          <div className="min-w-[180px] flex-1 max-w-sm">
+            <BookingSearchBar
+              bookings={bookings}
+              users={users}
+              rooms={rooms}
+              onJumpToBooking={(b) => {
+                const d = new Date(b.startTime);
+                setDate(d);
+                setView('day');
+              }}
+            />
+          </div>
+
+          <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Select area" />
+            </SelectTrigger>
+            <SelectContent>
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
+               area + date-range slice on screen. All = wider 5-year window
+               across all branches. Admin-tier only unless canExportImport's
+               feature flag is enabled. */}
+          {canExportImport(viewer) && (
+            <ExportDropdown
+              currentRows={bookings}
+              loadAll={loadAllBookings}
+              columns={bookingColumns}
+              toRow={bookingToRow}
+              filenamePrefix="diamond-bookings"
+              allLabel="All bookings (5-year window)"
+            />
+          )}
+
+          <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
+            <TabsList>
+              <TabsTrigger value="day">Day</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="month">Month</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Button onClick={() => openBookingModal()} size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            Book
           </Button>
         </div>
-        <h2 className="hidden whitespace-nowrap text-base font-semibold lg:block">
-          {dateLabel}
-        </h2>
-        <InfoButton {...calendarHelp} />
 
-        <div className="min-w-[180px] flex-1 max-w-sm">
-          <BookingSearchBar
-            bookings={bookings}
-            users={users}
-            rooms={rooms}
-            onJumpToBooking={(b) => {
-              const d = new Date(b.startTime);
-              setDate(d);
-              setView('day');
-            }}
-          />
+        {/* <1280: compact single-row toolbar. Scrolls horizontally INSIDE
+             itself if it can't fit (e.g. a long area name on a 320px phone) so
+             the page body never gains a horizontal scrollbar. Search + export
+             live in the in-page control row below instead. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden xl:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setDate(new Date())}
+          >
+            Today
+          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              aria-label="Previous period"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(1)}
+              aria-label="Next period"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+
+          {/* Compact date label — shown from sm up; on the very narrowest
+               phones it's hidden (the in-page row repeats it) to save space. */}
+          <h2 className="hidden shrink-0 whitespace-nowrap text-sm font-semibold sm:block">
+            {dateLabelShort}
+          </h2>
+
+          {/* Segmented view switcher — single letters on the tightest screens. */}
+          <Tabs
+            value={view}
+            onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}
+            className="shrink-0"
+          >
+            <TabsList>
+              <TabsTrigger value="day" aria-label="Day view">
+                <span className="max-[420px]:hidden">Day</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">D</span>
+              </TabsTrigger>
+              <TabsTrigger value="week" aria-label="Week view">
+                <span className="max-[420px]:hidden">Week</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">W</span>
+              </TabsTrigger>
+              <TabsTrigger value="month" aria-label="Month view">
+                <span className="max-[420px]:hidden">Month</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">M</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
+            <SelectTrigger className="w-[120px] shrink-0">
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            onClick={() => openBookingModal()}
+            size="sm"
+            className="ml-auto shrink-0 gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Book
+          </Button>
         </div>
-
-        <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Select area" />
-          </SelectTrigger>
-          <SelectContent>
-            {areas.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
-             area + date-range slice on screen. All = wider 5-year window
-             across all branches. Admin-tier only unless canExportImport's
-             feature flag is enabled. */}
-        {canExportImport(viewer) && (
-          <ExportDropdown
-            currentRows={bookings}
-            loadAll={loadAllBookings}
-            columns={bookingColumns}
-            toRow={bookingToRow}
-            filenamePrefix="diamond-bookings"
-            allLabel="All bookings (5-year window)"
-          />
-        )}
-
-        <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
-          <TabsList>
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <Button onClick={() => openBookingModal()} size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Book
-        </Button>
-      </div>
+      </>
     ),
     [
       dateLabel,
+      dateLabelShort,
       view,
       selectedAreaId,
       areas,
@@ -388,6 +521,44 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
+      {/* In-page control row — ONLY <xl. The desktop toolbar (≥xl) keeps search
+           + export in the Topbar; below xl that single 64px row can't hold them
+           without overflow, so they stack full-width here. Stays inside the
+           page body (no horizontal page scroll). */}
+      <div className="space-y-2 xl:hidden">
+        {/* Full date label, so phones that hide it in the compact toolbar
+             (below sm) still always see the current period. */}
+        <h2 className="whitespace-nowrap text-sm font-semibold sm:hidden">
+          {dateLabel}
+        </h2>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <BookingSearchBar
+              bookings={bookings}
+              users={users}
+              rooms={rooms}
+              onJumpToBooking={(b) => {
+                const d = new Date(b.startTime);
+                setDate(d);
+                setView('day');
+              }}
+            />
+          </div>
+          {canExportImport(viewer) && (
+            <div className="shrink-0">
+              <ExportDropdown
+                currentRows={bookings}
+                loadAll={loadAllBookings}
+                columns={bookingColumns}
+                toRow={bookingToRow}
+                filenamePrefix="diamond-bookings"
+                allLabel="All bookings (5-year window)"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Legend */}
       <div className="flex flex-wrap gap-2">
         {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (

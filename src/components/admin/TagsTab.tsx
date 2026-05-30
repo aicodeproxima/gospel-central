@@ -98,7 +98,7 @@ export function TagsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <TagIcon className="h-5 w-5 text-primary" />
             Tags
@@ -110,18 +110,19 @@ export function TagsTab() {
             {!canEdit && ' Branch Leaders see this catalog as view-only.'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
             size="icon"
             onClick={reload}
             title="Refresh"
             aria-label="Refresh tag definitions"
+            className="touch-manipulation max-xl:h-11 max-xl:w-11"
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
           {canEdit && (
-            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" className="gap-1.5 touch-manipulation max-xl:h-11" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               Define Tag
             </Button>

@@ -324,6 +324,7 @@ export function UsersTab() {
           onClick={reload}
           title="Refresh"
           aria-label="Refresh users list"
+          className="touch-manipulation max-xl:h-11 max-xl:w-11"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -355,8 +356,10 @@ export function UsersTab() {
 
       {/* Table — UI-3: overflow-x-auto wrapper so the 6-column table
            horizontally scrolls inside its card on 390-wide viewports
-           instead of forcing page-level horizontal pan. */}
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
+           instead of forcing page-level horizontal pan.
+           MOBILE: dual-render — the table is desktop-only (≥1280); below xl
+           the same rows render as stacked <UserCard>s (see card list below). */}
+      <div className="hidden xl:block rounded-lg border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -418,6 +421,47 @@ export function UsersTab() {
         </Table>
       </div>
 
+      {/* Mobile / tablet card list (<1280). Mirrors the table rows above as
+          stacked cards; same handlers, same per-row action menu. */}
+      <div className="xl:hidden space-y-2">
+        {loading ? (
+          <div className="rounded-lg border border-border bg-card py-8 text-center text-sm text-muted-foreground">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent align-middle" />
+            <span className="ml-2">Loading users…</span>
+          </div>
+        ) : loadError ? (
+          <div className="rounded-lg border border-border bg-card py-12 text-center">
+            <div className="text-sm font-medium text-destructive">Failed to load users</div>
+            <div className="mt-1 text-xs text-muted-foreground">{loadError}</div>
+            <Button variant="outline" size="sm" className="mt-3" onClick={reload}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              Try again
+            </Button>
+          </div>
+        ) : pagedUsers.length === 0 ? (
+          <div className="rounded-lg border border-border bg-card py-12 text-center">
+            <div className="text-sm font-medium">No users match your filters</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Adjust the search or filters above, or click <span className="font-medium">Add User</span> to create a new account.
+            </div>
+          </div>
+        ) : (
+          pagedUsers.map((u) => (
+            <UserCard
+              key={u.id}
+              user={u}
+              viewer={viewer}
+              onEdit={() => setEditTarget(u)}
+              onDeactivate={() => setConfirmTarget({ kind: 'deactivate', user: u })}
+              onRestore={() => setConfirmTarget({ kind: 'restore', user: u })}
+              onResetPassword={() => setResetTarget(u)}
+              onManageTags={() => setTagsTarget(u)}
+              onRenameUsername={() => setRenameTarget(u)}
+            />
+          ))
+        )}
+      </div>
+
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
@@ -430,6 +474,8 @@ export function UsersTab() {
               size="icon"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={visiblePage === 1}
+              aria-label="Previous page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -438,6 +484,8 @@ export function UsersTab() {
               size="icon"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={visiblePage === totalPages}
+              aria-label="Next page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -529,27 +577,28 @@ export function UsersTab() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// One row of the table — extracted so the action menu logic stays readable.
-// ---------------------------------------------------------------------------
-function UserRowComponent({
-  user,
-  viewer,
-  onEdit,
-  onDeactivate,
-  onRestore,
-  onResetPassword,
-  onManageTags,
-  onRenameUsername,
-}: {
-  user: User;
-  viewer: User;
+interface UserRowActions {
   onEdit: () => void;
   onDeactivate: () => void;
   onRestore: () => void;
   onResetPassword: () => void;
   onManageTags: () => void;
   onRenameUsername: () => void;
+}
+
+// Shared per-user action menu — used by both the desktop table row and the
+// mobile/tablet card so the permission gating + menu items stay in one place.
+function UserActionsMenu({
+  user,
+  viewer,
+  actions,
+  triggerClassName,
+}: {
+  user: User;
+  viewer: User;
+  actions: UserRowActions;
+  /** Extra classes on the trigger Button (e.g. larger touch target). */
+  triggerClassName?: string;
 }) {
   const inactive = user.isActive === false;
   const editAllowed = canEditUser(viewer, user);
@@ -564,6 +613,66 @@ function UserRowComponent({
 
   // If the viewer can't do ANY of the per-row actions, hide the menu trigger.
   const anyAction = editAllowed || deactivateAllowed || resetAllowed || tagsAllowed || renameAllowed;
+  if (!anyAction) return null;
+
+  return (
+    <DropdownMenu>
+      {/* Phase 3 audit Bug 3-H: was Pencil; clashed with the inner
+          "Edit details" item that ALSO uses Pencil. MoreHorizontal
+          is the conventional row-actions trigger. */}
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon" aria-label="Row actions" className={triggerClassName} />}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[200px]">
+        <DropdownMenuLabel>{user.firstName} {user.lastName}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {editAllowed && (
+          <DropdownMenuItem onClick={actions.onEdit}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit details
+          </DropdownMenuItem>
+        )}
+        {tagsAllowed && (
+          <DropdownMenuItem onClick={actions.onManageTags}>
+            <TagIcon className="mr-2 h-4 w-4" /> Manage tags
+          </DropdownMenuItem>
+        )}
+        {renameAllowed && (
+          <DropdownMenuItem onClick={actions.onRenameUsername}>
+            <AtSign className="mr-2 h-4 w-4" /> Rename username
+          </DropdownMenuItem>
+        )}
+        {resetAllowed && (
+          <DropdownMenuItem onClick={actions.onResetPassword}>
+            <KeyRound className="mr-2 h-4 w-4" /> Reset password
+          </DropdownMenuItem>
+        )}
+        {deactivateAllowed && !inactive && (
+          <DropdownMenuItem onClick={actions.onDeactivate} className="text-destructive">
+            <Power className="mr-2 h-4 w-4" /> Deactivate
+          </DropdownMenuItem>
+        )}
+        {deactivateAllowed && inactive && (
+          <DropdownMenuItem onClick={actions.onRestore}>
+            <Power className="mr-2 h-4 w-4" /> Restore
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One row of the table — extracted so the action menu logic stays readable.
+// (Desktop ≥1280 only; mobile uses <UserCard>.)
+// ---------------------------------------------------------------------------
+function UserRowComponent({
+  user,
+  viewer,
+  ...actions
+}: { user: User; viewer: User } & UserRowActions) {
+  const inactive = user.isActive === false;
 
   return (
     <TableRow className={inactive ? 'opacity-60' : undefined}>
@@ -602,52 +711,86 @@ function UserRowComponent({
         )}
       </TableCell>
       <TableCell>
-        {anyAction && (
-          <DropdownMenu>
-            {/* Phase 3 audit Bug 3-H: was Pencil; clashed with the inner
-                "Edit details" item that ALSO uses Pencil. MoreHorizontal
-                is the conventional row-actions trigger. */}
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Row actions" />}>
-              <MoreHorizontal className="h-4 w-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
-              <DropdownMenuLabel>{user.firstName} {user.lastName}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {editAllowed && (
-                <DropdownMenuItem onClick={onEdit}>
-                  <Pencil className="mr-2 h-4 w-4" /> Edit details
-                </DropdownMenuItem>
-              )}
-              {tagsAllowed && (
-                <DropdownMenuItem onClick={onManageTags}>
-                  <TagIcon className="mr-2 h-4 w-4" /> Manage tags
-                </DropdownMenuItem>
-              )}
-              {renameAllowed && (
-                <DropdownMenuItem onClick={onRenameUsername}>
-                  <AtSign className="mr-2 h-4 w-4" /> Rename username
-                </DropdownMenuItem>
-              )}
-              {resetAllowed && (
-                <DropdownMenuItem onClick={onResetPassword}>
-                  <KeyRound className="mr-2 h-4 w-4" /> Reset password
-                </DropdownMenuItem>
-              )}
-              {deactivateAllowed && !inactive && (
-                <DropdownMenuItem onClick={onDeactivate} className="text-destructive">
-                  <Power className="mr-2 h-4 w-4" /> Deactivate
-                </DropdownMenuItem>
-              )}
-              {deactivateAllowed && inactive && (
-                <DropdownMenuItem onClick={onRestore}>
-                  <Power className="mr-2 h-4 w-4" /> Restore
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <UserActionsMenu user={user} viewer={viewer} actions={actions} />
       </TableCell>
     </TableRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Card variant of a user row — rendered below xl (<1280). Name as the bold
+// title, remaining columns as label/value rows, actions in the ⋯ menu with a
+// ≥44px touch trigger.
+// ---------------------------------------------------------------------------
+function UserCard({
+  user,
+  viewer,
+  ...actions
+}: { user: User; viewer: User } & UserRowActions) {
+  const inactive = user.isActive === false;
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-border bg-card p-3',
+        inactive && 'opacity-60',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">
+            {user.firstName} {user.lastName}
+          </div>
+          <code className="mt-0.5 inline-block rounded bg-muted px-1.5 py-0.5 text-xs">
+            @{user.username}
+          </code>
+        </div>
+        {/* ≥44px touch target for the actions menu trigger. */}
+        <UserActionsMenu
+          user={user}
+          viewer={viewer}
+          actions={actions}
+          triggerClassName="h-11 w-11 touch-manipulation"
+        />
+      </div>
+
+      <dl className="mt-3 space-y-2 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Role</dt>
+          <dd>
+            <Badge variant="outline" className="text-[10px]">
+              {ROLE_LABELS[user.role] ?? user.role}
+            </Badge>
+          </dd>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Tags</dt>
+          <dd className="flex min-w-0 flex-wrap justify-end gap-1">
+            {(user.tags ?? []).map((t) => (
+              <Badge key={t} variant="secondary" className="text-[10px]">
+                {TAG_LABELS[t] ?? t}
+              </Badge>
+            ))}
+            {(user.tags ?? []).length === 0 && (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Status</dt>
+          <dd>
+            {inactive ? (
+              <Badge variant="outline" className="gap-1 text-[10px] text-orange-600 border-orange-600/40">
+                <ShieldAlert className="h-3 w-3" /> Inactive
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 text-[10px] text-green-600 border-green-600/40">
+                <ShieldCheck className="h-3 w-3" /> Active
+              </Badge>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 

@@ -304,8 +304,10 @@ export default function ReportsPage() {
 
   // ── Filter bar (shared between tabs) ──────────────────────────
   const filterBar = (
+    // mobile: controls stack single-column below md (each child w-full);
+    // ≥md (incl. desktop ≥xl) keeps the inline fixed-width row unchanged.
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="relative flex-1 min-w-[200px] max-w-sm max-md:w-full max-md:max-w-none max-md:flex-none">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input
           value={search}
@@ -328,7 +330,7 @@ export default function ReportsPage() {
           AUDIT-1 (login, login_failed, reset_password, rename, role_change,
           tag_grant, tag_revoke, restore, reassign). */}
       <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '')}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[150px] max-md:w-full">
           <SelectValue placeholder="Action" />
         </SelectTrigger>
         <SelectContent>
@@ -355,7 +357,7 @@ export default function ReportsPage() {
           username_change, login_success, login_failed, role_change,
           group_assignment, plus the existing five). */}
       <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v ?? '')}>
-        <SelectTrigger className="w-[170px]">
+        <SelectTrigger className="w-[170px] max-md:w-full">
           <SelectValue placeholder="Entity" />
         </SelectTrigger>
         <SelectContent>
@@ -377,7 +379,7 @@ export default function ReportsPage() {
       </Select>
 
       <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '')}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[160px] max-md:w-full">
           <SelectValue placeholder="User" />
         </SelectTrigger>
         <SelectContent>
@@ -391,7 +393,7 @@ export default function ReportsPage() {
       </Select>
 
       <Select value={dateRange} onValueChange={(v) => setDateRange((v ?? 'all') as typeof dateRange)}>
-        <SelectTrigger className="w-[130px]">
+        <SelectTrigger className="w-[130px] max-md:w-full">
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           <SelectValue />
         </SelectTrigger>
@@ -533,8 +535,11 @@ export default function ReportsPage() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* mobile: allow wrap so the export button drops below the title on
+          narrow screens; ≥xl keeps the single-row justify-between layout
+          byte-identical (max-xl: scoped additions only) */}
+      <div className="flex items-center justify-between max-xl:flex-wrap max-xl:gap-3">
+        <div className="max-xl:min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t('page.reports.title')}</h1>
             <InfoButton {...reportsHelp} />
@@ -577,7 +582,8 @@ export default function ReportsPage() {
         {/* ── Dashboard Tab ─────────────────────────────────────── */}
         <TabsContent value="dashboard" className="space-y-6 mt-0">
           {/* Summary cards — click any card to see the underlying entries */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged */}
+          <div className="grid gap-4 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-4">
             {(() => {
               const monthMs = startOfMonth(new Date()).getTime();
               const stats = [

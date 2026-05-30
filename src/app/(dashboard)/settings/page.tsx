@@ -364,12 +364,15 @@ export default function SettingsPage() {
               prefs.colorTheme === 'marble';
             return (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
+                {/* mobile: allow the three mode buttons to wrap on narrow
+                    phones; ≥xl unchanged (they fit on one row there) */}
+                <div className="flex items-center gap-3 max-xl:flex-wrap">
                   <Button
                     variant={theme === 'dark' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setTheme('dark')}
                     disabled={themeIsModeFixed}
+                    className="touch-manipulation max-xl:h-11"
                   >
                     {t('settings.theme.dark')}
                   </Button>
@@ -378,6 +381,7 @@ export default function SettingsPage() {
                     size="sm"
                     onClick={() => setTheme('light')}
                     disabled={themeIsModeFixed}
+                    className="touch-manipulation max-xl:h-11"
                   >
                     {t('settings.theme.light')}
                   </Button>
@@ -386,6 +390,7 @@ export default function SettingsPage() {
                     size="sm"
                     onClick={() => setTheme('system')}
                     disabled={themeIsModeFixed}
+                    className="touch-manipulation max-xl:h-11"
                   >
                     {t('settings.theme.system')}
                   </Button>
@@ -414,7 +419,7 @@ export default function SettingsPage() {
                   aria-label={`${opt.label} theme`}
                   aria-pressed={prefs.colorTheme === opt.id}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all',
+                    'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all touch-manipulation',
                     prefs.colorTheme === opt.id
                       ? 'border-primary ring-2 ring-primary/30'
                       : 'border-border hover:border-primary/40',
@@ -441,18 +446,18 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-3">
+          <div className="flex gap-3 max-sm:flex-wrap">
             <Button
               variant={prefs.language === 'en' ? 'default' : 'outline'}
               onClick={() => prefs.setLanguage('en')}
-              className="gap-2"
+              className="gap-2 touch-manipulation max-sm:flex-1"
             >
               🇺🇸 English
             </Button>
             <Button
               variant={prefs.language === 'es' ? 'default' : 'outline'}
               onClick={() => prefs.setLanguage('es')}
-              className="gap-2"
+              className="gap-2 touch-manipulation max-sm:flex-1"
             >
               🇪🇸 Español
             </Button>
@@ -520,14 +525,17 @@ export default function SettingsPage() {
             ['contactStageChanges', t('settings.notifications.stageChanges'), t('settings.notifications.stageChangesDesc')],
             ['weeklySummary', t('settings.notifications.weeklySummary'), t('settings.notifications.weeklySummaryDesc')],
           ] as const).map(([key, label, desc]) => (
-            <div key={key} className="flex items-center justify-between">
-              <div>
+            // mobile: stack label above the switch on very narrow phones;
+            // ≥sm (incl. desktop) keeps the inline justify-between row.
+            <div key={key} className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
+              <div className="min-w-0">
                 <p className="text-sm font-medium">{label}</p>
                 <p className="text-xs text-muted-foreground">{desc}</p>
               </div>
               <Switch
                 checked={prefs.notifications[key]}
                 onCheckedChange={(v) => prefs.setNotification(key, !!v)}
+                className="touch-manipulation shrink-0"
               />
             </div>
           ))}
@@ -680,15 +688,15 @@ export default function SettingsPage() {
             { name: 'Google Calendar', icon: Calendar, desc: 'Sync bookings to Google Calendar' },
             { name: 'Microsoft Teams', icon: Monitor, desc: 'Teams meeting integration' },
           ].map((integration) => (
-            <div key={integration.name} className="flex items-center justify-between rounded-lg border border-border p-3">
-              <div className="flex items-center gap-3">
-                <integration.icon className="h-5 w-5 text-muted-foreground" />
-                <div>
+            <div key={integration.name} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 max-[400px]:flex-col max-[400px]:items-start">
+              <div className="flex items-center gap-3 min-w-0">
+                <integration.icon className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{integration.name}</p>
                   <p className="text-xs text-muted-foreground">{integration.desc}</p>
                 </div>
               </div>
-              <Badge variant="outline" className="text-[10px]">{t('misc.comingSoon')}</Badge>
+              <Badge variant="outline" className="text-[10px] shrink-0">{t('misc.comingSoon')}</Badge>
             </div>
           ))}
         </CardContent>
@@ -703,34 +711,36 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
+          {/* mobile: each danger row stacks label above its action button on
+              narrow phones; ≥sm keeps the inline justify-between row. */}
+          <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
+            <div className="min-w-0">
               <p className="text-sm font-medium">{t('settings.danger.signOutAll')}</p>
               <p className="text-xs text-muted-foreground">{t('settings.danger.signOutAllDesc')}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => { logout(); toast.success('Signed out'); }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { logout(); toast.success('Signed out'); }} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <LogOut className="h-3.5 w-3.5" />
               {t('nav.signOut')}
             </Button>
           </div>
           <Separator />
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
+            <div className="min-w-0">
               <p className="text-sm font-medium">{t('settings.danger.exportData')}</p>
               <p className="text-xs text-muted-foreground">{t('settings.danger.exportDataDesc')}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleExportData} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={handleExportData} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <Download className="h-3.5 w-3.5" />
               {t('btn.export')}
             </Button>
           </div>
           <Separator />
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
+            <div className="min-w-0">
               <p className="text-sm font-medium text-destructive">{t('settings.danger.deleteAccount')}</p>
               <p className="text-xs text-muted-foreground">{t('settings.danger.deleteAccountDesc')}</p>
             </div>
-            <Button variant="destructive" size="sm" onClick={handleDeleteAccount} className="gap-1.5">
+            <Button variant="destructive" size="sm" onClick={handleDeleteAccount} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <Trash2 className="h-3.5 w-3.5" />
               {t('btn.delete')}
             </Button>

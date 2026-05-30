@@ -182,11 +182,20 @@ export function PermissionsTab() {
               <p className="text-xs text-muted-foreground">{section.description}</p>
             )}
           </CardHeader>
+          {/* Scroll affordance — the matrix can't collapse to one column, so
+              on < xl it scrolls horizontally inside the card with the Action
+              column pinned. Hidden at ≥1280 where the whole matrix fits. */}
+          <div className="px-4 pb-1 text-[10px] text-muted-foreground xl:hidden">
+            ← scroll the matrix →
+          </div>
           <CardContent className="overflow-x-auto pt-0">
             <table className="w-full min-w-[600px] text-xs">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="py-2 pr-2 text-left font-medium text-muted-foreground">Action</th>
+                  {/* First column pinned while the matrix scrolls horizontally
+                      on < xl. max-xl: keeps ≥1280 byte-identical. bg-card
+                      occludes cells sliding under it. */}
+                  <th className="py-2 pr-2 text-left font-medium text-muted-foreground max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card">Action</th>
                   {ROLES.map((role) => (
                     <th key={role} className="px-1.5 py-2 text-center font-medium text-muted-foreground">
                       {ROLE_LABELS[role].split(' ').map((w) => w[0]).join('')}
@@ -197,7 +206,7 @@ export function PermissionsTab() {
               <tbody>
                 {section.rows.map((row) => (
                   <tr key={row.action} className="border-b border-border/50 last:border-0">
-                    <td className="py-1.5 pr-2 align-top">{row.action}</td>
+                    <td className="py-1.5 pr-2 align-top max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card">{row.action}</td>
                     {row.cells.map((cell, i) => (
                       <td key={i} className="px-1.5 py-1.5 text-center">
                         {cell === true ? (

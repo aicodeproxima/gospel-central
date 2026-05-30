@@ -114,11 +114,11 @@ export function ResetPasswordDialog({ open, user, actorId, onClose }: Props) {
               <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">Temp password</div>
               <div className="font-mono text-sm">{result.tempPassword}</div>
             </div>
-            <Button onClick={handleCopy} variant="outline" className="w-full">
+            <Button onClick={handleCopy} variant="outline" className="w-full touch-manipulation max-md:h-11">
               {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
               {copied ? 'Copied' : 'Copy password'}
             </Button>
-            <Button onClick={onClose} className="w-full">
+            <Button onClick={onClose} className="w-full touch-manipulation max-md:h-11">
               Done
             </Button>
           </div>

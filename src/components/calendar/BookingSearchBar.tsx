@@ -191,7 +191,9 @@ export function BookingSearchBar({
                         onClick={() => handleSelect(entry)}
                         onMouseEnter={() => setActiveIndex(i)}
                         className={cn(
-                          'w-full px-3 py-2 text-left transition-colors',
+                          'w-full px-3 py-2 text-left transition-colors touch-manipulation',
+                          // Taller tap target on phones/tablets; desktop unchanged.
+                          'max-xl:py-2.5',
                           isActive ? 'bg-accent' : 'hover:bg-accent/60',
                         )}
                       >
@@ -272,7 +274,7 @@ export function BookingSearchBar({
                           setSelectedTeacherId(null);
                         }}
                         className={cn(
-                          'w-full text-left rounded-md border px-3 py-2 transition-colors',
+                          'w-full text-left rounded-md border px-3 py-2 transition-colors touch-manipulation',
                           'hover:bg-accent/70',
                           cfg?.bgColor,
                         )}

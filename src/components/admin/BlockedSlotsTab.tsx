@@ -127,11 +127,12 @@ export function BlockedSlotsTab() {
             onClick={reload}
             title="Refresh"
             aria-label="Refresh blocked slots"
+            className="touch-manipulation max-xl:h-11 max-xl:w-11"
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
           {canManage && (
-            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" className="gap-1.5 touch-manipulation max-xl:h-11" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Blocked Slot</span>
               <span className="sm:hidden">Add</span>
@@ -278,7 +279,7 @@ function SlotRow({
         // H-03: wrap edit/delete in a shrink-0 group so they stay visible
         // alongside long slot reasons on narrow viewports.
         <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit slot" className="h-7 w-7">
+          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit slot" className="h-7 w-7 touch-manipulation max-xl:h-11 max-xl:w-11">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
@@ -286,7 +287,7 @@ function SlotRow({
             size="icon"
             onClick={onDelete}
             aria-label="Delete slot"
-            className="h-7 w-7 text-destructive"
+            className="h-7 w-7 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

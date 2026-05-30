@@ -449,7 +449,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         whileTap={{ scale: 0.98 }}
                         onClick={() => { setActivityGroup(g.key); setTimeout(goNext, 150); }}
                         className={cn(
-                          'flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all bg-gradient-to-br',
+                          'flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all bg-gradient-to-br touch-manipulation',
                           g.color,
                           selected ? 'ring-2 ring-primary' : 'hover:brightness-110',
                         )}
@@ -549,7 +549,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         whileTap={{ scale: 0.98 }}
                         onClick={() => { setMode(m.key); setTimeout(goNext, 150); }}
                         className={cn(
-                          'flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all',
+                          'flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all touch-manipulation',
                           selected
                             ? 'border-primary bg-primary/10'
                             : 'border-border hover:border-primary/40 hover:bg-accent/50',
@@ -582,7 +582,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         type="button"
                         onClick={() => setContactBaptismType(t.key)}
                         className={cn(
-                          'rounded-lg border-2 p-3 text-sm font-medium transition-all',
+                          'rounded-lg border-2 p-3 text-sm font-medium transition-all touch-manipulation max-md:min-h-11',
                           selected ? 'ring-2 ring-primary' : 'hover:brightness-110',
                           t.color,
                         )}
@@ -618,7 +618,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Duration</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {[1, 2, 3, 4].map((d) => (
                       <Button
                         key={d}
@@ -626,6 +626,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         variant={durationSlots === d ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDurationSlots(d)}
+                        className="touch-manipulation max-md:h-10 max-md:flex-1 max-md:min-w-[4.5rem]"
                       >
                         {d * 30} min
                       </Button>
@@ -651,7 +652,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         onClick={() => setStartSlotIdx(i)}
                         title={slot.occupied ? `Occupied by: ${slot.occupiedBy}` : undefined}
                         className={cn(
-                          'rounded-md border px-2 py-2 text-xs font-medium transition-all',
+                          'rounded-md border px-2 py-2 text-xs font-medium transition-all touch-manipulation max-md:py-3',
                           !canFit && 'opacity-30 cursor-not-allowed bg-muted',
                           canFit && !selected && !withinSelection && 'border-border hover:bg-accent',
                           selected && 'bg-primary text-primary-foreground border-primary',
@@ -719,10 +720,14 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           </motion.div>
         </AnimatePresence>
 
-        {/* Footer nav */}
-        <div className="flex items-center gap-2 pt-4 border-t border-border">
+        {/* Footer nav — on phones this becomes a sticky bottom action bar so
+            the primary Next/Save stays reachable while the body scrolls. The
+            -mx-4/px-4 bleed the bar to the sheet edges; the max(0.75rem,env())
+            bottom padding clears the home indicator. Buttons may wrap so all
+            three fit at 360px. Desktop (>=md) keeps the original inline row. */}
+        <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-border max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:bg-popover max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:pt-3">
           {currentStepIndex > 0 && step !== 'confirm' && (
-            <Button type="button" variant="outline" onClick={goBack} className="gap-2">
+            <Button type="button" variant="outline" onClick={goBack} className="gap-2 touch-manipulation max-md:h-11">
               <ArrowLeft className="h-4 w-4" />
               {t('btn.back')}
             </Button>
@@ -733,21 +738,21 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               variant="outline"
               size="sm"
               onClick={() => setStep('confirm')}
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs touch-manipulation max-md:h-11"
             >
               <ClipboardCheck className="h-3.5 w-3.5" />
               {t('btn.review')}
             </Button>
           )}
           {step !== 'confirm' && step !== 'activity' && step !== 'mode' && (
-            <Button type="button" onClick={goNext} disabled={!canAdvance} className="ml-auto gap-2">
+            <Button type="button" onClick={goNext} disabled={!canAdvance} className="ml-auto gap-2 touch-manipulation max-md:h-11">
               {t('btn.next')}
               <ArrowRight className="h-4 w-4" />
             </Button>
           )}
           {step === 'confirm' && (
             <>
-              <Button type="button" variant="outline" onClick={goBack} className="gap-2">
+              <Button type="button" variant="outline" onClick={goBack} className="gap-2 touch-manipulation max-md:h-11">
                 <ArrowLeft className="h-4 w-4" />
                 {t('btn.back')}
               </Button>
@@ -758,7 +763,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   variant="destructive"
                   size="sm"
                   onClick={() => setShowCancelConfirm(true)}
-                  className="gap-1.5"
+                  className="gap-1.5 touch-manipulation max-md:h-11"
                 >
                   <Ban className="h-3.5 w-3.5" />
                   {t('btn.cancelBooking')}
@@ -779,7 +784,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                     } catch { toast.error('Failed to restore'); }
                     finally { setLoading(false); }
                   }}
-                  className="gap-1.5"
+                  className="gap-1.5 touch-manipulation max-md:h-11"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   {t('btn.restore')}
@@ -787,7 +792,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               )}
               {/* CAL-6: hide save when viewer can't edit this booking. */}
               {canEditCurrent && selectedBooking?.status !== 'cancelled' && (
-                <Button type="button" onClick={handleSubmit} disabled={loading} className="ml-auto gap-2">
+                <Button type="button" onClick={handleSubmit} disabled={loading} className="ml-auto gap-2 touch-manipulation max-md:h-11">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isEdit ? t('btn.saveChanges') : t('btn.createBooking')}
                 </Button>
@@ -838,7 +843,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                     type="button"
                     variant="outline"
                     onClick={() => { setShowCancelConfirm(false); setCancelReasonInput(''); }}
-                    className="flex-1"
+                    className="flex-1 touch-manipulation max-md:h-11"
                   >
                     {t('btn.keepBooking')}
                   </Button>
@@ -857,7 +862,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                       } catch { toast.error('Failed to cancel'); }
                       finally { setLoading(false); }
                     }}
-                    className="flex-1 gap-1.5"
+                    className="flex-1 gap-1.5 touch-manipulation max-md:h-11"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
                     {t('btn.cancelBooking')}

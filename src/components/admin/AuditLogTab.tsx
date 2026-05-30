@@ -155,7 +155,7 @@ export function AuditLogTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
             Audit log
@@ -172,6 +172,7 @@ export function AuditLogTab() {
           onClick={reload}
           title="Refresh"
           aria-label="Refresh audit log"
+          className="touch-manipulation max-xl:h-11 max-xl:w-11"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -250,7 +251,9 @@ export function AuditLogTab() {
         />
       </div>
 
-      <Card>
+      {/* Desktop table (≥1280). Below xl, the same entries render as stacked
+          cards (dual-render — see the card list further down). */}
+      <Card className="hidden xl:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -316,6 +319,62 @@ export function AuditLogTab() {
         </CardContent>
       </Card>
 
+      {/* Mobile / tablet card list (<1280). Each card is tappable to open the
+          same detail dialog as the desktop row click. */}
+      <div className="xl:hidden space-y-2">
+        {loading ? (
+          <Card>
+            <CardContent className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading audit entries…
+            </CardContent>
+          </Card>
+        ) : loadError ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+              <p className="text-sm font-medium text-destructive">Failed to load audit log</p>
+              <p className="text-xs text-muted-foreground">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={reload} className="mt-2 gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : entries.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              No audit entries match these filters.
+            </CardContent>
+          </Card>
+        ) : (
+          entries.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => setDetailOpen(e)}
+              className="w-full touch-manipulation rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent/30"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <Badge
+                  variant="outline"
+                  className={`${ACTION_COLORS[e.action] ?? 'bg-muted text-muted-foreground'} text-[10px]`}
+                >
+                  {e.action}
+                </Badge>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {format(parseISO(e.timestamp), 'MMM d, HH:mm:ss')}
+                </span>
+              </div>
+              <div className="mt-2 text-sm break-words">{e.details}</div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                <span>{e.entityType}</span>
+                <span className="min-w-0 truncate">{e.userName}</span>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
       {/* Pagination */}
       {!loading && !loadError && total > PAGE_SIZE && (
         <div className="flex items-center justify-between text-xs">
@@ -329,6 +388,7 @@ export function AuditLogTab() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
               aria-label="Previous page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -339,6 +399,7 @@ export function AuditLogTab() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               aria-label="Next page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

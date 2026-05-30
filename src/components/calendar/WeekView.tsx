@@ -52,17 +52,33 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
     });
   };
 
+  // MOBILE APPROACH (week): keep all 7 day-columns and let them scroll
+  // HORIZONTALLY *inside* this `overflow-auto` container rather than collapsing
+  // to a single day. Rationale: the page-level swipe gesture already maps to
+  // week±1 (see calendar/page.tsx), so a single-day phone view would make a
+  // swipe jump 7 days — confusing. Keeping the 7 columns preserves week
+  // semantics; the left time-axis and the top day-header are both sticky so
+  // they stay anchored while the user scrolls the week sideways. The page body
+  // itself never scrolls horizontally (overscroll-contain stops scroll-chain).
+  // Desktop ≥xl is byte-identical (min-w-[800px], 80px time col, 1fr days);
+  // below xl we drop the hard min and below md we shrink the time column and
+  // give each day a tappable minmax width.
   return (
-    <div data-calendar-surface="grid" className="overflow-auto rounded-lg border border-border bg-card">
-      <div className="min-w-[800px]">
-        {/* Header: Day columns */}
-        <div data-calendar-surface="header" className="sticky top-0 z-10 grid border-b border-border bg-card" style={{ gridTemplateColumns: `80px repeat(${days.length}, 1fr)` }}>
-          <div className="border-r border-border p-2 text-xs font-medium text-muted-foreground">Time</div>
+    <div
+      data-calendar-surface="grid"
+      className="max-w-full touch-manipulation overflow-auto overscroll-contain rounded-lg border border-border bg-card"
+    >
+      <div className="min-w-[800px] max-xl:min-w-0">
+        {/* Header: Day columns. Grid template is class-driven (days.length is
+             always 7 for a week) so there's no inline style for the responsive
+             `max-*` overrides to fight. xl keeps the exact desktop template. */}
+        <div data-calendar-surface="header" className="sticky top-0 z-20 grid [grid-template-columns:80px_repeat(7,1fr)] max-xl:[grid-template-columns:64px_repeat(7,minmax(96px,1fr))] max-md:[grid-template-columns:48px_repeat(7,minmax(72px,1fr))] border-b border-border bg-card">
+          <div className="sticky left-0 z-10 border-r border-border bg-card p-2 text-xs font-medium text-muted-foreground">Time</div>
           {days.map((day) => (
             <div
               key={day.toISOString()}
               className={cn(
-                'border-r border-border p-2 text-center last:border-r-0',
+                'border-r border-border p-2 text-center last:border-r-0 max-md:p-1',
                 isSameDay(day, today) && 'bg-primary/5'
               )}
             >
@@ -77,14 +93,14 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
           ))}
         </div>
 
-        {/* Time grid */}
-        <div className="relative grid" style={{ gridTemplateColumns: `80px repeat(${days.length}, 1fr)` }}>
-          {/* Time labels */}
-          <div className="border-r border-border">
+        {/* Time grid — same class-driven template as the header so columns line up. */}
+        <div className="relative grid [grid-template-columns:80px_repeat(7,1fr)] max-xl:[grid-template-columns:64px_repeat(7,minmax(96px,1fr))] max-md:[grid-template-columns:48px_repeat(7,minmax(72px,1fr))]">
+          {/* Time labels — sticky-left so they stay put during horizontal scroll */}
+          <div className="sticky left-0 z-10 border-r border-border bg-card">
             {timeSlots.map((slot) => (
               <div
                 key={slot.key}
-                className="flex h-12 items-start justify-end border-b border-border/50 pr-2 pt-0.5 text-xs text-muted-foreground"
+                className="flex h-12 items-start justify-end border-b border-border/50 pr-2 pt-0.5 text-xs text-muted-foreground max-md:pr-1"
               >
                 {!slot.isHalfHour ? slot.label : ''}
               </div>
