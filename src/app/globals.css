@@ -800,3 +800,40 @@ html[data-theme="deepspace"] [data-calendar-surface="header"] {
     @apply font-sans;
   }
 }
+
+/* ── Mobile foundation (additive; desktop ≥1280 unaffected) ────────────
+   Every rule here is scoped to touch devices (pointer: coarse) or is a
+   no-op on desktop, so the frozen desktop render does not change.
+   ──────────────────────────────────────────────────────────────────── */
+@layer base {
+  /* Prevent iOS tap-to-zoom on focus: form controls must COMPUTE ≥16px on
+     touch. !important so utility classes (text-sm → 14px) can't drop them
+     under the zoom threshold. Scoped to coarse pointers → desktop untouched. */
+  @media (pointer: coarse) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Guard against accidental horizontal page panning on narrow screens.
+     `clip` (not `hidden`) so position:sticky keeps working. Desktop has no
+     horizontal page overflow, so this is a no-op there. Genuine overflow
+     sources are still fixed at the component level. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+@layer utilities {
+  /* Safe-area helpers for sticky bars / full-bleed surfaces on notched or
+     gesture-bar phones. Resolve to 0 where there are no insets (desktop,
+     non-notched), so they're harmless everywhere. Require viewport-fit=cover
+     (set in the root layout's viewport export) to be non-zero. */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+}
