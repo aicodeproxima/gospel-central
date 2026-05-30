@@ -17,6 +17,7 @@ import {
 import { WeekView } from '@/components/calendar/WeekView';
 import { DayView } from '@/components/calendar/DayView';
 import { MonthView } from '@/components/calendar/MonthView';
+import { AgendaView } from '@/components/calendar/AgendaView';
 import { BookingSearchBar } from '@/components/calendar/BookingSearchBar';
 import { BookingWizard } from '@/components/booking/BookingWizard';
 import { ExportDropdown } from '@/components/shared/ExportDropdown';
@@ -559,14 +560,28 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2">
+      {/* Legend — full chip row on ≥md (unchanged on desktop); a tap-to-open
+           disclosure on phones so 7 chips don't eat ~5 rows above the calendar. */}
+      <div className="hidden flex-wrap gap-2 md:flex">
         {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
           <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
             {tBookingType(type)}
           </Badge>
         ))}
       </div>
+      <details className="group md:hidden">
+        <summary className="flex w-fit cursor-pointer touch-manipulation list-none items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden="true" />
+          Legend
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+            <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
+              {tBookingType(type)}
+            </Badge>
+          ))}
+        </div>
+      </details>
 
       {/* Calendar — swipe left/right to navigate periods */}
       <div ref={swipeContainerRef} className="touch-pan-y">
@@ -594,15 +609,23 @@ export default function CalendarPage() {
           </div>
         ) : (
           <>
-            {view === 'week' && (
-              <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
-            )}
-            {view === 'day' && (
-              <DayView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
-            )}
-            {view === 'month' && (
-              <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
-            )}
+            {/* ≥md: the multi-room time grid (desktop unchanged ≥1280). */}
+            <div className="hidden md:block">
+              {view === 'week' && (
+                <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+              )}
+              {view === 'day' && (
+                <DayView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+              )}
+              {view === 'month' && (
+                <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
+              )}
+            </div>
+            {/* <md: phone agenda — a readable chronological list of the loaded
+                 range, grouped by day. Avoids the cramped multi-room grid. */}
+            <div className="md:hidden">
+              <AgendaView bookings={bookings} rooms={rooms} onBookingClick={openEditModal} />
+            </div>
           </>
         )}
       </div>

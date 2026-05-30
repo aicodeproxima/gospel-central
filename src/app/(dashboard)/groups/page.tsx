@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,39 @@ export default function GroupsPage() {
   const [addUserOpen, setAddUserOpen] = useState(false);
   const currentUser = useAuthStore((s) => s.user);
   const showAddUser = !!currentUser && canCreateUsers(currentUser.role);
+
+  // Mobile de-occlusion: the floating toolbar overlays the top of the 3D
+  // canvas. Measure its height and (on <xl) push the canvas BELOW it so tree
+  // nodes are never hidden behind it; clear the bottom nav on phones too.
+  // Desktop (≥xl) keeps the canvas at inset-0 (unchanged).
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarH, setToolbarH] = useState(0);
+  const [isBelowXl, setIsBelowXl] = useState(false);
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    const xl = window.matchMedia('(max-width: 1279px)');
+    const phone = window.matchMedia('(max-width: 767px)');
+    const apply = () => {
+      setIsBelowXl(xl.matches);
+      setIsPhone(phone.matches);
+    };
+    apply();
+    xl.addEventListener('change', apply);
+    phone.addEventListener('change', apply);
+    return () => {
+      xl.removeEventListener('change', apply);
+      phone.removeEventListener('change', apply);
+    };
+  }, []);
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const update = () => setToolbarH(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Focus pipeline plumbing: converts the discriminated union into the
   // two props Tree3D expects. Mode is derived; id=null means "no focus".
@@ -255,7 +288,10 @@ export default function GroupsPage() {
       {/* Fullscreen tree/list takes the entire viewport */}
       <TabsContent value="tree" className="absolute inset-0 m-0">
         {viewMode === '3d' ? (
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-x-0"
+            style={{ top: isBelowXl ? toolbarH : 0, bottom: isPhone ? 64 : 0 }}
+          >
             <Tree3D
               roots={orgTree}
               contacts={contacts}
@@ -304,18 +340,21 @@ export default function GroupsPage() {
 
       {/* Floating top-right toolbar — search + tabs + buttons hover over the scene.
           z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50). */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-20 sm:p-4 sm:pl-20">
+      <div
+        ref={toolbarRef}
+        className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-20 sm:p-4 sm:pl-20"
+      >
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <h1 className="text-sm font-semibold">{t('page.groups.title')}</h1>
             <InfoButton {...groupsHelp} />
           </div>
-          <div className="min-w-[220px] flex-1 max-w-md">
+          <div className="min-w-0 flex-1 max-w-md sm:min-w-[220px]">
             <TreeSearchBar roots={orgTree} onSelect={handleSearchSelect} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/15 bg-card/75 p-1 shadow-lg backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/15 bg-card/75 p-1 shadow-lg backdrop-blur-md max-xl:max-w-full max-xl:flex-nowrap max-xl:overflow-x-auto max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden">
             <div className="flex items-center rounded-full p-0.5">
               <button
                 type="button"

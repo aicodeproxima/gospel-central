@@ -113,8 +113,8 @@ export function RoomsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between max-xl:gap-3">
-        <div className="max-xl:min-w-0 max-xl:flex-1">
+      <div className="flex flex-col items-start gap-3 xl:flex-row xl:items-center xl:justify-between xl:gap-0">
+        <div className="max-xl:w-full">
           <h2 className="text-lg font-semibold">Rooms & Areas</h2>
           <p className="text-xs text-muted-foreground">
             Each area is a physical church location. Branch Leaders+ may add rooms in any area.
@@ -123,7 +123,7 @@ export function RoomsTab() {
         </div>
         {/* Buttons may wrap among themselves on <xl so they never push page
             width; ≥1280 unchanged (single row). */}
-        <div className="flex gap-2 max-xl:shrink-0 max-xl:flex-wrap max-xl:justify-end">
+        <div className="flex gap-2 max-xl:w-full max-xl:flex-wrap">
           <Button
             variant="outline"
             size="sm"

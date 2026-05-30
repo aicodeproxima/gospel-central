@@ -85,7 +85,7 @@ function Platform({ color, size = 2.6 }: { color: [number, number, number]; size
 // ----------------------------------------------------------------------------
 // Avatar figure — textured plane that always faces the camera (billboard)
 // ----------------------------------------------------------------------------
-function AvatarFigure({ url }: { url: string }) {
+function AvatarFigure({ url, scale = 2.3 }: { url: string; scale?: number }) {
   const texture = useTexture(url) as THREE.Texture;
   // L-1: Drei's useTexture caches per-URL, so multiple avatars with the
   // same URL share a single THREE.Texture. Apply our sampler settings
@@ -106,7 +106,7 @@ function AvatarFigure({ url }: { url: string }) {
   return (
     <Billboard position={[0, 1.3, 0]} follow lockX={false} lockY={false} lockZ={false}>
       <mesh>
-        <planeGeometry args={[2.3, 2.3]} />
+        <planeGeometry args={[scale, scale]} />
         <meshBasicMaterial map={texture} transparent toneMapped={false} />
       </mesh>
     </Billboard>
@@ -169,9 +169,13 @@ function NodeCardInner({
       }}
     >
       <Platform color={color} />
-      {/* 3D avatar figure centered on the platform (billboarded to camera) */}
+      {/* 3D avatar figure centered on the platform (billboarded to camera).
+          Smaller on compact (<1280) so it doesn't dwarf the card on a phone. */}
       <Suspense fallback={null}>
-        <AvatarFigure url={node.avatarUrl || pickAvatarForUser(node.role, node.id)} />
+        <AvatarFigure
+          url={node.avatarUrl || pickAvatarForUser(node.role, node.id)}
+          scale={compact ? 1.6 : 2.3}
+        />
       </Suspense>
       {/* HTML overlay BELOW the platform — screen-space so text stays crisp
           at any zoom level. Drei's non-transform Html anchors at the 3D
@@ -189,23 +193,13 @@ function NodeCardInner({
           <button
             type="button"
             onClick={() => {
-              if (hasChildrenOrContacts) {
-                // Capture the *target* state before toggling: if we're
-                // currently expanded, this click collapses → use a tight
-                // node-only focus. Otherwise we're expanding → frame the
-                // new subtree bounds.
-                const willBeCollapsed = isExpanded;
-                onToggle();
-                // setTimeout instead of rAF — rAF can be throttled when
-                // the tab isn't actively painting, which would cause the
-                // focus call to never fire.
-                setTimeout(() => {
-                  if (willBeCollapsed) onFocusTight();
-                  else onFocus();
-                }, 50);
-              } else {
-                onFocusTight();
-              }
+              // onToggle (nodes with children) flips expansion AND — in
+              // SceneContent — requests a focus against the FRESH post-toggle
+              // layout (focusReq + effect), so the camera snaps to fit the
+              // just-expanded group like the /tree-demo. Leaves tight-focus.
+              // (No setTimeout: it captured stale layout and broke snap-to-fit.)
+              if (hasChildrenOrContacts) onToggle();
+              else onFocusTight();
             }}
             className="flex items-center gap-1.5 w-full text-left cursor-pointer touch-manipulation"
             style={{ minHeight: compact ? 44 : undefined }}
@@ -487,6 +481,26 @@ function SceneContent({
     return () => mq.removeEventListener('change', apply);
   }, []);
 
+  // Drawable canvas size — use THIS (not window) for aspect-aware framing: on
+  // mobile the canvas is offset below the toolbar, so it's shorter/narrower
+  // than the window and the camera must fit that actual area.
+  const { size: canvasSize } = useThree();
+
+  // Snap-to-fit pipeline. The card's expand button bumps `focusReq`; the effect
+  // below computes the camera target against the FRESH layout (after expandedIds
+  // propagates in the same render batch) so expand snaps to fit the group — like
+  // the /tree-demo prototype, with no stale-layout setTimeout.
+  const focusSeq = useRef(0);
+  const [focusReq, setFocusReq] = useState<{
+    kind: 'subtree' | 'tight';
+    id: string;
+    seq: number;
+  } | null>(null);
+  const requestFocus = useCallback((kind: 'subtree' | 'tight', id: string) => {
+    focusSeq.current += 1;
+    setFocusReq({ kind, id, seq: focusSeq.current });
+  }, []);
+
   // Compute which contacts to show for each expanded node
   const visibleContactsByNode = useMemo(() => {
     const map = new Map<string, Contact[]>();
@@ -579,14 +593,15 @@ function SceneContent({
       // zoom, frame the node + its DIRECT children instead and let the user
       // pan/pinch to explore the rest (the "Smart-Fit" model).
       if (compact) {
-        const aspect =
-          window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 0.5;
+        const vw = canvasSize.width || 1;
+        const vh = canvasSize.height || 1;
+        const aspect = vh > 0 ? vw / vh : 0.5;
         const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
         const fitFor = (w: number, h: number) =>
           Math.max((h / 2 + 3) / tan, (w / 2 + 3) / (tan * aspect), 12);
         // Distance beyond which adjacent ~156px cards would visually collide
-        // (derived from card px ÷ world-units-per-px at the given viewport).
-        const cap = ((5 * window.innerHeight) / (160 * 2 * tan)) * 0.95;
+        // (derived from card px ÷ world-units-per-px at the given canvas size).
+        const cap = ((5 * vh) / (160 * 2 * tan)) * 0.95;
         let cx = centerX;
         let cy = centerY - 2;
         let distance = fitFor(width, height);
@@ -629,7 +644,7 @@ function SceneContent({
         distance,
       };
     },
-    [layout, contacts, compact],
+    [layout, contacts, compact, canvasSize],
   );
 
   /** Zoom in tight on a single node — used by the Jump-to picker. */
@@ -645,6 +660,19 @@ function SceneContent({
     },
     [layout],
   );
+
+  // Apply focus requests against the CURRENT layout. The compute callbacks
+  // depend on `layout`, so when an expand bumps focusReq AND changes the layout
+  // in the same render batch, this runs once with the FRESH layout → the camera
+  // snaps to fit the just-expanded group.
+  useEffect(() => {
+    if (!focusReq) return;
+    const target =
+      focusReq.kind === 'tight'
+        ? computeNodeFocus(focusReq.id)
+        : computeSubtreeFocus(focusReq.id);
+    if (target) setFocus(target);
+  }, [focusReq, computeNodeFocus, computeSubtreeFocus]);
 
   // External focus (search / jump) — snap to any requested node once its
   // position is laid out. `externalFocusMode` decides whether we frame the
@@ -720,10 +748,16 @@ function SceneContent({
   const handleToggleById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => onToggle(ln.id);
+      m[ln.id] = () => {
+        const willExpand = !expandedIds.has(ln.id);
+        onToggle(ln.id);
+        // Request the matching focus in the SAME batch as the toggle, so the
+        // effect runs against the post-toggle layout → snap to fit.
+        requestFocus(willExpand ? 'subtree' : 'tight', ln.id);
+      };
     });
     return m;
-  }, [layout.nodes, onToggle]);
+  }, [layout.nodes, onToggle, expandedIds, requestFocus]);
 
   const handleFilterById = useMemo(() => {
     const m: Record<string, (f: ContactFilter) => void> = {};
@@ -736,24 +770,18 @@ function SceneContent({
   const handleFocusById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => {
-        const target = computeSubtreeFocus(ln.id);
-        if (target) setFocus(target);
-      };
+      m[ln.id] = () => requestFocus('subtree', ln.id);
     });
     return m;
-  }, [layout.nodes, computeSubtreeFocus]);
+  }, [layout.nodes, requestFocus]);
 
   const handleFocusTightById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => {
-        const target = computeNodeFocus(ln.id);
-        if (target) setFocus(target);
-      };
+      m[ln.id] = () => requestFocus('tight', ln.id);
     });
     return m;
-  }, [layout.nodes, computeNodeFocus]);
+  }, [layout.nodes, requestFocus]);
 
   const handleContactOpenById = useMemo(() => {
     const m: Record<string, () => void> = {};
