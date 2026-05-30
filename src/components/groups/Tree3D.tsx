@@ -501,6 +501,11 @@ function SceneContent({
     setFocusReq({ kind, id, seq: focusSeq.current });
   }, []);
 
+  // Tracks the external (search / jump / initial) focus we've already applied,
+  // so a later layout recompute (e.g. expanding a node) does NOT re-apply the
+  // stale initial focus and clobber the expand's snap-to-fit.
+  const appliedExternalRef = useRef<string | null>(null);
+
   // Compute which contacts to show for each expanded node
   const visibleContactsByNode = useMemo(() => {
     const map = new Map<string, Contact[]>();
@@ -687,12 +692,24 @@ function SceneContent({
   // ensures this re-runs if the layout was still stabilizing when the
   // focus id arrived.
   useEffect(() => {
-    if (!externalFocusId) return;
+    if (!externalFocusId) {
+      appliedExternalRef.current = null;
+      return;
+    }
+    // Apply only when the external target actually changes — keep `layout` in
+    // deps so we still retry once the node is laid out, but the ref guard stops
+    // re-applying on unrelated layout changes (an expand) which would override
+    // the internal subtree snap.
+    const key = `${externalFocusMode}:${externalFocusId}`;
+    if (appliedExternalRef.current === key) return;
     const target =
       externalFocusMode === 'node'
         ? computeNodeFocus(externalFocusId)
         : computeSubtreeFocus(externalFocusId);
-    if (target) setFocus(target);
+    if (target) {
+      setFocus(target);
+      appliedExternalRef.current = key;
+    }
   }, [externalFocusId, externalFocusMode, computeNodeFocus, computeSubtreeFocus, layout]);
 
   // Reset view — frames the entire currently-laid-out tree
