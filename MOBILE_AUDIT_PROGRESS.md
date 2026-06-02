@@ -108,9 +108,24 @@ Commit `00f9ebd`. Swept EVERY screen; each passes: data loads · no horizontal p
 - DEFERRED (cosmetic / real-phone only): Tree3D 220px card scaling for very dense subtrees; Reports table
   card-redesign (it scrolls now, acceptable).
 
-### Final — build gate + deploy + device sign-off — TODO
-- REVOKE bypass secret `diamondMobileAudit2026realdevXYZ` after sign-off
-  (PATCH protection-bypass, body `{"revoke":{"secret":"…","regenerate":false}}`).
+### Final — build COMPLETE on branch; MAIN-SYNC DEFERRED (user decision pending) — 2026-06-02
+- Build clean every phase (`next build` + TS, no errors). Full mobile build done on `feat/mobile-realdevice`
+  (pushed to GitHub, HEAD `f5036bd`). Final preview: `https://diamond-jg4n0ga5x-aicodeproximas-projects.vercel.app`
+  (login admin/admin; phone = cookie-bypass URL). Tree3D dense-card polish: `w-[168px] sm:w-[220px]` (VERIFIED 168 on mobile).
+- ⛔ NOT merged to main. ⛔ Bypass secret `diamondMobileAudit2026realdevXYZ` NOT revoked. Both pending the decision below.
+
+## ⚠️ OPEN DECISION — this branch's base is 63 commits behind real main (RE-RAISE AT SESSION END)
+Built on stale `ff2ec0d`. Real `origin/main` (`ccc65ca`) has an admin system, permissions, security fixes,
+prior mobile work, and a real-backend cutover in progress (MIKE_HANDOFF / BACKEND_GAPS). Overlap vs current main:
+- Calendar mobile agenda: ABSENT on main → P2 still needed.
+- Tree3D camera: main STILL uses `window.innerHeight` (the bug) → P3 still needed.
+- `min-w-0` mobile col: ALREADY on main → my version redundant.
+- MSW mock-default-ON + `/api` base (P1): main still `=== 'true'` + `localhost:8080`, BUT main is moving to a
+  REAL backend → my mock-default change is likely the WRONG direction for main; re-decide on sync.
+USER CHOSE (2026-06-02): "fully build out before we sync; remind me at the end." → DO NOT merge until the user
+picks an integration path (re-port the needed fixes onto current main / full rebase / etc.). Reusable artifacts:
+`src/components/calendar/AgendaView.tsx` + the Tree3D canvas-aspect/snap-guard/canvas-inset approach.
+- Also deferred: Reports audit table → mobile card layout (currently scrolls via overflow-x-auto, acceptable).
 
 ## Gate note (correction)
 - This repo has **NO test script** (`package.json` scripts = dev/build/start/lint only). The gate is
