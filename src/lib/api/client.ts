@@ -1,5 +1,10 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
+// In mock mode the MSW service worker can briefly not be controlling the page
+// on a cold mobile load; a transient network failure is then a not-yet-claimed
+// SW rather than a real outage. Retry a couple times before surfacing it.
+const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
+
 /**
  * Thin fetch wrapper with:
  *  - Bearer auth pulled from localStorage.
@@ -97,17 +102,25 @@ class ApiClient {
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     let res: Response;
-    try {
-      res = await fetch(`${API_BASE}${path}`, {
-        ...init,
-        headers,
-        signal: init.signal,
-      });
-    } catch (err) {
-      if (isAbortError(err)) throw err;
-      throw new Error(
-        err instanceof Error ? err.message : 'Network request failed',
-      );
+    const maxAttempts = IS_MOCK ? 3 : 1;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        res = await fetch(`${API_BASE}${path}`, {
+          ...init,
+          headers,
+          signal: init.signal,
+        });
+        break;
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        if (attempt >= maxAttempts) {
+          throw new Error(
+            err instanceof Error ? err.message : 'Network request failed',
+          );
+        }
+        // mock mode: brief backoff, then retry (MSW SW may not be controlling yet)
+        await new Promise((r) => setTimeout(r, attempt * 200));
+      }
     }
 
     if (res.status === 401) {

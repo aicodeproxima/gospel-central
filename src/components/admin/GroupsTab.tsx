@@ -163,14 +163,14 @@ export function GroupsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between max-xl:gap-3">
+        <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold">Org tree</h2>
           <p className="text-xs text-muted-foreground">
             Branches → Groups → Teams → Members. Click any node to expand it. Use the action buttons to rename a leader or add a child.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-xl:shrink-0">
           <Button
             variant="outline"
             size="icon"
@@ -492,26 +492,27 @@ function NodeHeader({
   const memberCount = node.memberCount;
   return (
     <div className="flex items-center gap-2 p-2.5">
+      {/* h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl. */}
       <button
         type="button"
         onClick={onToggle}
-        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent touch-manipulation max-xl:h-11 max-xl:w-11"
         aria-label={isOpen ? 'Collapse' : 'Expand'}
         aria-expanded={isOpen}
       >
         {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
       </button>
-      <KindIcon className="h-4 w-4 text-muted-foreground" />
+      <KindIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">
             {node.user.firstName} {node.user.lastName}
           </span>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="shrink-0 text-[10px]">
             {ROLE_LABELS[node.user.role] ?? node.user.role}
           </Badge>
           {node.user.isActive === false && (
-            <Badge variant="outline" className="text-[10px] border-orange-600/40 text-orange-600">
+            <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">
               Inactive
             </Badge>
           )}
@@ -520,20 +521,23 @@ function NodeHeader({
           {kindLabel} · {childCount} child node{childCount === 1 ? '' : 's'} · {memberCount} member{memberCount === 1 ? '' : 's'} in subtree
         </div>
       </div>
+      {/* Action buttons stay intact (shrink-0); the name above truncates to
+          yield space so the row never overflows on narrow viewports. ≥44px
+          touch targets below xl; compact size unchanged at ≥1280. */}
       {canAddChild && (
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={onAddChild}>
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={onAddChild}>
           <Plus className="h-3.5 w-3.5" />
           {addChildLabel}
         </Button>
       )}
       {canAlsoAddTeam && onAddAlt && addAltLabel && (
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={onAddAlt}>
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={onAddAlt}>
           <Plus className="h-3.5 w-3.5" />
           {addAltLabel}
         </Button>
       )}
       {editable && (
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit} aria-label="Edit node">
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11" onClick={onEdit} aria-label="Edit node">
           <Pencil className="h-3.5 w-3.5" />
         </Button>
       )}

@@ -232,16 +232,18 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* UI-1: Mobile-only horizontally-scrollable pill row.
-           Hidden at md+ where the side-nav takes over. Sticky below the
+      {/* UI-1: Sub-xl horizontally-scrollable pill row.
+           Hidden at xl+ where the side-nav takes over. Sticky below the
            Topbar (which is z-30 / ~3.5rem tall) so tabs stay reachable
            while scrolling content. Distinct layoutId from desktop sidebar
-           to dodge Framer Motion's shared-layout collision warning. */}
+           to dodge Framer Motion's shared-layout collision warning.
+           flex-nowrap + scrollbar hidden so the row scrolls horizontally and
+           never wraps or pushes the page wider than the viewport on <1280. */}
       <nav
-        className="sticky top-[3.5rem] z-20 -mx-4 overflow-x-auto border-b border-border bg-background/80 backdrop-blur-md md:hidden"
+        className="sticky top-[3.5rem] z-20 -mx-4 overflow-x-auto overscroll-x-contain border-b border-border bg-background/80 backdrop-blur-md [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden xl:hidden"
         aria-label="Admin tabs"
       >
-        <div className="flex gap-2 px-4 py-2 snap-x">
+        <div className="flex flex-nowrap gap-2 px-4 py-2 snap-x">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = active === tab.key;
@@ -260,7 +262,7 @@ export default function AdminPage() {
                 }}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'group relative flex shrink-0 snap-start items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  'group relative flex min-h-11 shrink-0 snap-start touch-manipulation items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                   /* UI-5: drop the static bg-primary/10 here — the
                      motion.div below already paints it, and stacking
                      both produced bg-primary/20 on saturated themes. */
@@ -284,11 +286,13 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      {/* Two-column layout: side-nav (md+) + tab content. The grid is
-           md+ only; below md the mobile pill row above takes over. */}
-      <div className="md:grid md:grid-cols-[220px_1fr] md:gap-4">
-        {/* Side-nav (desktop only) */}
-        <aside className="hidden space-y-1 md:block">
+      {/* Two-column layout: side-nav (xl+) + tab content. The grid is
+           xl+ only; below xl the scrollable pill row above takes over.
+           Breakpoint moved md→xl so tablets (768–1279) use the pill row
+           too; ≥1280 renders exactly as before. */}
+      <div className="xl:grid xl:grid-cols-[220px_1fr] xl:gap-4">
+        {/* Side-nav (desktop ≥1280 only) */}
+        <aside className="hidden space-y-1 xl:block">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = active === tab.key;
@@ -320,7 +324,7 @@ export default function AdminPage() {
                 {tab.phase > 2 && (
                   <Badge
                     variant="outline"
-                    className="relative z-10 hidden text-[9px] uppercase tracking-wider md:inline-flex"
+                    className="relative z-10 hidden text-[9px] uppercase tracking-wider xl:inline-flex"
                   >
                     P{tab.phase}
                   </Badge>

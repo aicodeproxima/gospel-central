@@ -54,6 +54,15 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Phones (<md): present as a full-bleed bottom sheet instead of a
+          // centered dialog. Pin to the bottom edge, neutralize the centering
+          // translate, drop the side margins, square the bottom corners, and
+          // cap the height so the content scrolls inside the sheet. We keep the
+          // base p-4 (NOT pb-safe — that utility *replaces* padding-bottom and
+          // would zero it on non-notched phones); sticky footer bars in the
+          // wizards/forms own the home-indicator clearance. All scoped to
+          // max-md: so the >=md centered render is byte-identical.
+          "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:rounded-t-2xl max-md:data-open:slide-in-from-bottom max-md:data-closed:slide-out-to-bottom",
           className
         )}
         {...props}
@@ -65,7 +74,7 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 touch-manipulation max-md:size-9"
                 size="icon-sm"
               />
             }
@@ -103,6 +112,14 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // Phones: this footer is the sheet's bottom-most bleeding element, so
+        // it owns home-indicator clearance. Keep the base 1rem and add the
+        // safe-area inset (max() so it's never less than 1rem). Also make it
+        // sticky to the bottom of the scrollable sheet so the primary action
+        // stays reachable, and square the now-flush bottom corners. The direct
+        // <button> children are bumped to 44px touch targets. max-md: only —
+        // the >=md footer render is unchanged.
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:rounded-b-none max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:[&>button]:h-11 max-md:[&>button]:touch-manipulation",
         className
       )}
       {...props}

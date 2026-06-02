@@ -200,7 +200,7 @@ export function ContactsAdminTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <ContactIcon className="h-5 w-5 text-primary" />
             Contacts
@@ -218,6 +218,7 @@ export function ContactsAdminTab() {
           onClick={reload}
           title="Refresh"
           aria-label="Refresh contacts"
+          className="shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -300,7 +301,9 @@ export function ContactsAdminTab() {
         />
       </div>
 
-      <Card>
+      {/* Desktop table (≥1280). Below xl, the same rows render as stacked
+          cards (dual-render — see the card list further down). */}
+      <Card className="hidden xl:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -382,6 +385,96 @@ export function ContactsAdminTab() {
         </CardContent>
       </Card>
 
+      {/* Mobile / tablet card list (<1280). Each card is tappable to open the
+          same detail dialog as the desktop row click. */}
+      <div className="xl:hidden space-y-2">
+        {loading ? (
+          <Card>
+            <CardContent className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading contacts…
+            </CardContent>
+          </Card>
+        ) : loadError ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+              <p className="text-sm font-medium text-destructive">Failed to load contacts</p>
+              <p className="text-xs text-muted-foreground">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={reload} className="mt-2 gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : pagedContacts.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              No contacts match these filters.
+            </CardContent>
+          </Card>
+        ) : (
+          pagedContacts.map((c) => {
+            const stage = PIPELINE_STAGE_CONFIG[c.pipelineStage];
+            const inactive = c.status === 'inactive';
+            const converted = !!c.convertedToUserId;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setDetailContactId(c.id)}
+                className={`w-full touch-manipulation rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent/30 ${
+                  inactive ? 'opacity-60' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{c.firstName} {c.lastName}</div>
+                    {(c.email || c.phone) && (
+                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {c.email ?? c.phone}
+                      </div>
+                    )}
+                  </div>
+                  {converted ? (
+                    <Badge variant="outline" className="shrink-0 text-[10px]">Converted</Badge>
+                  ) : inactive ? (
+                    <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">Inactive</Badge>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0 text-[10px] border-green-500/40 text-green-500">Active</Badge>
+                  )}
+                </div>
+
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Stage</dt>
+                    <dd>
+                      <Badge variant="outline" className="text-xs">
+                        <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${stage?.color ?? 'bg-muted'}`} />
+                        {stage?.label ?? c.pipelineStage}
+                      </Badge>
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Owner</dt>
+                    <dd className="min-w-0 truncate text-xs">{ownerName(c)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Sessions</dt>
+                    <dd className="text-xs">{c.totalSessions ?? 0}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Last session</dt>
+                    <dd className="text-xs text-muted-foreground">
+                      {c.lastSessionDate ? format(parseISO(c.lastSessionDate), 'MMM d') : '—'}
+                    </dd>
+                  </div>
+                </dl>
+              </button>
+            );
+          })
+        )}
+      </div>
+
       {/* Pagination */}
       {!loading && !loadError && filtered.length > PAGE_SIZE && (
         <div className="flex items-center justify-between text-xs">
@@ -395,6 +488,7 @@ export function ContactsAdminTab() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={visiblePage === 1}
               aria-label="Previous page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -405,6 +499,7 @@ export function ContactsAdminTab() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={visiblePage >= totalPages}
               aria-label="Next page"
+              className="touch-manipulation max-xl:h-11 max-xl:w-11"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

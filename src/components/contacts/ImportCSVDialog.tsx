@@ -115,7 +115,7 @@ export function ImportCSVDialog({ open, onClose, onComplete }: ImportCSVDialogPr
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-2xl max-md:max-h-[85dvh] max-md:overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" />
@@ -190,15 +190,15 @@ export function ImportCSVDialog({ open, onClose, onComplete }: ImportCSVDialogPr
               )}
             </div>
 
-            <div className="flex justify-between pt-3">
-              <Button variant="outline" size="sm" onClick={handleClose}>
+            <div className="flex justify-between pt-3 max-md:pb-[max(0rem,env(safe-area-inset-bottom))]">
+              <Button variant="outline" size="sm" onClick={handleClose} className="touch-manipulation max-md:h-11 max-md:px-4">
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleImport}
                 disabled={importing || !!result}
-                className="gap-1.5"
+                className="gap-1.5 touch-manipulation max-md:h-11 max-md:px-4"
               >
                 {importing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

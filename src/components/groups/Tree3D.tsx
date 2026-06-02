@@ -85,7 +85,7 @@ function Platform({ color, size = 2.6 }: { color: [number, number, number]; size
 // ----------------------------------------------------------------------------
 // Avatar figure — textured plane that always faces the camera (billboard)
 // ----------------------------------------------------------------------------
-function AvatarFigure({ url }: { url: string }) {
+function AvatarFigure({ url, scale = 2.3 }: { url: string; scale?: number }) {
   const texture = useTexture(url) as THREE.Texture;
   // L-1: Drei's useTexture caches per-URL, so multiple avatars with the
   // same URL share a single THREE.Texture. Apply our sampler settings
@@ -106,7 +106,7 @@ function AvatarFigure({ url }: { url: string }) {
   return (
     <Billboard position={[0, 1.3, 0]} follow lockX={false} lockY={false} lockZ={false}>
       <mesh>
-        <planeGeometry args={[2.3, 2.3]} />
+        <planeGeometry args={[scale, scale]} />
         <meshBasicMaterial map={texture} transparent toneMapped={false} />
       </mesh>
     </Billboard>
@@ -131,6 +131,8 @@ interface NodeCardProps {
   onFocus: () => void;
   /** Tight zoom on just the node — used on collapse. */
   onFocusTight: () => void;
+  /** <1280px (tablet/phone): narrower card so framed siblings don't overlap. */
+  compact: boolean;
 }
 
 function NodeCardInner({
@@ -146,6 +148,7 @@ function NodeCardInner({
   onFilter,
   onFocus,
   onFocusTight,
+  compact,
 }: NodeCardProps) {
   const { tRole, tStage } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
@@ -166,9 +169,13 @@ function NodeCardInner({
       }}
     >
       <Platform color={color} />
-      {/* 3D avatar figure centered on the platform (billboarded to camera) */}
+      {/* 3D avatar figure centered on the platform (billboarded to camera).
+          Smaller on compact (<1280) so it doesn't dwarf the card on a phone. */}
       <Suspense fallback={null}>
-        <AvatarFigure url={node.avatarUrl || pickAvatarForUser(node.role, node.id)} />
+        <AvatarFigure
+          url={node.avatarUrl || pickAvatarForUser(node.role, node.id)}
+          scale={compact ? 1.6 : 2.3}
+        />
       </Suspense>
       {/* HTML overlay BELOW the platform — screen-space so text stays crisp
           at any zoom level. Drei's non-transform Html anchors at the 3D
@@ -177,8 +184,7 @@ function NodeCardInner({
         position={[0, -1.3, 0]}
         center
         zIndexRange={[40, 0]}
-        className="w-[168px] sm:w-[220px]"
-        style={{ pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <div
           className="rounded-md border border-white/20 bg-card/95 backdrop-blur px-3 py-2 text-left shadow-xl"
@@ -187,25 +193,16 @@ function NodeCardInner({
           <button
             type="button"
             onClick={() => {
-              if (hasChildrenOrContacts) {
-                // Capture the *target* state before toggling: if we're
-                // currently expanded, this click collapses → use a tight
-                // node-only focus. Otherwise we're expanding → frame the
-                // new subtree bounds.
-                const willBeCollapsed = isExpanded;
-                onToggle();
-                // setTimeout instead of rAF — rAF can be throttled when
-                // the tab isn't actively painting, which would cause the
-                // focus call to never fire.
-                setTimeout(() => {
-                  if (willBeCollapsed) onFocusTight();
-                  else onFocus();
-                }, 50);
-              } else {
-                onFocusTight();
-              }
+              // onToggle (nodes with children) flips expansion AND — in
+              // SceneContent — requests a focus against the FRESH post-toggle
+              // layout (focusReq + effect), so the camera snaps to fit the
+              // just-expanded group like the /tree-demo. Leaves tight-focus.
+              // (No setTimeout: it captured stale layout and broke snap-to-fit.)
+              if (hasChildrenOrContacts) onToggle();
+              else onFocusTight();
             }}
-            className="flex items-center gap-1.5 w-full text-left cursor-pointer"
+            className="flex items-center gap-1.5 w-full text-left cursor-pointer touch-manipulation"
+            style={{ minHeight: compact ? 44 : undefined }}
           >
             {hasChildrenOrContacts && (
               <ChevronRight
@@ -295,6 +292,7 @@ interface ContactLeaf3DProps {
   y: number;
   onOpen: () => void;
   onFocus: () => void;
+  compact: boolean;
 }
 
 function ContactLeaf3DInner({
@@ -303,6 +301,7 @@ function ContactLeaf3DInner({
   y,
   onOpen,
   onFocus,
+  compact,
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -329,8 +328,7 @@ function ContactLeaf3DInner({
         position={[0, -0.9, 0]}
         center
         zIndexRange={[30, 0]}
-        className="w-[168px] sm:w-[220px]"
-        style={{ pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <button
           type="button"
@@ -471,6 +469,42 @@ function SceneContent({
 }: Tree3DProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  // <1280px: compact cards + readability-capped framing so framed siblings
+  // don't overlap on a phone/tablet. ≥1280 keeps full-size cards + the
+  // original framing. Client-only (the Canvas is dynamically ssr:false).
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1279px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Drawable canvas size — use THIS (not window) for aspect-aware framing: on
+  // mobile the canvas is offset below the toolbar, so it's shorter/narrower
+  // than the window and the camera must fit that actual area.
+  const { size: canvasSize } = useThree();
+
+  // Snap-to-fit pipeline. The card's expand button bumps `focusReq`; the effect
+  // below computes the camera target against the FRESH layout (after expandedIds
+  // propagates in the same render batch) so expand snaps to fit the group — like
+  // the /tree-demo prototype, with no stale-layout setTimeout.
+  const focusSeq = useRef(0);
+  const [focusReq, setFocusReq] = useState<{
+    kind: 'subtree' | 'tight';
+    id: string;
+    seq: number;
+  } | null>(null);
+  const requestFocus = useCallback((kind: 'subtree' | 'tight', id: string) => {
+    focusSeq.current += 1;
+    setFocusReq({ kind, id, seq: focusSeq.current });
+  }, []);
+
+  // Tracks the external (search / jump / initial) focus we've already applied,
+  // so a later layout recompute (e.g. expanding a node) does NOT re-apply the
+  // stale initial focus and clobber the expand's snap-to-fit.
+  const appliedExternalRef = useRef<string | null>(null);
 
   // Real canvas aspect (CSS size of the drawing surface), NOT window.inner*.
   // On a portrait phone the canvas is much taller than wide (and inset below
@@ -565,10 +599,55 @@ function SceneContent({
       const width = maxX - minX;
       const height = maxY - minY;
 
-      // Pick a camera distance that fits the whole bounding box PLUS room
-      // for the cards (which extend ~3 units below each platform) and the
-      // glowing border margins. We bias the framing so the camera pulls
-      // back generously and never crops the subtree.
+      // Compact (<1280): aspect-aware fit with a readability CAP so the
+      // ~156px cards never zoom out into an unreadable, overlapping pile on
+      // a narrow phone/tablet. If the whole subtree can't fit at a readable
+      // zoom, frame the node + its DIRECT children instead and let the user
+      // pan/pinch to explore the rest (the "Smart-Fit" model).
+      if (compact) {
+        const vw = canvasSize.width || 1;
+        const vh = canvasSize.height || 1;
+        const aspect = vh > 0 ? vw / vh : 0.5;
+        const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+        const fitFor = (w: number, h: number) =>
+          Math.max((h / 2 + 3) / tan, (w / 2 + 3) / (tan * aspect), 12);
+        // Distance beyond which adjacent ~156px cards would visually collide
+        // (derived from card px ÷ world-units-per-px at the given canvas size).
+        const cap = ((5 * vh) / (160 * 2 * tan)) * 0.95;
+        let cx = centerX;
+        let cy = centerY - 2;
+        let distance = fitFor(width, height);
+        // Only cap WIDE subtrees — the cap exists to stop horizontally-adjacent
+        // sibling cards from overlapping when zoomed out. A tall, narrow subtree
+        // (e.g. a single-child chain) has no horizontal crowding, so fit its full
+        // height; otherwise the lowest card clips off the bottom of the screen.
+        if (width > 8 && distance > cap) {
+          // Too wide/tall to show legibly — reframe on node + direct children.
+          const near = new Set<string>([nodeId]);
+          root.node.children.forEach((c) => near.add(c.id));
+          const npts: Array<[number, number]> = [];
+          layout.nodes.forEach((n) => {
+            if (near.has(n.id)) npts.push([n.x, n.y]);
+          });
+          if (npts.length > 0) {
+            const nxs = npts.map((p) => p[0]);
+            const nys = npts.map((p) => p[1]);
+            const nMinX = Math.min(...nxs);
+            const nMaxX = Math.max(...nxs);
+            const nMinY = Math.min(...nys);
+            const nMaxY = Math.max(...nys);
+            cx = (nMinX + nMaxX) / 2;
+            cy = (nMinY + nMaxY) / 2 - 1.5;
+            distance = Math.min(cap, fitFor(nMaxX - nMinX, nMaxY - nMinY));
+          } else {
+            distance = cap;
+          }
+        }
+        return { center: [cx, cy, 0], distance };
+      }
+
+      // Desktop (≥1280) — original framing, unchanged. Pick a camera
+      // distance that fits the whole bounding box plus card/border margins.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
       // Fit BOTH dimensions for the REAL canvas aspect. 1.042 = 2*tan(fov/2)
@@ -590,7 +669,7 @@ function SceneContent({
         distance,
       };
     },
-    [layout, contacts, canvasAspect],
+    [layout, contacts, compact, canvasSize],
   );
 
   /** Zoom in tight on a single node — used by the Jump-to picker. */
@@ -606,6 +685,19 @@ function SceneContent({
     },
     [layout],
   );
+
+  // Apply focus requests against the CURRENT layout. The compute callbacks
+  // depend on `layout`, so when an expand bumps focusReq AND changes the layout
+  // in the same render batch, this runs once with the FRESH layout → the camera
+  // snaps to fit the just-expanded group.
+  useEffect(() => {
+    if (!focusReq) return;
+    const target =
+      focusReq.kind === 'tight'
+        ? computeNodeFocus(focusReq.id)
+        : computeSubtreeFocus(focusReq.id);
+    if (target) setFocus(target);
+  }, [focusReq, computeNodeFocus, computeSubtreeFocus]);
 
   // External focus (search / jump) — snap to any requested node once its
   // position is laid out. `externalFocusMode` decides whether we frame the
@@ -623,18 +715,22 @@ function SceneContent({
   const lastFocusKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!externalFocusId) {
-      lastFocusKeyRef.current = null;
+      appliedExternalRef.current = null;
       return;
     }
+    // Apply only when the external target actually changes — keep `layout` in
+    // deps so we still retry once the node is laid out, but the ref guard stops
+    // re-applying on unrelated layout changes (an expand) which would override
+    // the internal subtree snap.
     const key = `${externalFocusMode}:${externalFocusId}`;
-    if (key === lastFocusKeyRef.current) return;
+    if (appliedExternalRef.current === key) return;
     const target =
       externalFocusMode === 'node'
         ? computeNodeFocus(externalFocusId)
         : computeSubtreeFocus(externalFocusId);
     if (target) {
       setFocus(target);
-      lastFocusKeyRef.current = key;
+      appliedExternalRef.current = key;
     }
   }, [externalFocusId, externalFocusMode, computeNodeFocus, computeSubtreeFocus, layout]);
 
@@ -696,10 +792,16 @@ function SceneContent({
   const handleToggleById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => onToggle(ln.id);
+      m[ln.id] = () => {
+        const willExpand = !expandedIds.has(ln.id);
+        onToggle(ln.id);
+        // Request the matching focus in the SAME batch as the toggle, so the
+        // effect runs against the post-toggle layout → snap to fit.
+        requestFocus(willExpand ? 'subtree' : 'tight', ln.id);
+      };
     });
     return m;
-  }, [layout.nodes, onToggle]);
+  }, [layout.nodes, onToggle, expandedIds, requestFocus]);
 
   const handleFilterById = useMemo(() => {
     const m: Record<string, (f: ContactFilter) => void> = {};
@@ -712,24 +814,18 @@ function SceneContent({
   const handleFocusById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => {
-        const target = computeSubtreeFocus(ln.id);
-        if (target) setFocus(target);
-      };
+      m[ln.id] = () => requestFocus('subtree', ln.id);
     });
     return m;
-  }, [layout.nodes, computeSubtreeFocus]);
+  }, [layout.nodes, requestFocus]);
 
   const handleFocusTightById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.nodes.forEach((ln) => {
-      m[ln.id] = () => {
-        const target = computeNodeFocus(ln.id);
-        if (target) setFocus(target);
-      };
+      m[ln.id] = () => requestFocus('tight', ln.id);
     });
     return m;
-  }, [layout.nodes, computeNodeFocus]);
+  }, [layout.nodes, requestFocus]);
 
   const handleContactOpenById = useMemo(() => {
     const m: Record<string, () => void> = {};
@@ -806,6 +902,7 @@ function SceneContent({
             onFilter={handleFilterById[ln.id]}
             onFocus={handleFocusById[ln.id]}
             onFocusTight={handleFocusTightById[ln.id]}
+            compact={compact}
           />
         );
       })}
@@ -819,6 +916,7 @@ function SceneContent({
           y={lc.y}
           onOpen={handleContactOpenById[lc.id]}
           onFocus={handleContactFocusById[lc.id]}
+          compact={compact}
         />
       ))}
 

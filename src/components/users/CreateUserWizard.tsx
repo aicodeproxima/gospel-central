@@ -238,7 +238,7 @@ export function CreateUserWizard({
               exit={{ opacity: 0, x: -12 }}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="firstName">First name</Label>
                   <Input
@@ -404,16 +404,19 @@ export function CreateUserWizard({
                 <CredRow label="Username" value={createdUser.username} />
                 <CredRow label="Password" value={createdPassword} />
               </div>
-              <Button onClick={copyCredentials} variant="outline" className="w-full">
+              <Button onClick={copyCredentials} variant="outline" className="w-full touch-manipulation max-md:h-11">
                 <Copy className="mr-2 h-4 w-4" /> Copy both
               </Button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="mt-4 flex items-center justify-between gap-2">
+        {/* Phones: sticky bottom action bar so Next/Create stays reachable
+            while the body scrolls in the bottom sheet. Desktop keeps the
+            original inline row (max-md:-scoped). */}
+        <div className="mt-4 flex items-center justify-between gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:border-t max-md:border-border max-md:bg-popover max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:pt-3">
           {step !== 'success' && step !== 'identity' && (
-            <Button variant="ghost" size="sm" onClick={back} disabled={submitting}>
+            <Button variant="ghost" size="sm" onClick={back} disabled={submitting} className="touch-manipulation max-md:h-11">
               <ArrowLeft className="mr-1 h-4 w-4" /> Back
             </Button>
           )}
@@ -421,14 +424,14 @@ export function CreateUserWizard({
           {step === 'identity' && <span />}
           <div className="ml-auto flex gap-2">
             {step === 'success' ? (
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose} className="touch-manipulation max-md:h-11">Done</Button>
             ) : step === 'review' ? (
-              <Button onClick={submit} disabled={submitting}>
+              <Button onClick={submit} disabled={submitting} className="touch-manipulation max-md:h-11">
                 {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
                 Create account
               </Button>
             ) : (
-              <Button onClick={next} disabled={!canAdvance()}>
+              <Button onClick={next} disabled={!canAdvance()} className="touch-manipulation max-md:h-11">
                 Next <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             )}

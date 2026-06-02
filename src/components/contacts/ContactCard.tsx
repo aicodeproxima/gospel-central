@@ -70,7 +70,7 @@ function ContactCardInner({
       <div
         onClick={handleClick}
         className={cn(
-          'rounded-md border border-border bg-card px-3 py-2 cursor-pointer transition-all hover:bg-accent/60',
+          'rounded-md border border-border bg-card px-3 py-2 cursor-pointer transition-all hover:bg-accent/60 touch-manipulation',
           selected && 'ring-2 ring-primary',
         )}
       >
@@ -102,7 +102,7 @@ function ContactCardInner({
   return (
     <Card
       className={cn(
-        'cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5',
+        'cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 touch-manipulation',
         selected && 'ring-2 ring-primary',
       )}
       onClick={handleClick}
@@ -130,15 +130,16 @@ function ContactCardInner({
                 <h3 className="text-sm font-semibold truncate">
                   {contact.firstName} {contact.lastName}
                 </h3>
-                {/* Clickable phone/email */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                {/* Clickable phone/email — min-w-0 + truncate so a long email
+                    can't push the card past 320px on phone */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 min-w-0">
                   {contact.phone && (
                     <a
                       href={`tel:${contact.phone}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors touch-manipulation"
                     >
-                      <Phone className="h-3 w-3" />
+                      <Phone className="h-3 w-3 shrink-0" />
                       {contact.phone}
                     </a>
                   )}
@@ -146,10 +147,10 @@ function ContactCardInner({
                     <a
                       href={`mailto:${contact.email}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors truncate"
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors truncate max-w-full min-w-0 touch-manipulation"
                     >
-                      <Mail className="h-3 w-3" />
-                      {contact.email}
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{contact.email}</span>
                     </a>
                   )}
                 </div>

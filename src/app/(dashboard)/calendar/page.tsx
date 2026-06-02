@@ -118,7 +118,11 @@ export default function CalendarPage() {
 
   // Swipe-to-navigate: detect horizontal swipe gestures on the
   // calendar grid so users can swipe left/right to go forward/back.
-  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  // `fromHScroller` is set at touch-start when the gesture begins inside an
+  // element that can actually scroll horizontally (Day/Week grids on mobile).
+  // In that case we let the native inner scroll win and DON'T navigate, so
+  // dragging the week sideways scrolls the columns instead of jumping a week.
+  const touchStartRef = useRef<{ x: number; y: number; t: number; fromHScroller: boolean } | null>(null);
   const swipeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -129,15 +133,38 @@ export default function CalendarPage() {
     const MAX_VERTICAL = 80;    // px max vertical drift (ignore diagonal)
     const MAX_TIME = 500;       // ms max swipe duration
 
+    // Does the gesture start inside a horizontally-scrollable, overflowing
+    // element (between the touch target and the swipe container)? If so the
+    // user is scrolling the grid, not navigating periods.
+    const startedInHorizontalScroller = (target: EventTarget | null): boolean => {
+      let node = target as HTMLElement | null;
+      while (node && node !== el) {
+        if (node.scrollWidth > node.clientWidth + 1) {
+          const overflowX = getComputedStyle(node).overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll') return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
-      touchStartRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        t: Date.now(),
+        fromHScroller: startedInHorizontalScroller(e.target),
+      };
     };
 
     const onTouchEnd = (e: TouchEvent) => {
       const start = touchStartRef.current;
       if (!start) return;
       touchStartRef.current = null;
+
+      // Gesture was scrolling an inner horizontal scroller — leave it alone.
+      if (start.fromHScroller) return;
 
       const touch = e.changedTouches[0];
       const dx = touch.clientX - start.x;
@@ -214,9 +241,9 @@ export default function CalendarPage() {
     return format(selectedDate, 'MMMM yyyy');
   }, [selectedDate, view]);
 
-  // Compact label for the cramped mobile topbar (the desktop label is too long
-  // to fit beside the nav + Book button at ~412px).
-  const mobileDateLabel = useMemo(() => {
+  // Short label for the compact (<xl) toolbar — the full `dateLabel` is too
+  // wide for a phone's single toolbar row.
+  const dateLabelShort = useMemo(() => {
     if (view === 'day') return format(selectedDate, 'EEE, MMM d');
     if (view === 'week') {
       const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -297,29 +324,20 @@ export default function CalendarPage() {
   // Mount the page's toolbar into the global Topbar so the calendar grid
   // gets the full content area below. Re-runs whenever any value the JSX
   // references changes — include them all in the deps.
+  //
+  // MOBILE: the Topbar is a fixed single 64px row (components/layout/Topbar),
+  // so the full desktop toolbar (8 controls) overflows it below xl. We
+  // dual-render: the ORIGINAL toolbar is gated `hidden xl:flex` (byte-identical
+  // ≥1280), and a COMPACT toolbar (`xl:hidden`) holds just the essentials in a
+  // single row that scrolls horizontally INSIDE itself (overflow-x-auto +
+  // overscroll-contain) so the page body never scrolls sideways. The search bar
+  // and CSV export are relocated out of the cramped topbar into a dedicated
+  // full-width control row at the top of the page body (also `xl:hidden`).
   useTopbarSlot(
     (
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        {/* Mobile: compact nav. Area selector + view tabs live in the page body. */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
-          <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
-            Today
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Previous period">
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate(1)} aria-label="Next period">
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{mobileDateLabel}</h2>
-          <Button onClick={() => openBookingModal()} size="sm" className="shrink-0 gap-1">
-            <Plus className="h-4 w-4" />
-            Book
-          </Button>
-        </div>
-
-        {/* Desktop: full toolbar (unchanged at >=md) */}
-        <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
+      <>
+        {/* ≥1280: untouched desktop toolbar. */}
+        <div className="hidden min-w-0 flex-1 items-center gap-3 xl:flex">
           <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
             Today
           </Button>
@@ -398,11 +416,92 @@ export default function CalendarPage() {
             Book
           </Button>
         </div>
-      </div>
+
+        {/* <1280: compact single-row toolbar. Scrolls horizontally INSIDE
+             itself if it can't fit (e.g. a long area name on a 320px phone) so
+             the page body never gains a horizontal scrollbar. Search + export
+             live in the in-page control row below instead. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden xl:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setDate(new Date())}
+          >
+            Today
+          </Button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              aria-label="Previous period"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(1)}
+              aria-label="Next period"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+
+          {/* Compact date label — shown from sm up; on the very narrowest
+               phones it's hidden (the in-page row repeats it) to save space. */}
+          <h2 className="hidden shrink-0 whitespace-nowrap text-sm font-semibold sm:block">
+            {dateLabelShort}
+          </h2>
+
+          {/* Segmented view switcher — single letters on the tightest screens. */}
+          <Tabs
+            value={view}
+            onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}
+            className="shrink-0"
+          >
+            <TabsList>
+              <TabsTrigger value="day" aria-label="Day view">
+                <span className="max-[420px]:hidden">Day</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">D</span>
+              </TabsTrigger>
+              <TabsTrigger value="week" aria-label="Week view">
+                <span className="max-[420px]:hidden">Week</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">W</span>
+              </TabsTrigger>
+              <TabsTrigger value="month" aria-label="Month view">
+                <span className="max-[420px]:hidden">Month</span>
+                <span className="hidden max-[420px]:inline" aria-hidden="true">M</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
+            <SelectTrigger className="w-[120px] shrink-0">
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            onClick={() => openBookingModal()}
+            size="sm"
+            className="ml-auto shrink-0 gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Book
+          </Button>
+        </div>
+      </>
     ),
     [
       dateLabel,
-      mobileDateLabel,
+      dateLabelShort,
       view,
       selectedAreaId,
       areas,
@@ -423,32 +522,57 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      {/* Mobile-only controls: area selector + view switcher (the topbar
-          toolbar is compact on phones; desktop keeps these in the topbar). */}
-      <div className="space-y-3 md:hidden">
-        <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select area" />
-          </SelectTrigger>
-          <SelectContent>
-            {areas.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      {/* In-page control row — ONLY <xl. The desktop toolbar (≥xl) keeps search
+           + export in the Topbar; below xl that single 64px row can't hold them
+           without overflow, so they stack full-width here. Stays inside the
+           page body (no horizontal page scroll). */}
+      <div className="space-y-2 xl:hidden">
+        {/* Full date label, so phones that hide it in the compact toolbar
+             (below sm) still always see the current period. */}
+        <h2 className="whitespace-nowrap text-sm font-semibold sm:hidden">
+          {dateLabel}
+        </h2>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <BookingSearchBar
+              bookings={bookings}
+              users={users}
+              rooms={rooms}
+              onJumpToBooking={(b) => {
+                const d = new Date(b.startTime);
+                setDate(d);
+                setView('day');
+              }}
+            />
+          </div>
+          {canExportImport(viewer) && (
+            <div className="shrink-0">
+              <ExportDropdown
+                currentRows={bookings}
+                loadAll={loadAllBookings}
+                columns={bookingColumns}
+                toRow={bookingToRow}
+                filenamePrefix="diamond-bookings"
+                allLabel="All bookings (5-year window)"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Legend: collapsed (tap to open) on mobile to reclaim space; inline row on desktop */}
-      <details className="rounded-lg border border-border bg-card/50 px-3 py-2 md:hidden">
-        <summary className="cursor-pointer select-none text-sm text-muted-foreground">
-          Booking type colors
+      {/* Legend — full chip row on ≥md (unchanged on desktop); a tap-to-open
+           disclosure on phones so 7 chips don't eat ~5 rows above the calendar. */}
+      <div className="hidden flex-wrap gap-2 md:flex">
+        {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+          <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
+            {tBookingType(type)}
+          </Badge>
+        ))}
+      </div>
+      <details className="group md:hidden">
+        <summary className="flex w-fit cursor-pointer touch-manipulation list-none items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden="true" />
+          Legend
         </summary>
         <div className="mt-2 flex flex-wrap gap-2">
           {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
@@ -458,13 +582,6 @@ export default function CalendarPage() {
           ))}
         </div>
       </details>
-      <div className="hidden flex-wrap gap-2 md:flex">
-        {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
-          <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
-            {tBookingType(type)}
-          </Badge>
-        ))}
-      </div>
 
       {/* Calendar — swipe left/right to navigate periods */}
       <div ref={swipeContainerRef} className="touch-pan-y">
@@ -492,16 +609,7 @@ export default function CalendarPage() {
           </div>
         ) : (
           <>
-            {/* Mobile: agenda list for day/week; month keeps the compact grid */}
-            <div className="md:hidden">
-              {view === 'month' ? (
-                <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
-              ) : (
-                <AgendaView date={selectedDate} view={view} rooms={rooms} bookings={bookings} onBookingClick={openEditModal} onCreate={() => openBookingModal()} />
-              )}
-            </div>
-
-            {/* Desktop: room-column grid (unchanged at >=md) */}
+            {/* ≥md: the multi-room time grid (desktop unchanged ≥1280). */}
             <div className="hidden md:block">
               {view === 'week' && (
                 <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
@@ -512,6 +620,11 @@ export default function CalendarPage() {
               {view === 'month' && (
                 <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
               )}
+            </div>
+            {/* <md: phone agenda — a readable chronological list of the loaded
+                 range, grouped by day. Avoids the cramped multi-room grid. */}
+            <div className="md:hidden">
+              <AgendaView bookings={bookings} rooms={rooms} onBookingClick={openEditModal} />
             </div>
           </>
         )}

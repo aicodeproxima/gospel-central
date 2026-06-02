@@ -56,6 +56,10 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
       title={tooltip}
       className={cn(
         'relative block h-full w-full overflow-hidden rounded-md border text-left text-xs transition-shadow',
+        // touch-manipulation removes the 300ms tap delay + double-tap zoom on
+        // phones/tablets so opening a booking feels instant. Additive only —
+        // no effect on the ≥1280 mouse render.
+        'touch-manipulation',
         absolute && 'absolute inset-x-1',
         isCancelled ? 'opacity-35 border-dashed' : 'hover:shadow-lg',
         config.bgColor,
