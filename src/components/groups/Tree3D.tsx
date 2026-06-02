@@ -946,8 +946,11 @@ const DPR: [number, number] = [1, 1.5];
 // node's world extents above/below its center (avatar top / card bottom), used
 // to pad the camera framing so edge cards are never cut off. Keep the factor and
 // the measured widths calibrated together (see groups verification).
-const CARD_DISTANCE_FACTOR = 10;
-const CARD_WORLD_WIDTH = 4.6;
+// Calibrated live (412px): distanceFactor 10 rendered ~46px cards (≈2.15 wu) — too
+// small to read. Cards scale ∝ distanceFactor, so ×~2.3 → ~108px (≈5.0 wu wide).
+// 5.0 < HORIZONTAL_GAP(7) keeps a ~2 wu gutter so siblings still never overlap.
+const CARD_DISTANCE_FACTOR = 23;
+const CARD_WORLD_WIDTH = 5.0;
 const AVATAR_WORLD_TOP = 2.1;
 const CARD_WORLD_DROP = 4.0;
 
