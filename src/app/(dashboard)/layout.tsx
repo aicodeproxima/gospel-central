@@ -69,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // -- Immersive layout (Groups page) ---------------------------------------
   if (isImmersive) {
     return (
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative h-[100dvh] w-full overflow-hidden">
         {/* Fullscreen content — wrapped so a render error in /groups
              reports to /api/error-log with the viewer's id/role/url */}
         <div className="h-full w-full">
@@ -127,7 +127,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // -- Standard layout ------------------------------------------------------
   return (
     <TopbarSlotProvider>
-      <div className="flex h-full">
+      {/* 100dvh (not h-full/100vh) so Android's collapsing URL bar can't strand
+          the scroll bottom or the fixed MobileNav; overflow-hidden pins the
+          shell to the visible viewport while inner regions scroll. */}
+      <div className="flex h-[100dvh] overflow-hidden">
         {/* Desktop sidebar */}
         <div className="hidden md:block">
           <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
@@ -157,7 +160,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
              page horizontally scrolls. */}
         <div className="flex min-w-0 flex-1 flex-col md:hidden">
           {needsTopbar && <Topbar />}
-          <div className="min-w-0 flex-1 overflow-auto p-4 pb-20">
+          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20">
             <ErrorBoundary viewer={user} url={pathname}>
               {children}
             </ErrorBoundary>

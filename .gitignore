@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# local vendor packages' installed deps (source is tracked, node_modules is not)
+vendor/*/node_modules/

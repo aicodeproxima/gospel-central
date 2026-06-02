@@ -17,6 +17,7 @@ import {
 import { WeekView } from '@/components/calendar/WeekView';
 import { DayView } from '@/components/calendar/DayView';
 import { MonthView } from '@/components/calendar/MonthView';
+import { AgendaView } from '@/components/calendar/AgendaView';
 import { BookingSearchBar } from '@/components/calendar/BookingSearchBar';
 import { BookingWizard } from '@/components/booking/BookingWizard';
 import { ExportDropdown } from '@/components/shared/ExportDropdown';
@@ -213,6 +214,18 @@ export default function CalendarPage() {
     return format(selectedDate, 'MMMM yyyy');
   }, [selectedDate, view]);
 
+  // Compact label for the cramped mobile topbar (the desktop label is too long
+  // to fit beside the nav + Book button at ~412px).
+  const mobileDateLabel = useMemo(() => {
+    if (view === 'day') return format(selectedDate, 'EEE, MMM d');
+    if (view === 'week') {
+      const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+      return `${format(ws, 'MMM d')} – ${format(we, 'MMM d')}`;
+    }
+    return format(selectedDate, 'MMM yyyy');
+  }, [selectedDate, view]);
+
   // EXPORT-3: row mapper + columns for the calendar CSV export. Resolves
   // foreign-key fields (room/area/teacher/contact) from the lists already
   // loaded on the page.
@@ -287,87 +300,109 @@ export default function CalendarPage() {
   useTopbarSlot(
     (
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
-          Today
-        </Button>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            aria-label="Previous period"
-          >
+        {/* Mobile: compact nav. Area selector + view tabs live in the page body. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+          <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
+            Today
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Previous period">
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(1)}
-            aria-label="Next period"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate(1)} aria-label="Next period">
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </div>
-        <h2 className="hidden whitespace-nowrap text-base font-semibold lg:block">
-          {dateLabel}
-        </h2>
-        <InfoButton {...calendarHelp} />
-
-        <div className="min-w-[180px] flex-1 max-w-sm">
-          <BookingSearchBar
-            bookings={bookings}
-            users={users}
-            rooms={rooms}
-            onJumpToBooking={(b) => {
-              const d = new Date(b.startTime);
-              setDate(d);
-              setView('day');
-            }}
-          />
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{mobileDateLabel}</h2>
+          <Button onClick={() => openBookingModal()} size="sm" className="shrink-0 gap-1">
+            <Plus className="h-4 w-4" />
+            Book
+          </Button>
         </div>
 
-        <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Select area" />
-          </SelectTrigger>
-          <SelectContent>
-            {areas.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Desktop: full toolbar (unchanged at >=md) */}
+        <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
+          <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>
+            Today
+          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              aria-label="Previous period"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(1)}
+              aria-label="Next period"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          <h2 className="hidden whitespace-nowrap text-base font-semibold lg:block">
+            {dateLabel}
+          </h2>
+          <InfoButton {...calendarHelp} />
 
-        {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
-             area + date-range slice on screen. All = wider 5-year window
-             across all branches. Admin-tier only unless canExportImport's
-             feature flag is enabled. */}
-        {canExportImport(viewer) && (
-          <ExportDropdown
-            currentRows={bookings}
-            loadAll={loadAllBookings}
-            columns={bookingColumns}
-            toRow={bookingToRow}
-            filenamePrefix="diamond-bookings"
-            allLabel="All bookings (5-year window)"
-          />
-        )}
+          <div className="min-w-[180px] flex-1 max-w-sm">
+            <BookingSearchBar
+              bookings={bookings}
+              users={users}
+              rooms={rooms}
+              onJumpToBooking={(b) => {
+                const d = new Date(b.startTime);
+                setDate(d);
+                setView('day');
+              }}
+            />
+          </div>
 
-        <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
-          <TabsList>
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Select area" />
+            </SelectTrigger>
+            <SelectContent>
+              {areas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Button onClick={() => openBookingModal()} size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Book
-        </Button>
+          {/* EXPORT-3: dual-mode CSV export of bookings. Current view = the
+               area + date-range slice on screen. All = wider 5-year window
+               across all branches. Admin-tier only unless canExportImport's
+               feature flag is enabled. */}
+          {canExportImport(viewer) && (
+            <ExportDropdown
+              currentRows={bookings}
+              loadAll={loadAllBookings}
+              columns={bookingColumns}
+              toRow={bookingToRow}
+              filenamePrefix="diamond-bookings"
+              allLabel="All bookings (5-year window)"
+            />
+          )}
+
+          <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
+            <TabsList>
+              <TabsTrigger value="day">Day</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="month">Month</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Button onClick={() => openBookingModal()} size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            Book
+          </Button>
+        </div>
       </div>
     ),
     [
       dateLabel,
+      mobileDateLabel,
       view,
       selectedAreaId,
       areas,
@@ -388,8 +423,42 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2">
+      {/* Mobile-only controls: area selector + view switcher (the topbar
+          toolbar is compact on phones; desktop keeps these in the topbar). */}
+      <div className="space-y-3 md:hidden">
+        <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select area" />
+          </SelectTrigger>
+          <SelectContent>
+            {areas.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="day">Day</TabsTrigger>
+            <TabsTrigger value="week">Week</TabsTrigger>
+            <TabsTrigger value="month">Month</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Legend: collapsed (tap to open) on mobile to reclaim space; inline row on desktop */}
+      <details className="rounded-lg border border-border bg-card/50 px-3 py-2 md:hidden">
+        <summary className="cursor-pointer select-none text-sm text-muted-foreground">
+          Booking type colors
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+            <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
+              {tBookingType(type)}
+            </Badge>
+          ))}
+        </div>
+      </details>
+      <div className="hidden flex-wrap gap-2 md:flex">
         {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
           <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
             {tBookingType(type)}
@@ -423,15 +492,27 @@ export default function CalendarPage() {
           </div>
         ) : (
           <>
-            {view === 'week' && (
-              <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
-            )}
-            {view === 'day' && (
-              <DayView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
-            )}
-            {view === 'month' && (
-              <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
-            )}
+            {/* Mobile: agenda list for day/week; month keeps the compact grid */}
+            <div className="md:hidden">
+              {view === 'month' ? (
+                <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
+              ) : (
+                <AgendaView date={selectedDate} view={view} rooms={rooms} bookings={bookings} onBookingClick={openEditModal} onCreate={() => openBookingModal()} />
+              )}
+            </div>
+
+            {/* Desktop: room-column grid (unchanged at >=md) */}
+            <div className="hidden md:block">
+              {view === 'week' && (
+                <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+              )}
+              {view === 'day' && (
+                <DayView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+              )}
+              {view === 'month' && (
+                <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
+              )}
+            </div>
           </>
         )}
       </div>
