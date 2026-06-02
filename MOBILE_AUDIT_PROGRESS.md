@@ -93,5 +93,17 @@ ledger created.
 - Branch `feat/mobile-optimization` pushed. NOT merged to main. Bypass secret still active (revoke after sign-off).
 - Known limit: 3D view with a VERY wide child row (5 branch leaders) can't show all cards at once on a phone —
   focused node + center child framed, siblings reachable by pan; list view is the readable alternative.
-- REMAINING (user/deliberate): real S24-Ultra sign-off; decide if/how to merge to main (re-port, not the stale
-  `feat/mobile-realdevice`); revoke bypass secret `diamondMobileAudit2026realdevXYZ`.
+- REMAINING (user/deliberate): real S24-Ultra sign-off; decide if/how to merge to main; revoke bypass secret
+  `diamondMobileAudit2026realdevXYZ`.
+
+## ⚠️ PARALLEL BRANCH — `origin/feat/mobile-optimization` (decide before integrating)
+A parallel `feat/mobile-optimization` already exists on origin, based on the SAME current main (`ccc65ca`,
+2026-05-29), with 6 commits doing the SAME mobile work and likely MORE refined where mine has a limit:
+  - `e6841cf` MSW SW gate, calendar agenda, Tree3D snap, Groups de-occlusion (same as mine)
+  - `676b389` Tree3D **cap only wide subtrees (tall chains fit fully)** + robust groups toolbar-offset default
+  - `4d7608b` stop stale initial external-focus clobbering expand snap (= my snap-guard)
+This task appears to have been done in parallel. My independent, end-to-end-verified version is pushed as
+`origin/feat/mobile-opt-main` (`7dcfc7d`). NOT merged. DECISION for user: adopt the existing branch, adopt mine,
+or merge the best of both (their wide-subtree handling + my verified shell/calendar/list fixes). Branch names:
+  - `feat/mobile-opt-main` (mine, off ccc65ca, verified 320/412/landscape + Aurora theme, preview `qykza8dcg`)
+  - `feat/mobile-optimization` (pre-existing parallel, off ccc65ca, 6 commits, NOT verified by me)
