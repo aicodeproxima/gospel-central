@@ -110,7 +110,7 @@ export function OrgNodeComponent({
   return (
     <div className="relative">
       {depth > 0 && (
-        <div className="absolute -left-6 top-0 h-6 w-6 border-b-2 border-l-2 border-border rounded-bl-lg" />
+        <div className="absolute -left-3 sm:-left-6 top-0 h-6 w-3 sm:w-6 border-b-2 border-l-2 border-border rounded-bl-lg" />
       )}
 
       <motion.div
@@ -203,7 +203,7 @@ export function OrgNodeComponent({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="ml-10 mt-2 space-y-2 border-l-2 border-border pl-4 overflow-hidden"
+            className="ml-4 sm:ml-10 mt-2 space-y-2 border-l-2 border-border pl-2 sm:pl-4 overflow-hidden"
           >
             {/* Org tree children */}
             {node.children.map((child) => (
@@ -292,7 +292,7 @@ function ContactLeaf({ contact, onEdit }: { contact: Contact; onEdit: () => void
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
   return (
     <div className="relative">
-      <div className="absolute -left-6 top-0 h-6 w-6 border-b-2 border-l-2 border-border/50 rounded-bl-lg" />
+      <div className="absolute -left-3 sm:-left-6 top-0 h-6 w-3 sm:w-6 border-b-2 border-l-2 border-border/50 rounded-bl-lg" />
       <motion.button
         type="button"
         initial={{ opacity: 0, x: -8 }}

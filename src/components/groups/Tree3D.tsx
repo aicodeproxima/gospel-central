@@ -577,7 +577,11 @@ function SceneContent({
       // actually "snap to fit" on mobile.
       const distForHeight = paddedHeight / 1.042;
       const distForWidth = paddedWidth / (1.042 * canvasAspect);
-      const distance = Math.max(14, Math.max(distForHeight, distForWidth) * 1.12);
+      // Portrait phones: a wide row of children (each a fixed ~168px screen-space
+      // card) can't fit at the tight landscape distance, so pull back more — keep
+      // every child visible (cards may overlap a little, but none fall off-screen).
+      const portraitPad = canvasAspect < 1 ? 1.4 : 1;
+      const distance = Math.max(14, Math.max(distForHeight, distForWidth) * 1.12 * portraitPad);
 
       return {
         // Shift the look-at point down so the cards (which sit below
