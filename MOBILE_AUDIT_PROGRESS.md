@@ -51,4 +51,27 @@ Themes: light/dark + ~11 animated (`interactive-*` vendor pkgs) — test all.
 ## Loop log
 ### Loop 0 — setup — DONE (2026-06-02)
 Branch off main; `npm install`; build GREEN; baseline mock preview deployed (`a8ix2mrlv`); keep-awake engaged;
-ledger created. NEXT: baseline-verify priority screens on device mode @412×915 → concrete defect list → fix.
+ledger created.
+
+### Loop 1+2 — shell + Calendar + Groups/Tree3D — DONE + VERIFIED (commit `5ab0a7a`, preview `j39u3k1iy`)
+- Shell (`(dashboard)/layout.tsx`): standard root `h-[100dvh] overflow-hidden`; mobile content
+  `overflow-y-auto overflow-x-hidden`; immersive `/groups` `h-[100dvh]`. (main already had `min-w-0`.)
+- Calendar: new `AgendaView` (day-grouped, range-scoped) for day/week on mobile, MonthView for month, grid >=md;
+  compact mobile topbar + area/view body controls + collapsible legend; preserved ExportDropdown + empty-states.
+  VERIFIED 412: agenda renders (grid hidden), day-scoped (6 items Tue Jun 2), no pan, legend collapsed.
+- Tree3D: real canvas aspect (not window.innerHeight); aspect-aware computeSubtreeFocus; snap ref-guard; cards
+  `w-[168px] sm:w-[220px]`. Groups page: mobile toolbar compacted (title hidden, icon-only incl. Add User) +
+  canvas inset `pt-[10rem]` + nav clearance (`md:!p-0` desktop). VERIFIED 412: toolbar 227→141px, Michael framed
+  below toolbar (no occlusion), no pan.
+- Git hygiene: `git add -A` had swept 130 vendor/*/node_modules → gitignored + removed from index (amend `5ab0a7a`).
+
+### Loop 3 — Groups dense-row + list + full sweep — DONE + VERIFIED (commit `879d223`, preview `obm8gt8zb`)
+- Tree3D `computeSubtreeFocus` portrait pull-back ×1.4 (desktop unchanged). VERIFIED: tap-to-expand now keeps all
+  children in-scene; for a VERY wide row (Gabriel has 5 branch leaders) the focused node + center child are
+  framed and siblings are reachable by pan — 5×168px cards can't fit 412px, inherent 3D limit.
+- `OrgNode` list view: per-level indent 56px→24px on mobile (desktop >=sm unchanged). VERIFIED 412: Michael→
+  Gabriel→5 branches with FULL readable names (was "L.."/"P.." truncation) — list is the readable dense-tree nav.
+- SWEPT current main @412: Dashboard, Admin(users+permissions), Contacts, Reports, Settings, Login — ALL already
+  mobile-clean (no pan, no clip, data loads; admin tables scroll in x-containers). Team's prior sweeps covered them;
+  no fix needed. Only Calendar + Groups + shell needed work (now done).
+- NEXT: viewport matrix (320/360/430/landscape) spot-check on Calendar+Groups; theme spot-check; final report.
