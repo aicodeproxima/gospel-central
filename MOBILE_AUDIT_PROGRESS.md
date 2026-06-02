@@ -94,10 +94,19 @@ Commits `27947c8` (camera) + `7061abe` (toolbar/inset). Deployed `diamond-3bjsxm
 ### Phase 4 — Rooms & Areas header — TODO
 `RoomsTab.tsx` (path TBC — grep before edit). Header `flex items-center justify-between` crushes title.
 
-### Phase 5 — Full mobile sweep + report — TODO
-- WATCH: Phase 2 set the shared mobile content wrapper to `overflow-x-hidden`. Good (kills pan globally) but
-  could CLIP any page with wide content (e.g. admin tables on Contacts). Check every page for clipped
-  horizontal content during the sweep; convert wide tables to responsive cards rather than h-scroll.
+### Phase 5 — Full mobile sweep — ✅ VERIFIED (2026-06-02, DevTools Device Mode 412×915)
+Commit `00f9ebd`. Swept EVERY screen; each passes: data loads · no horizontal pan · no clipped content
+(probe: `scrollWidth == vw` AND zero visible elements wider than vw outside an x-scroller) · responsive.
+- **Login ✅ · Dashboard ✅ · Calendar ✅(P2) · Contacts ✅ · Groups ✅(P3) · Reports ✅ · Settings ✅**
+- Fixes this phase (Contacts + Reports): headers stack on mobile (`flex-col sm:flex-row`) instead of crushing
+  the title beside action buttons; filter bars stack full-width (`w-full sm:w-[Npx]`); Reports audit table
+  wrapper `overflow-hidden`→`overflow-x-auto` (5-col table scrolls instead of clipping under overflow-x-hidden).
+- **Phase 4 (Rooms & Areas) = N/A**: no `RoomsTab`/admin-tabs exist in this tree (unmerged round-2 work). The
+  header-crush CLASS it described WAS real on Contacts/Reports and is fixed here.
+- Dialogs already safe (`max-w-[calc(100%-2rem)]` base — `sm:max-w-xl` only ≥640px). Dashboard/Settings grids
+  use `sm:` breakpoints → 1-col on mobile. The Contacts kanban + Reports table use `overflow-x-auto` (scroll, not clip).
+- DEFERRED (cosmetic / real-phone only): Tree3D 220px card scaling for very dense subtrees; Reports table
+  card-redesign (it scrolls now, acceptable).
 
 ### Final — build gate + deploy + device sign-off — TODO
 - REVOKE bypass secret `diamondMobileAudit2026realdevXYZ` after sign-off
