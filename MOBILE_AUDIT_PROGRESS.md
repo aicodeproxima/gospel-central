@@ -107,3 +107,23 @@ This task appears to have been done in parallel. My independent, end-to-end-veri
 or merge the best of both (their wide-subtree handling + my verified shell/calendar/list fixes). Branch names:
   - `feat/mobile-opt-main` (mine, off ccc65ca, verified 320/412/landscape + Aurora theme, preview `qykza8dcg`)
   - `feat/mobile-optimization` (pre-existing parallel, off ccc65ca, 6 commits, NOT verified by me)
+
+### Loop 5 — adopt parallel branch (best-of-both) — DONE + VERIFIED (preview `idmdc4a6v`)
+Per user: "apply theirs' fixes that mine lacks to my branch." Theirs is a comprehensive superset
+(39 files, xl=1280 breakpoint, viewport export + globals mobile base, all admin/contacts/settings/
+dashboard/dialogs/BookingWizard/Day-Week-MonthView adapted, smarter Tree3D cap-wide-only).
+- Merged `origin/feat/mobile-optimization` into `feat/mobile-opt-main` with `-X theirs` (theirs wins
+  overlap). `-X theirs` left hybrids in the 3 files both rewrote → force-checked-out theirs' EXACT
+  Tree3D/groups-page/dashboard-layout. Kept my OrgNode list-indent (theirs never touched it).
+- Build fix: theirs' code tripped Next 16 static-prerender `useSearchParams` bailout on /login (+/admin
+  /contacts) → wrapped `{children}` in `<Suspense>` at root layout (force-dynamic from a 'use client'
+  page is NOT honored in Next 16). Build now GREEN, 11 routes.
+- Best-of-both: re-applied 2 fixes mine had + theirs lacked, VERIFIED on `idmdc4a6v`:
+  (1) AgendaView client-side day/week/month range filter — Day view now shows ONLY the selected day
+      (was leaking adjacent days; mock /api/bookings ignores start/end). VERIFIED: 1 day-header, 6 items.
+  (2) Groups list/metrics/pipeline `pt-40` mobile so content clears theirs' 151px floating toolbar.
+      VERIFIED: list first item top 196 > toolbar bottom 151 (was 132, overlapping).
+- VERIFIED on merged build: login, dashboard, calendar agenda (compact D/W/M, grouped, no pan), groups
+  3D (framed, no occlusion, toolbar 151), groups list (readable names, clears toolbar). No horizontal pan.
+- Branch `feat/mobile-opt-main` = theirs' full mobile work + my OrgNode + agenda-scoping + list-clearance.
+  Final preview: `https://diamond-idmdc4a6v-aicodeproximas-projects.vercel.app` (mock; cookie-bypass for phone).
