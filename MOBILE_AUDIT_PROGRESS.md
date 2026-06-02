@@ -127,3 +127,23 @@ dashboard/dialogs/BookingWizard/Day-Week-MonthView adapted, smarter Tree3D cap-w
   3D (framed, no occlusion, toolbar 151), groups list (readable names, clears toolbar). No horizontal pan.
 - Branch `feat/mobile-opt-main` = theirs' full mobile work + my OrgNode + agenda-scoping + list-clearance.
   Final preview: `https://diamond-idmdc4a6v-aicodeproximas-projects.vercel.app` (mock; cookie-bypass for phone).
+
+### Loop 6 — Groups 3D scaling rework — DONE + VERIFIED (commits `4f806be`+`0770b6b`, preview `dkh5xrez6`)
+Problem (user): cards overlapped/cut off when expanding a wide branch; expand didn't zoom out to fit children;
+avatars scaled with zoom but cards didn't; Collapse was unreachable (scrolled off the mobile toolbar).
+Root cause: node/contact cards were screen-space drei `<Html>` (fixed px, NO `distanceFactor`) while
+avatars/platforms are world-space → mismatch. Fix (all `compact`<1280-gated; desktop frozen):
+- **World-scale cards:** `distanceFactor` on both `<Html>` (drei web/Html.js: scale = objectScale*distanceFactor),
+  CALIBRATED live to `23` → card ~5.0 world-units wide (< `HORIZONTAL_GAP` 7 ⇒ siblings can never overlap).
+  (distanceFactor 10 gave ~46px unreadable cards → 23 → ~104px readable.)
+- **Framing:** `computeSubtreeFocus`/`computeFullTreeFocus` compact branches → padded bounding-box fit (pad
+  card-half-width + avatar-top + card-drop, real `canvasSize`); deleted the screen-space cap; OrbitControls
+  compact `maxDistance` 70→120.
+- **Toolbar:** icon-only on mobile (labels `hidden xl:inline`) + wrap (not horizontal-scroll) ⇒ Collapse/Reset/
+  Expand always visible. `data-tree-card` added for DOM verification.
+- VERIFIED @412 (DOM-measured): expand Gabriel→5 branch leaders = **0 overlaps, 0 off-X, 0 off-bottom**, cards
+  94–110px readable, avatars proportional. **Cards scale with zoom** (106px at fit-subtree → 28px at fit-all —
+  no freeze; the earlier wheel-test null was a synthetic-event artifact). **Collapse reachable + works** (2 root
+  cards remain). **Expand-all** = clean tidy non-overlapping tree, **51 cards on-screen vs old 1/178-off**.
+  Desktop @1440 UNCHANGED: cards fixed 220px (no distanceFactor), toolbar labelled.
+- Remaining recon (lower-risk, same focus pipeline): search/jump/list/contact-dialog/pan + 360/320 viewports.
