@@ -58,10 +58,21 @@ DevTools Device Mode then real phone (never localhost dev server, never "code lo
   - `handlers.ts:15` — same `/api` default (must match client).
 - Login creds (mock): `admin`/`admin` (u-michael, role DEV). Other users: stephen, overseer1, branch1-4.
 
-### Phase 2 — Calendar mobile — IN PROGRESS
-New `src/components/calendar/AgendaView.tsx`; `src/app/(dashboard)/calendar/page.tsx`; layout dvh.
-Reuse (grep-confirm before use): `useBookingStore`, `bookingsApi`, `BOOKING_TYPE_CONFIG`, `tBookingType`,
-date utils (`formatHour12`/`formatTimeRange`). NO `useRooms` hook — confirm room-name source in page.tsx.
+### Phase 2 — Calendar mobile — ✅ VERIFIED (2026-06-02, DevTools Device Mode + desktop regression)
+Commits `7ddbfcd` (feature) + `cda8b3b` (fixes). Deployed `diamond-aoidrii01-…vercel.app`.
+- New `src/components/calendar/AgendaView.tsx`: day-grouped booking list (time · room name · type color ·
+  title), **range-scoped** to the active day/week/month (mock `/api/bookings` ignores start/end → must
+  filter client-side, same as the grid does via isSameDay; else "Day" showed every date).
+- `calendar/page.tsx`: agenda for day/week on mobile, MonthView for month; grid intact ≥md. Compact mobile
+  topbar (Today/nav/`mobileDateLabel`/Book); area selector + view tabs moved into page body; legend →
+  `<details>` on mobile, inline row ≥md.
+- `(dashboard)/layout.tsx`: shell `h-[100dvh] overflow-hidden`; **mobile col `min-w-0`** (it was a flex item
+  with min-width:auto → expanded to 715px content-min-width → Book pushed off-screen; min-w-0 constrains it
+  to 412); mobile content `overflow-y-auto overflow-x-hidden`.
+- VERIFIED 412×915 (probe+screenshot): agenda renders (grid `display:none`), scoped to selected day, legend
+  collapsed, area+tabs in body, Book on-screen, `horizPan:false`, titles truncate w/ ellipsis, room names
+  shown. VERIFIED 1280 (screenshot): sidebar + full toolbar + full 7-pill legend + room-column grid all
+  unchanged. Build clean both commits.
 
 ### Phase 3 — Groups/Tree3D — TODO
 `src/app/(dashboard)/groups/page.tsx`, `src/components/groups/Tree3D.tsx`, `src/components/layout/MobileNav.tsx`.
@@ -73,6 +84,9 @@ emulation can't fully validate — sanity-check layout in DevTools, but real-pho
 `RoomsTab.tsx` (path TBC — grep before edit). Header `flex items-center justify-between` crushes title.
 
 ### Phase 5 — Full mobile sweep + report — TODO
+- WATCH: Phase 2 set the shared mobile content wrapper to `overflow-x-hidden`. Good (kills pan globally) but
+  could CLIP any page with wide content (e.g. admin tables on Contacts). Check every page for clipped
+  horizontal content during the sweep; convert wide tables to responsive cards rather than h-scroll.
 
 ### Final — build gate + deploy + device sign-off — TODO
 - REVOKE bypass secret `diamondMobileAudit2026realdevXYZ` after sign-off
@@ -85,4 +99,7 @@ emulation can't fully validate — sanity-check layout in DevTools, but real-pho
 - Use PowerShell (not Git Bash) for npm — Git Bash mangles args on this machine.
 
 ## Out-of-scope items noticed (for user, do NOT act)
-- (none yet)
+- **Dashboard layout renders `{children}` twice** — `(dashboard)/layout.tsx` renders the page in BOTH the
+  desktop-main branch and the mobile branch (one is `display:none` per breakpoint), so every page exists 2× in
+  the DOM. Pre-existing, works correctly, but doubles DOM nodes for heavy pages (calendar ≈28 bookings ×2).
+  Potential perf refactor: render children once and toggle chrome via CSS. NOT touched (would risk desktop).
