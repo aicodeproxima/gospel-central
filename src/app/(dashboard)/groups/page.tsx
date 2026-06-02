@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,21 @@ export default function GroupsPage() {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [resetSignal, setResetSignal] = useState(0);
   const [jumpOpen, setJumpOpen] = useState(false);
+
+  // Measure the floating toolbar so the 3D canvas can be inset below it on
+  // mobile. The toolbar overlays the scene; at ~412px it's ~227px tall and was
+  // hiding the top of the tree. Desktop keeps the full-bleed canvas (md:!p-0).
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarH, setToolbarH] = useState(0);
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const measure = () => setToolbarH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Focus pipeline plumbing: converts the discriminated union into the
   // two props Tree3D expects. Mode is derived; id=null means "no focus".
@@ -249,7 +264,13 @@ export default function GroupsPage() {
       {/* Fullscreen tree/list takes the entire viewport */}
       <TabsContent value="tree" className="absolute inset-0 m-0">
         {viewMode === '3d' ? (
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-0 md:!p-0"
+            style={{
+              paddingTop: toolbarH ? toolbarH + 8 : undefined,
+              paddingBottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)',
+            }}
+          >
             <Tree3D
               roots={orgTree}
               contacts={contacts}
@@ -298,7 +319,7 @@ export default function GroupsPage() {
 
       {/* Floating top-right toolbar — search + tabs + buttons hover over the scene.
           z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50). */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-20 sm:p-4 sm:pl-20">
+      <div ref={toolbarRef} className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-20 sm:p-4 sm:pl-20">
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">

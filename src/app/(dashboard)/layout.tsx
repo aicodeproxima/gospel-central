@@ -58,7 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // -- Immersive layout (Groups page) ---------------------------------------
   if (isImmersive) {
     return (
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative h-[100dvh] w-full overflow-hidden">
         {/* Fullscreen content */}
         <div className="h-full w-full">{children}</div>
 

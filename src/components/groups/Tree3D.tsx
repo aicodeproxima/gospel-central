@@ -473,6 +473,14 @@ function SceneContent({
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
 
+  // Real canvas aspect (CSS size of the drawing surface) — NOT window.inner*.
+  // On a portrait phone the canvas is much taller than wide (and is inset below
+  // the toolbar), so framing must pull the camera back to fit WIDTH. Window-
+  // based aspect + the dynamic URL bar gave wrong framing → tree rendered tiny
+  // / off-screen on mobile.
+  const { size: canvasSize } = useThree();
+  const canvasAspect = canvasSize.height > 0 ? canvasSize.width / canvasSize.height : 1.6;
+
   // Compute which contacts to show for each expanded node
   const visibleContactsByNode = useMemo(() => {
     const map = new Map<string, Contact[]>();
@@ -565,8 +573,13 @@ function SceneContent({
       // back generously and never crops the subtree.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
-      const size = Math.max(paddedWidth, paddedHeight, 10);
-      const distance = Math.max(14, size * 1.6);
+      // Fit BOTH dimensions for the REAL canvas aspect. 1.042 = 2*tan(fov/2)
+      // (fov 55). On a portrait phone distForWidth dominates, so the subtree
+      // fits side-to-side instead of being cropped — this is what makes
+      // tap-to-expand actually "snap to fit" on mobile.
+      const distForHeight = paddedHeight / 1.042;
+      const distForWidth = paddedWidth / (1.042 * canvasAspect);
+      const distance = Math.max(14, Math.max(distForHeight, distForWidth) * 1.12);
 
       return {
         // Shift the look-at point down so the cards (which sit below
@@ -575,7 +588,7 @@ function SceneContent({
         distance,
       };
     },
-    [layout, contacts],
+    [layout, contacts, canvasAspect],
   );
 
   /** Zoom in tight on a single node — used by the Jump-to picker. */
@@ -600,13 +613,29 @@ function SceneContent({
   // whole subtree or zoom tight on just the node. Depending on `layout`
   // ensures this re-runs if the layout was still stabilizing when the
   // focus id arrived.
+  // Only fly the camera when the REQUESTED id/mode changes — never merely
+  // because `layout` changed. Expanding a node recomputes `layout`; if this
+  // re-fired on every layout change it yanked the camera back to the stale
+  // external focus (the initial Michael snap), which is exactly why
+  // tap-to-expand "didn't snap to fit". The `layout` dep is still needed so a
+  // focus id that arrives BEFORE its node is laid out gets retried — the ref
+  // guard makes it act only until the target is found once per request.
+  const lastFocusKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!externalFocusId) return;
+    if (!externalFocusId) {
+      lastFocusKeyRef.current = null;
+      return;
+    }
+    const key = `${externalFocusMode}:${externalFocusId}`;
+    if (key === lastFocusKeyRef.current) return;
     const target =
       externalFocusMode === 'node'
         ? computeNodeFocus(externalFocusId)
         : computeSubtreeFocus(externalFocusId);
-    if (target) setFocus(target);
+    if (target) {
+      setFocus(target);
+      lastFocusKeyRef.current = key;
+    }
   }, [externalFocusId, externalFocusMode, computeNodeFocus, computeSubtreeFocus, layout]);
 
   // Reset view — frames the entire currently-laid-out tree
@@ -625,8 +654,9 @@ function SceneContent({
     // huge empty vertical gutters. Canvas is dynamically imported with
     // ssr:false so `window` is always defined here — the old guard was
     // dead code (audit L-4).
-    const aspect =
-      window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 1.6;
+    // Use the REAL canvas aspect (not window.inner* — wrong on mobile with the
+    // dynamic URL bar, and the canvas is inset below the toolbar on phones).
+    const aspect = canvasAspect;
     // Extra top padding so the floating toolbar doesn't overlap Michael/roots
     const TOOLBAR_PAD_TOP = 6;
     const paddedWidth = maxX - minX + 4;
@@ -651,7 +681,7 @@ function SceneContent({
       ],
       distance,
     };
-  }, [layout]);
+  }, [layout, canvasAspect]);
 
   useEffect(() => {
     if (resetSignal === undefined || resetSignal === 0) return;
