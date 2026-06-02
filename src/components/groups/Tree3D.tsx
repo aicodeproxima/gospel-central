@@ -184,9 +184,11 @@ function NodeCardInner({
         position={[0, -1.3, 0]}
         center
         zIndexRange={[40, 0]}
+        distanceFactor={compact ? CARD_DISTANCE_FACTOR : undefined}
         style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <div
+          data-tree-card
           className="rounded-md border border-white/20 bg-card/95 backdrop-blur px-3 py-2 text-left shadow-xl"
           style={{ borderTopColor: hex, borderTopWidth: 3 }}
         >
@@ -328,10 +330,12 @@ function ContactLeaf3DInner({
         position={[0, -0.9, 0]}
         center
         zIndexRange={[30, 0]}
+        distanceFactor={compact ? CARD_DISTANCE_FACTOR : undefined}
         style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <button
           type="button"
+          data-tree-card
           onClick={(e) => {
             e.stopPropagation();
             onOpen();
@@ -598,45 +602,26 @@ function SceneContent({
       // zoom, frame the node + its DIRECT children instead and let the user
       // pan/pinch to explore the rest (the "Smart-Fit" model).
       if (compact) {
+        // World-scaled cards (distanceFactor) are a fixed ~CARD_WORLD_WIDTH wide at
+        // ANY zoom, and siblings sit >= HORIZONTAL_GAP(7) apart, max 3 per row — so
+        // they can NEVER overlap. We therefore just fit the WHOLE expanded subtree's
+        // bounding box, padded by the node's world extents so no edge card is cut.
         const vw = canvasSize.width || 1;
         const vh = canvasSize.height || 1;
-        const aspect = vh > 0 ? vw / vh : 0.5;
+        const aspect = vw / vh;
         const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
-        const fitFor = (w: number, h: number) =>
-          Math.max((h / 2 + 3) / tan, (w / 2 + 3) / (tan * aspect), 12);
-        // Distance beyond which adjacent ~156px cards would visually collide
-        // (derived from card px ÷ world-units-per-px at the given canvas size).
-        const cap = ((5 * vh) / (160 * 2 * tan)) * 0.95;
-        let cx = centerX;
-        let cy = centerY - 2;
-        let distance = fitFor(width, height);
-        // Only cap WIDE subtrees — the cap exists to stop horizontally-adjacent
-        // sibling cards from overlapping when zoomed out. A tall, narrow subtree
-        // (e.g. a single-child chain) has no horizontal crowding, so fit its full
-        // height; otherwise the lowest card clips off the bottom of the screen.
-        if (width > 8 && distance > cap) {
-          // Too wide/tall to show legibly — reframe on node + direct children.
-          const near = new Set<string>([nodeId]);
-          root.node.children.forEach((c) => near.add(c.id));
-          const npts: Array<[number, number]> = [];
-          layout.nodes.forEach((n) => {
-            if (near.has(n.id)) npts.push([n.x, n.y]);
-          });
-          if (npts.length > 0) {
-            const nxs = npts.map((p) => p[0]);
-            const nys = npts.map((p) => p[1]);
-            const nMinX = Math.min(...nxs);
-            const nMaxX = Math.max(...nxs);
-            const nMinY = Math.min(...nys);
-            const nMaxY = Math.max(...nys);
-            cx = (nMinX + nMaxX) / 2;
-            cy = (nMinY + nMaxY) / 2 - 1.5;
-            distance = Math.min(cap, fitFor(nMaxX - nMinX, nMaxY - nMinY));
-          } else {
-            distance = cap;
-          }
-        }
-        return { center: [cx, cy, 0], distance };
+        const padTop = AVATAR_WORLD_TOP + 1.5; // avatar above center; canvas already starts below the toolbar
+        const padBottom = CARD_WORLD_DROP;     // card hangs below center
+        const boxW = maxX - minX + CARD_WORLD_WIDTH;
+        const boxH = maxY - minY + padTop + padBottom;
+        // Smallest distance that fits BOTH axes (vertical fov + horizontal = fov*aspect).
+        const distance = Math.min(
+          120,
+          Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect), 7),
+        );
+        // Bias look-at to the box's true vertical midpoint (card hangs lower than avatar).
+        const cy = centerY + (padTop - padBottom) / 2;
+        return { center: [centerX, cy, 0], distance };
       }
 
       // Desktop (≥1280) — original framing, unchanged. Pick a camera
@@ -724,6 +709,28 @@ function SceneContent({
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
+    if (compact) {
+      // Compact fit-all: same world-scaled padded-box fit as computeSubtreeFocus,
+      // over ALL nodes. Real canvasSize (not window) + no *0.55/min(32) clamp
+      // (those pushed the whole tree off-screen on mobile). Clamp to the raised
+      // compact maxDistance so a big tree can actually dolly out to fit.
+      const vw = canvasSize.width || 1;
+      const vh = canvasSize.height || 1;
+      const aspect = vw / vh;
+      const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+      const padTop = AVATAR_WORLD_TOP + 1.5;
+      const padBottom = CARD_WORLD_DROP;
+      const boxW = maxX - minX + CARD_WORLD_WIDTH;
+      const boxH = maxY - minY + padTop + padBottom;
+      const distance = Math.min(
+        120,
+        Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect), 7),
+      );
+      return {
+        center: [(minX + maxX) / 2, (minY + maxY) / 2 + (padTop - padBottom) / 2, 0],
+        distance,
+      };
+    }
     // Account for the viewport aspect ratio so horizontal trees don't leave
     // huge empty vertical gutters. Canvas is dynamically imported with
     // ssr:false so `window` is always defined here — the old guard was
@@ -754,7 +761,7 @@ function SceneContent({
       ],
       distance,
     };
-  }, [layout]);
+  }, [layout, compact, canvasSize]);
 
   useEffect(() => {
     if (resetSignal === undefined || resetSignal === 0) return;
@@ -905,7 +912,7 @@ function SceneContent({
         enableRotate={false}
         screenSpacePanning
         makeDefault
-        maxDistance={70}
+        maxDistance={compact ? 120 : 70}
         minDistance={3}
         target={[0, -4, 0]}
         mouseButtons={{
@@ -928,6 +935,21 @@ function SceneContent({
 const CAMERA_CONFIG = { position: [0, 2, 22] as [number, number, number], fov: 55, near: 0.1, far: 2000 };
 const GL_CONFIG = { antialias: true, alpha: true, powerPreference: 'high-performance' as const };
 const DPR: [number, number] = [1, 1.5];
+
+// --- Compact (<1280) world-scaled card tuning ------------------------------
+// On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
+// they scale WITH zoom exactly like the world-space avatar/platform — a node
+// reads as one unit at every zoom (drei web/Html.js: scale = objectScale * distanceFactor).
+// CARD_DISTANCE_FACTOR is CALIBRATED live so a card is ~CARD_WORLD_WIDTH world
+// units wide; keeping that < the layout HORIZONTAL_GAP (7) means sibling cards
+// can NEVER overlap at any zoom. AVATAR_WORLD_TOP / CARD_WORLD_DROP are the
+// node's world extents above/below its center (avatar top / card bottom), used
+// to pad the camera framing so edge cards are never cut off. Keep the factor and
+// the measured widths calibrated together (see groups verification).
+const CARD_DISTANCE_FACTOR = 10;
+const CARD_WORLD_WIDTH = 4.6;
+const AVATAR_WORLD_TOP = 2.1;
+const CARD_WORLD_DROP = 4.0;
 
 export function Tree3D(props: Tree3DProps) {
   return (

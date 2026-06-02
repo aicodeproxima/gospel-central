@@ -362,27 +362,29 @@ export default function GroupsPage() {
             <TreeSearchBar roots={orgTree} onSelect={handleSearchSelect} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/15 bg-card/75 p-1 shadow-lg backdrop-blur-md max-xl:max-w-full max-xl:flex-nowrap max-xl:overflow-x-auto max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/15 bg-card/75 p-1 shadow-lg backdrop-blur-md xl:rounded-full">
             <div className="flex items-center rounded-full p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode('3d')}
+                aria-label={t('groups.3d')}
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   viewMode === '3d' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Box className="h-3.5 w-3.5" />
-                {t('groups.3d')}
+                <span className="hidden xl:inline">{t('groups.3d')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
+                aria-label={t('groups.list')}
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <List className="h-3.5 w-3.5" />
-                {t('groups.list')}
+                <span className="hidden xl:inline">{t('groups.list')}</span>
               </button>
             </div>
             <Button
@@ -393,27 +395,29 @@ export default function GroupsPage() {
               title="Jump to a group or team leader's subtree"
             >
               <Crosshair className="h-3.5 w-3.5" />
-              {t('groups.jumpTo')}
+              <span className="hidden xl:inline">{t('groups.jumpTo')}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleExpandAll}
               disabled={allExpanded}
+              aria-label={t('groups.expand')}
               className="h-7 gap-1.5 rounded-full px-2.5 text-xs"
             >
               <ChevronsUpDown className="h-3.5 w-3.5" />
-              {t('groups.expand')}
+              <span className="hidden xl:inline">{t('groups.expand')}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleCollapseAll}
               disabled={expandedIds.size === 0}
+              aria-label={t('groups.collapse')}
               className="h-7 gap-1.5 rounded-full px-2.5 text-xs"
             >
               <ChevronsDownUp className="h-3.5 w-3.5" />
-              {t('groups.collapse')}
+              <span className="hidden xl:inline">{t('groups.collapse')}</span>
             </Button>
             {viewMode === '3d' && (
               <Button
@@ -424,18 +428,19 @@ export default function GroupsPage() {
                 title="Fit the whole tree in view without changing expansion"
               >
                 <Maximize2 className="h-3.5 w-3.5" />
-                {t('groups.reset')}
+                <span className="hidden xl:inline">{t('groups.reset')}</span>
               </Button>
             )}
             {showAddUser && (
               <Button
                 size="sm"
                 onClick={() => setAddUserOpen(true)}
+                aria-label="Add User"
                 className="h-7 gap-1.5 rounded-full px-3 text-xs"
                 title="Create a new account below your level"
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                Add User
+                <span className="hidden xl:inline">Add User</span>
               </Button>
             )}
           </div>
