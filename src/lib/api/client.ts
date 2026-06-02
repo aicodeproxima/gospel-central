@@ -1,4 +1,8 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// Default to a RELATIVE base so MSW (and any same-origin backend) intercepts.
+// An absolute 'http://localhost:8080/api' default is fatal on real devices:
+// "localhost" there is the phone itself, so every call dies with "Failed to
+// fetch". Override with NEXT_PUBLIC_API_URL to point at a real backend.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 /**
  * Thin fetch wrapper with:

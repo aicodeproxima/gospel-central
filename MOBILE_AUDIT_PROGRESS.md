@@ -29,8 +29,14 @@ desktop ≥xl visually unchanged · No backend wiring / no architecture changes 
 - VERIFIED: emulator `emulator-5554` online (reconnected after adb daemon restart; emulator PID 29772 alive).
 - This ledger + `.mobile-audit/` created.
 
-### Phase 1 — Data blocker (MSW) — TODO
-Files: `src/components/shared/MSWProvider.tsx`, `src/lib/api/client.ts`, `src/mocks/handlers.ts`.
+### Phase 1 — Data blocker (MSW) — CODE DONE, verify pending
+Files edited:
+- `MSWProvider.tsx` — mock default-ON (gate flipped to `=== 'false'` opt-out); after `worker.start()`
+  wait for `navigator.serviceWorker.controller`, else reload once (sessionStorage `msw-reloaded-once` guard).
+- `client.ts:1` — API base default `http://localhost:8080/api` → relative `/api`.
+- `handlers.ts:12` — same `/api` default (must match client).
+- VERIFIED locally: edits applied. EXPECTED: data loads on emulator (verify after deploy).
+- Note: MSW v2 resolves relative handler paths against location.origin → `/api/*` matches `fetch('/api/*')`.
 
 ### Phase 2 — Calendar mobile — TODO
 New `src/components/calendar/AgendaView.tsx`; `src/app/(dashboard)/calendar/page.tsx`; layout dvh.

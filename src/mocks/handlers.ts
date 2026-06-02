@@ -9,7 +9,10 @@ import {
   mockAuditLog,
 } from './data';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// Must match the client's API base (src/lib/api/client.ts) so handlers register
+// on the same URLs the app calls. Relative '/api' default — never localhost,
+// which is the device itself on a real phone.
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 /**
  * Mutable in-memory copies so PUT/DELETE/POST actually mutate and subsequent
