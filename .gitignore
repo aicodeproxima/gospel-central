@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Mobile audit screenshot artifacts (binary; ledger MOBILE_AUDIT_PROGRESS.md stays tracked)
+.mobile-audit/
