@@ -258,7 +258,7 @@ export default function ContactsPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t('page.contacts.title')}</h1>
@@ -355,7 +355,7 @@ export default function ContactsPage() {
         >
           <span className="text-sm font-medium">{selectedIds.size} {t('contacts.selected')}</span>
           <Select onValueChange={(v) => { if (v) handleBulkStageChange(String(v)); }}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs">
               <SelectValue placeholder="Change stage..." />
             </SelectTrigger>
             <SelectContent>
@@ -373,8 +373,8 @@ export default function ContactsPage() {
       )}
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 pr-9"
@@ -394,7 +394,7 @@ export default function ContactsPage() {
         </div>
 
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'all')}>
-          <SelectTrigger className="w-[170px]">
+          <SelectTrigger className="w-full sm:w-[170px]">
             <Filter className="mr-1.5 h-3.5 w-3.5" />
             <SelectValue placeholder="Type" />
           </SelectTrigger>
@@ -407,7 +407,7 @@ export default function ContactsPage() {
         </Select>
 
         <Select value={sortKey} onValueChange={(v) => setSortKey((v ?? 'name') as SortKey)}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
             <SelectValue />
           </SelectTrigger>

@@ -280,8 +280,8 @@ export default function ReportsPage() {
 
   // ── Filter bar (shared between tabs) ──────────────────────────
   const filterBar = (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input
           value={search}
@@ -301,7 +301,7 @@ export default function ReportsPage() {
       </div>
 
       <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '')}>
-        <SelectTrigger className="w-[130px]">
+        <SelectTrigger className="w-full sm:w-[130px]">
           <SelectValue placeholder="Action" />
         </SelectTrigger>
         <SelectContent>
@@ -315,7 +315,7 @@ export default function ReportsPage() {
       </Select>
 
       <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v ?? '')}>
-        <SelectTrigger className="w-[140px]">
+        <SelectTrigger className="w-full sm:w-[140px]">
           <SelectValue placeholder="Entity" />
         </SelectTrigger>
         <SelectContent>
@@ -329,7 +329,7 @@ export default function ReportsPage() {
       </Select>
 
       <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '')}>
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue placeholder="User" />
         </SelectTrigger>
         <SelectContent>
@@ -343,7 +343,7 @@ export default function ReportsPage() {
       </Select>
 
       <Select value={dateRange} onValueChange={(v) => setDateRange((v ?? 'all') as typeof dateRange)}>
-        <SelectTrigger className="w-[130px]">
+        <SelectTrigger className="w-full sm:w-[130px]">
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           <SelectValue />
         </SelectTrigger>
@@ -383,7 +383,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-md border overflow-hidden">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -468,7 +468,7 @@ export default function ReportsPage() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t('page.reports.title')}</h1>
