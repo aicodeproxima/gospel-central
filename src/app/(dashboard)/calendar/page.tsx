@@ -191,6 +191,18 @@ export default function CalendarPage() {
     return format(selectedDate, 'MMMM yyyy');
   }, [selectedDate, view]);
 
+  // Compact label for the cramped mobile topbar (the desktop label is too long
+  // to fit beside the nav + Book button at ~412px).
+  const mobileDateLabel = useMemo(() => {
+    if (view === 'day') return format(selectedDate, 'EEE, MMM d');
+    if (view === 'week') {
+      const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+      return `${format(ws, 'MMM d')} – ${format(we, 'MMM d')}`;
+    }
+    return format(selectedDate, 'MMM yyyy');
+  }, [selectedDate, view]);
+
   // Mount the page's toolbar into the global Topbar so the calendar grid
   // gets the full content area below. Re-runs whenever any value the JSX
   // references changes — include them all in the deps.
@@ -208,8 +220,8 @@ export default function CalendarPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(1)} aria-label="Next period">
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{dateLabel}</h2>
-          <Button onClick={() => openBookingModal()} size="sm" className="gap-1">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{mobileDateLabel}</h2>
+          <Button onClick={() => openBookingModal()} size="sm" className="shrink-0 gap-1">
             <Plus className="h-4 w-4" />
             Book
           </Button>
@@ -284,6 +296,7 @@ export default function CalendarPage() {
     ),
     [
       dateLabel,
+      mobileDateLabel,
       view,
       selectedAreaId,
       areas,
@@ -357,7 +370,7 @@ export default function CalendarPage() {
               {view === 'month' ? (
                 <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
               ) : (
-                <AgendaView rooms={rooms} bookings={bookings} onBookingClick={openEditModal} onCreate={() => openBookingModal()} />
+                <AgendaView date={selectedDate} view={view} rooms={rooms} bookings={bookings} onBookingClick={openEditModal} onCreate={() => openBookingModal()} />
               )}
             </div>
 

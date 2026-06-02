@@ -3,12 +3,24 @@
 import { useMemo } from 'react';
 import { Clock, MapPin, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, parseISO, formatTimeRange } from '@/lib/utils/date';
+import {
+  format,
+  parseISO,
+  formatTimeRange,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from '@/lib/utils/date';
 import { BOOKING_TYPE_CONFIG, BookingStatus } from '@/lib/types';
 import type { Booking, Room } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 
 interface AgendaViewProps {
+  date: Date;
+  view: 'day' | 'week' | 'month';
   rooms: Room[];
   bookings: Booking[];
   onBookingClick: (booking: Booking) => void;
@@ -21,10 +33,9 @@ interface AgendaViewProps {
  * and absolute time positioning are unreadable at ~412px and hide which room
  * each booking belongs to. Every row here states the room name explicitly
  * (the #1 thing the user said the grid hid). Reuses BOOKING_TYPE_CONFIG colors
- * + date utils; the calendar page already scopes `bookings` to the active
- * day/week/month range, so we just group what we're given.
+ * + date utils.
  */
-export function AgendaView({ rooms, bookings, onBookingClick, onCreate }: AgendaViewProps) {
+export function AgendaView({ date, view, rooms, bookings, onBookingClick, onCreate }: AgendaViewProps) {
   const { tBookingType } = useTranslation();
 
   const roomName = useMemo(() => {
@@ -32,10 +43,26 @@ export function AgendaView({ rooms, bookings, onBookingClick, onCreate }: Agenda
     return (id: string) => map.get(id) ?? 'Unknown room';
   }, [rooms]);
 
-  // Group by calendar day → days ascending → bookings within a day by start time.
+  // Scope to the active period, then group by day. The mock /api/bookings
+  // ignores start/end (it returns every booking for the area), and a real
+  // backend can over-return too, so we filter client-side here — exactly as
+  // the grid views do via isSameDay. Without this, "Day" shows every date.
   const groups = useMemo(() => {
+    const rangeStart =
+      view === 'day' ? startOfDay(date)
+        : view === 'week' ? startOfWeek(date, { weekStartsOn: 1 })
+          : startOfMonth(date);
+    const rangeEnd =
+      view === 'day' ? endOfDay(date)
+        : view === 'week' ? endOfWeek(date, { weekStartsOn: 1 })
+          : endOfMonth(date);
+    const startMs = rangeStart.getTime();
+    const endMs = rangeEnd.getTime();
+
     const byDay = new Map<string, Booking[]>();
     for (const b of bookings) {
+      const t = parseISO(b.startTime).getTime();
+      if (t < startMs || t > endMs) continue;
       const key = format(parseISO(b.startTime), 'yyyy-MM-dd');
       const arr = byDay.get(key);
       if (arr) arr.push(b);
@@ -48,7 +75,7 @@ export function AgendaView({ rooms, bookings, onBookingClick, onCreate }: Agenda
         date: parseISO(`${key}T00:00:00`),
         items: items.sort((x, y) => x.startTime.localeCompare(y.startTime)),
       }));
-  }, [bookings]);
+  }, [bookings, date, view]);
 
   if (groups.length === 0) {
     return (
@@ -114,8 +141,9 @@ export function AgendaView({ rooms, bookings, onBookingClick, onCreate }: Agenda
                         <span className="inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" aria-hidden="true" /> {formatTimeRange(b.startTime, b.endTime)}
                         </span>
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3 w-3" aria-hidden="true" /> {roomName(b.roomId)}
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{roomName(b.roomId)}</span>
                         </span>
                       </div>
                     </div>

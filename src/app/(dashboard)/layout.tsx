@@ -134,9 +134,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </motion.main>
 
         {/* Mobile layout */}
-        <div className="flex flex-1 flex-col md:hidden">
+        <div className="flex min-w-0 flex-1 flex-col md:hidden">
           {needsTopbar && <Topbar />}
-          <div className="flex-1 overflow-auto p-4 pb-20">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20">
             {children}
           </div>
           <MobileNav />
