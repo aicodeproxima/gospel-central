@@ -624,7 +624,7 @@ export default function CalendarPage() {
             {/* <md: phone agenda — a readable chronological list of the loaded
                  range, grouped by day. Avoids the cramped multi-room grid. */}
             <div className="md:hidden">
-              <AgendaView bookings={bookings} rooms={rooms} onBookingClick={openEditModal} />
+              <AgendaView bookings={bookings} rooms={rooms} date={selectedDate} view={view} onBookingClick={openEditModal} />
             </div>
           </>
         )}

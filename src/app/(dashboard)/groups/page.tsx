@@ -315,7 +315,7 @@ export default function GroupsPage() {
             />
           </div>
         ) : (
-          <div className="h-full w-full overflow-auto px-4 pb-6 pt-24 sm:px-8">
+          <div className="h-full w-full overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
             <div className="mx-auto max-w-5xl space-y-3">
               {orgTree.map((node) => (
                 <OrgNodeComponent
@@ -334,13 +334,13 @@ export default function GroupsPage() {
         )}
       </TabsContent>
 
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-24 sm:px-8">
+      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
           <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} />
         </div>
       </TabsContent>
 
-      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-24 sm:px-8">
+      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
           <StudentPipeline contacts={contacts} />
         </div>

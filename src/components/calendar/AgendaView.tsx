@@ -1,7 +1,15 @@
 'use client';
 
 import { useMemo } from 'react';
-import { format } from 'date-fns';
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from 'date-fns';
 import { BOOKING_TYPE_CONFIG } from '@/lib/types';
 import type { Booking, Room } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
@@ -17,10 +25,12 @@ import { cn } from '@/lib/utils';
 interface AgendaViewProps {
   bookings: Booking[];
   rooms: Room[];
+  date: Date;
+  view: 'day' | 'week' | 'month';
   onBookingClick: (booking: Booking) => void;
 }
 
-export function AgendaView({ bookings, rooms, onBookingClick }: AgendaViewProps) {
+export function AgendaView({ bookings, rooms, date, view, onBookingClick }: AgendaViewProps) {
   const { tBookingType } = useTranslation();
 
   const roomName = useMemo(() => {
@@ -29,11 +39,27 @@ export function AgendaView({ bookings, rooms, onBookingClick }: AgendaViewProps)
     return m;
   }, [rooms]);
 
-  // Group by calendar day (sorted by start time within each day).
+  // Scope to the active day/week/month range, THEN group by calendar day
+  // (sorted by start time within each day). Client-side range filtering keeps
+  // the list correct even when the data source over-returns: the mock
+  // /api/bookings ignores start/end, and a real backend can return a wider set.
   const groups = useMemo(() => {
-    const sorted = [...bookings].sort(
-      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-    );
+    const rangeStart =
+      view === 'day' ? startOfDay(date)
+        : view === 'week' ? startOfWeek(date, { weekStartsOn: 1 })
+          : startOfMonth(date);
+    const rangeEnd =
+      view === 'day' ? endOfDay(date)
+        : view === 'week' ? endOfWeek(date, { weekStartsOn: 1 })
+          : endOfMonth(date);
+    const startMs = rangeStart.getTime();
+    const endMs = rangeEnd.getTime();
+    const sorted = bookings
+      .filter((b) => {
+        const t = new Date(b.startTime).getTime();
+        return t >= startMs && t <= endMs;
+      })
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     const byDay = new Map<string, Booking[]>();
     for (const b of sorted) {
       const key = format(new Date(b.startTime), 'yyyy-MM-dd');
@@ -46,9 +72,9 @@ export function AgendaView({ bookings, rooms, onBookingClick }: AgendaViewProps)
       date: new Date(items[0].startTime),
       items,
     }));
-  }, [bookings]);
+  }, [bookings, date, view]);
 
-  if (bookings.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="flex min-h-[40dvh] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/50 p-8 text-center">
         <div className="text-base font-semibold">No bookings</div>
