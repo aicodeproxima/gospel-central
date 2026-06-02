@@ -111,7 +111,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // -- Standard layout ------------------------------------------------------
   return (
     <TopbarSlotProvider>
-      <div className="flex h-full">
+      {/* 100dvh (not h-full/100vh) so Android's collapsing URL bar can't strand
+          the bottom of the scroll area or the fixed MobileNav. overflow-hidden
+          keeps the shell pinned to the visible viewport; inner areas scroll. */}
+      <div className="flex h-[100dvh] overflow-hidden">
         {/* Desktop sidebar */}
         <div className="hidden md:block">
           <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
