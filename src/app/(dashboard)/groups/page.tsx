@@ -315,7 +315,7 @@ export default function GroupsPage() {
             />
           </div>
         ) : (
-          <div className="h-full w-full overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+          <div className="h-full w-full overflow-auto px-4 pb-6 pt-24 sm:px-8">
             <div className="mx-auto max-w-5xl space-y-3">
               {orgTree.map((node) => (
                 <OrgNodeComponent
@@ -334,13 +334,13 @@ export default function GroupsPage() {
         )}
       </TabsContent>
 
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-24 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} />
         </div>
       </TabsContent>
 
-      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-24 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <StudentPipeline contacts={contacts} />
         </div>
@@ -354,7 +354,7 @@ export default function GroupsPage() {
       >
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md md:flex">
+          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <h1 className="text-sm font-semibold">{t('page.groups.title')}</h1>
             <InfoButton {...groupsHelp} />
           </div>
@@ -372,7 +372,7 @@ export default function GroupsPage() {
                 }`}
               >
                 <Box className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{t('groups.3d')}</span>
+                {t('groups.3d')}
               </button>
               <button
                 type="button"
@@ -382,7 +382,7 @@ export default function GroupsPage() {
                 }`}
               >
                 <List className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{t('groups.list')}</span>
+                {t('groups.list')}
               </button>
             </div>
             <Button
@@ -393,7 +393,7 @@ export default function GroupsPage() {
               title="Jump to a group or team leader's subtree"
             >
               <Crosshair className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{t('groups.jumpTo')}</span>
+              {t('groups.jumpTo')}
             </Button>
             <Button
               variant="ghost"
@@ -403,7 +403,7 @@ export default function GroupsPage() {
               className="h-7 gap-1.5 rounded-full px-2.5 text-xs"
             >
               <ChevronsUpDown className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{t('groups.expand')}</span>
+              {t('groups.expand')}
             </Button>
             <Button
               variant="ghost"
@@ -413,7 +413,7 @@ export default function GroupsPage() {
               className="h-7 gap-1.5 rounded-full px-2.5 text-xs"
             >
               <ChevronsDownUp className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{t('groups.collapse')}</span>
+              {t('groups.collapse')}
             </Button>
             {viewMode === '3d' && (
               <Button
@@ -424,7 +424,7 @@ export default function GroupsPage() {
                 title="Fit the whole tree in view without changing expansion"
               >
                 <Maximize2 className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{t('groups.reset')}</span>
+                {t('groups.reset')}
               </Button>
             )}
             {showAddUser && (
@@ -435,7 +435,7 @@ export default function GroupsPage() {
                 title="Create a new account below your level"
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Add User</span>
+                Add User
               </Button>
             )}
           </div>

@@ -506,13 +506,6 @@ function SceneContent({
   // stale initial focus and clobber the expand's snap-to-fit.
   const appliedExternalRef = useRef<string | null>(null);
 
-  // Real canvas aspect (CSS size of the drawing surface), NOT window.inner*.
-  // On a portrait phone the canvas is much taller than wide (and inset below
-  // the toolbar), so framing must pull the camera back to fit WIDTH. Window-
-  // based aspect + the dynamic URL bar mis-framed → tree tiny/off-screen.
-  const { size: canvasSize } = useThree();
-  const canvasAspect = canvasSize.height > 0 ? canvasSize.width / canvasSize.height : 1.6;
-
   // Compute which contacts to show for each expanded node
   const visibleContactsByNode = useMemo(() => {
     const map = new Map<string, Contact[]>();
@@ -650,17 +643,8 @@ function SceneContent({
       // distance that fits the whole bounding box plus card/border margins.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
-      // Fit BOTH dimensions for the REAL canvas aspect. 1.042 = 2*tan(fov/2)
-      // (fov 55). On a portrait phone distForWidth dominates, so the subtree
-      // fits side-to-side instead of being cropped — makes tap-to-expand
-      // actually "snap to fit" on mobile.
-      const distForHeight = paddedHeight / 1.042;
-      const distForWidth = paddedWidth / (1.042 * canvasAspect);
-      // Portrait phones: a wide row of children (each a fixed ~168px screen-space
-      // card) can't fit at the tight landscape distance, so pull back more — keep
-      // every child visible (cards may overlap a little, but none fall off-screen).
-      const portraitPad = canvasAspect < 1 ? 1.4 : 1;
-      const distance = Math.max(14, Math.max(distForHeight, distForWidth) * 1.12 * portraitPad);
+      const size = Math.max(paddedWidth, paddedHeight, 10);
+      const distance = Math.max(14, size * 1.6);
 
       return {
         // Shift the look-at point down so the cards (which sit below
@@ -707,12 +691,6 @@ function SceneContent({
   // whole subtree or zoom tight on just the node. Depending on `layout`
   // ensures this re-runs if the layout was still stabilizing when the
   // focus id arrived.
-  // Fire only when the REQUESTED id/mode changes — never merely because
-  // `layout` changed. Expanding a node recomputes layout; re-firing here used
-  // to yank the camera back to the stale external focus (initial Michael snap),
-  // defeating tap-to-expand snap-to-fit. The ref guard lets a focus id that
-  // arrives before its node is laid out still get retried, but only once.
-  const lastFocusKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!externalFocusId) {
       appliedExternalRef.current = null;
@@ -750,9 +728,8 @@ function SceneContent({
     // huge empty vertical gutters. Canvas is dynamically imported with
     // ssr:false so `window` is always defined here — the old guard was
     // dead code (audit L-4).
-    // Use the REAL canvas aspect (not window.inner* — wrong on mobile with the
-    // dynamic URL bar, and the canvas is inset below the toolbar on phones).
-    const aspect = canvasAspect;
+    const aspect =
+      window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 1.6;
     // Extra top padding so the floating toolbar doesn't overlap Michael/roots
     const TOOLBAR_PAD_TOP = 6;
     const paddedWidth = maxX - minX + 4;
@@ -777,7 +754,7 @@ function SceneContent({
       ],
       distance,
     };
-  }, [layout, canvasAspect]);
+  }, [layout]);
 
   useEffect(() => {
     if (resetSignal === undefined || resetSignal === 0) return;

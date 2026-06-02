@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/shared/Providers';
@@ -30,7 +31,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
       <body className="h-full font-sans antialiased">
-        <Providers>{children}</Providers>
+        {/* Root Suspense boundary: client pages call useSearchParams() (login
+            ?next=, admin/contacts ?tab=/?edit=). Without an ancestor Suspense,
+            Next's static prerender trips the CSR-bailout error. fallback=null
+            is fine — these are client-rendered, auth-gated routes. */}
+        <Providers>
+          <Suspense fallback={null}>{children}</Suspense>
+        </Providers>
       </body>
     </html>
   );
