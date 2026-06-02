@@ -74,11 +74,22 @@ Commits `7ddbfcd` (feature) + `cda8b3b` (fixes). Deployed `diamond-aoidrii01-…
   shown. VERIFIED 1280 (screenshot): sidebar + full toolbar + full 7-pill legend + room-column grid all
   unchanged. Build clean both commits.
 
-### Phase 3 — Groups/Tree3D — TODO
-`src/app/(dashboard)/groups/page.tsx`, `src/components/groups/Tree3D.tsx`, `src/components/layout/MobileNav.tsx`.
-Headline bug: `Tree3D.tsx:629` aspect uses `window.innerHeight` → blank tree. Snap: `computeSubtreeFocus:569`
-ignores aspect; focus effect deps include `layout` → re-fires. NOTE: Tree3D WebGL is the ONE screen desktop
-emulation can't fully validate — sanity-check layout in DevTools, but real-phone confirm before "done".
+### Phase 3 — Groups/Tree3D — ✅ VERIFIED (2026-06-02, DevTools Device Mode; real-GPU/touch sign-off pending on phone)
+Commits `27947c8` (camera) + `7061abe` (toolbar/inset). Deployed `diamond-3bjsxmap5-…vercel.app`.
+- `Tree3D.tsx`: framing uses the REAL canvas aspect (`useThree().size`), not `window.inner*`;
+  `computeSubtreeFocus` is now aspect-aware (fits WIDTH on portrait); **snap-to-fit fixed** via a ref guard on
+  the external-focus effect — expanding a node recomputes `layout`, which used to re-fire the effect and yank
+  the camera back to the initial Michael snap. Guard fires only on an actual id/mode change.
+- `groups/page.tsx`: mobile toolbar compacted (title hidden, icon-only buttons <md; **227px→141px**); 3D canvas
+  inset `pt-[10rem]` + bottom-nav clearance below md (`md:!p-0` keeps desktop full-bleed).
+  GOTCHA: the ResizeObserver ref-measure FAILED — the dashboard double-renders `{children}`, so the shared
+  ref bound to the hidden desktop copy (offsetHeight 0). Used a fixed inset instead.
+- `(dashboard)/layout.tsx` immersive: `h-[100dvh]`.
+- VERIFIED 412×915 (screenshot+probe): Michael's full avatar+platform+card render below the compact toolbar
+  (no occlusion); tap-to-expand snaps to fit parent+child (Michael→David Park) in the band between toolbar and
+  nav. VERIFIED 1280 (screenshot): full toolbar (labels back) + full-bleed canvas + original framing unchanged.
+- DEFERRED → Phase 5 / real phone: scale the fixed 220px node cards for DENSE subtrees (a node with many
+  side-by-side children) on mobile; confirm WebGL perf + pinch-zoom on the real S24 Ultra.
 
 ### Phase 4 — Rooms & Areas header — TODO
 `RoomsTab.tsx` (path TBC — grep before edit). Header `flex items-center justify-between` crushes title.
