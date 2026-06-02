@@ -180,7 +180,8 @@ function NodeCardInner({
         position={[0, -1.3, 0]}
         center
         zIndexRange={[40, 0]}
-        style={{ width: 220, pointerEvents: 'auto' }}
+        className="w-[168px] sm:w-[220px]"
+        style={{ pointerEvents: 'auto' }}
       >
         <div
           className="rounded-md border border-white/20 bg-card/95 backdrop-blur px-3 py-2 text-left shadow-xl"
@@ -331,7 +332,8 @@ function ContactLeaf3DInner({
         position={[0, -0.9, 0]}
         center
         zIndexRange={[30, 0]}
-        style={{ width: 220, pointerEvents: 'auto' }}
+        className="w-[168px] sm:w-[220px]"
+        style={{ pointerEvents: 'auto' }}
       >
         <button
           type="button"
