@@ -146,4 +146,14 @@ avatars/platforms are world-space → mismatch. Fix (all `compact`<1280-gated; d
   no freeze; the earlier wheel-test null was a synthetic-event artifact). **Collapse reachable + works** (2 root
   cards remain). **Expand-all** = clean tidy non-overlapping tree, **51 cards on-screen vs old 1/178-off**.
   Desktop @1440 UNCHANGED: cards fixed 220px (no distanceFactor), toolbar labelled.
-- Remaining recon (lower-risk, same focus pipeline): search/jump/list/contact-dialog/pan + 360/320 viewports.
+- Calibration + narrow-viewport robustness (commits `0770b6b`,`56ad4aa`,`70faea8`, final preview `lb7c7qmmx`):
+  - distanceFactor 10→23 (cards 46px→~104px readable).
+  - +1.12x framing safety margin (compact) — fixed edge cards clipping at 360/320 (was offX:2 @360).
+  - **Per-viewport distanceFactor** (drei cardWorldWidth = 156·factor/canvasHeight): static factor made cards
+    ~6.9wu on a 320 canvas → 3 overlaps; now `factor = CARD_WORLD_WIDTH(4.8)·canvasSize.height/156` threaded to
+    both cards holds card world-width ≈4.8wu (< gap 7) at every viewport/DPR.
+  - VERIFIED (DOM-measured, all 0 overlap / 0 off-edge): **412** cards 82–95px, **360** 92–107px, **320** 45–53px
+    (small but all-visible — a 320×568 screen fitting a 6-node tall+wide subtree is physically constrained; pinch
+    to read). Desktop 1440 cards fixed 220px (unchanged). Cards scale with zoom (106px↔28px, no freeze).
+- Remaining recon (lower-risk; reuse the verified `computeSubtreeFocus`/external-focus pipeline + same cards):
+  search→focus, jump→focus, list view (OrgNode indent already fixed), contact-leaf dialog, pan, landscape.
