@@ -615,10 +615,10 @@ function SceneContent({
         const boxW = maxX - minX + CARD_WORLD_WIDTH;
         const boxH = maxY - minY + padTop + padBottom;
         // Smallest distance that fits BOTH axes (vertical fov + horizontal = fov*aspect).
-        const distance = Math.min(
-          120,
-          Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect), 7),
-        );
+        // 1.12x safety margin so edge cards never touch the frame on the
+        // narrowest phones (the box otherwise fits EXACTLY → 360/320 clipped).
+        const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
+        const distance = Math.min(120, Math.max(fit * 1.12, 7));
         // Bias look-at to the box's true vertical midpoint (card hangs lower than avatar).
         const cy = centerY + (padTop - padBottom) / 2;
         return { center: [centerX, cy, 0], distance };
@@ -722,10 +722,8 @@ function SceneContent({
       const padBottom = CARD_WORLD_DROP;
       const boxW = maxX - minX + CARD_WORLD_WIDTH;
       const boxH = maxY - minY + padTop + padBottom;
-      const distance = Math.min(
-        120,
-        Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect), 7),
-      );
+      const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
+      const distance = Math.min(120, Math.max(fit * 1.12, 7));
       return {
         center: [(minX + maxX) / 2, (minY + maxY) / 2 + (padTop - padBottom) / 2, 0],
         distance,
