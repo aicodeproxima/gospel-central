@@ -107,7 +107,62 @@ function ContactCardInner({
       )}
       onClick={handleClick}
     >
-      <CardContent className="p-4">
+      <CardContent className="p-4 max-xl:p-3">
+        {/* MOBILE (<xl): compact vertical card. The NAME is the hero (it was
+            squeezed to nothing in the 2-col horizontal layout) and the type
+            chip wraps instead of clipping at the card's right edge. */}
+        <div className="xl:hidden flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            {selectMode && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={onToggleSelect}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 rounded accent-primary shrink-0"
+              />
+            )}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+              {initialsOf(contact.firstName, contact.lastName)}
+            </div>
+            <span className="ml-auto text-[10px] font-medium text-muted-foreground shrink-0">
+              {contact.totalSessions}s
+            </span>
+          </div>
+          <h3 className="text-xs font-semibold leading-tight line-clamp-2 break-words">
+            {contact.firstName} {contact.lastName}
+          </h3>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn('h-2 w-2 rounded-full shrink-0', stageConfig.color)} />
+            <span className="text-[10px] text-muted-foreground truncate">{tStage(contact.pipelineStage)}</span>
+            {contact.currentlyStudying && (
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title={t('misc.active')} />
+            )}
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              typeConfig.bgColor,
+              typeConfig.color,
+              'h-auto max-w-full self-start whitespace-normal break-words py-0.5 text-[8px] leading-tight',
+            )}
+          >
+            {tBookingType(contact.type)}
+          </Badge>
+          {contact.phone && (
+            <a
+              href={`tel:${contact.phone}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground truncate touch-manipulation"
+            >
+              <Phone className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{contact.phone}</span>
+            </a>
+          )}
+        </div>
+
+        {/* DESKTOP (>=xl): original horizontal card — unchanged. */}
+        <div className="hidden xl:block">
         <div className="flex items-start gap-3">
           {selectMode && (
             <input
@@ -199,6 +254,7 @@ function ContactCardInner({
               </div>
             </div>
           </div>
+        </div>
         </div>
       </CardContent>
     </Card>
