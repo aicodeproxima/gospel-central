@@ -180,3 +180,6 @@ avatars/platforms are world-space → mismatch. Fix (all `compact`<1280-gated; d
 ## ✅ Loop 7 SUCCESS — all 8 user-reported defects fixed + verified @275, desktop unchanged @1440
 Commits on `feat/mobile-opt-main`: A `f376e19` · B `92b11d1` · C `31816d7` · D/E/F/G/H `72cc23b`. Pushed.
 Remaining (optional spot-checks): themes, landscape 915×412, jump-to picker, metric-icon filters, contact-leaf dialog opened from a 3D leaf (same `ContactDetailDialog` as Fix C). Bypass secret `diamondMobileAudit2026realdevXYZ` STILL ACTIVE — revoke at final user sign-off. NOT merged to main (deliberate).
+
+### Loop 7b — responsive recon (tablet scaling) — DONE + VERIFIED
+Recon up the breakpoints (640→1440) found the phone card/list-row redesigns were gated at `xl` (1280), so the whole **tablet range 640–1279 showed the sparse phone layout stretched wide**. Fix: moved the **ContactCard** swap (`xl`→`sm`) + the **OrgNode list-row** swap (`xl`→`sm`) to 640. VERIFIED: @1024 proper horizontal cards + inline-badge rows; @275 still compact (unchanged); @1280 inline header (full desktop). Phone (<640) + desktop (≥1280) unaffected. Groups toolbar + 3D scene intentionally stay `compact`/`xl` (fine at tablet); the ⋯ headers/toolbars stay compact through tablet and swap to inline at xl (a deliberate density choice).

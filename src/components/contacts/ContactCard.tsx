@@ -107,11 +107,11 @@ function ContactCardInner({
       )}
       onClick={handleClick}
     >
-      <CardContent className="p-4 max-xl:p-3">
+      <CardContent className="p-4 max-sm:p-3">
         {/* MOBILE (<xl): compact vertical card. The NAME is the hero (it was
             squeezed to nothing in the 2-col horizontal layout) and the type
             chip wraps instead of clipping at the card's right edge. */}
-        <div className="xl:hidden flex flex-col gap-1.5">
+        <div className="sm:hidden flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
             {selectMode && (
               <input
@@ -161,8 +161,8 @@ function ContactCardInner({
           )}
         </div>
 
-        {/* DESKTOP (>=xl): original horizontal card — unchanged. */}
-        <div className="hidden xl:block">
+        {/* >=sm: original horizontal card (tablet + desktop) — unchanged. */}
+        <div className="hidden sm:block">
         <div className="flex items-start gap-3">
           {selectMode && (
             <input

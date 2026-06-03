@@ -156,14 +156,14 @@ export function OrgNodeComponent({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium break-words xl:truncate">{node.name}</span>
-                  {/* role badge sits inline beside the name on desktop only */}
-                  <Badge variant="outline" className="hidden xl:inline-flex text-[10px] shrink-0">
+                  <span className="font-medium break-words sm:truncate">{node.name}</span>
+                  {/* role badge sits inline beside the name on >=sm (tablet/desktop) */}
+                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] shrink-0">
                     {ROLE_LABELS[node.role]}
                   </Badge>
                 </div>
-                {/* MOBILE secondary line: role + group, so the NAME owns the full row */}
-                <div className="mt-0.5 flex items-center gap-1.5 xl:hidden">
+                {/* PHONE (<sm) secondary line: role + group, so the NAME owns the full row */}
+                <div className="mt-0.5 flex items-center gap-1.5 sm:hidden">
                   <Badge variant="outline" className="text-[10px] shrink-0">
                     {ROLE_LABELS[node.role]}
                   </Badge>
@@ -171,9 +171,9 @@ export function OrgNodeComponent({
                     <span className="truncate text-xs text-muted-foreground">{node.groupName}</span>
                   )}
                 </div>
-                {/* DESKTOP group line — unchanged */}
+                {/* >=sm group line — unchanged */}
                 {node.groupName && (
-                  <p className="hidden xl:block text-xs text-muted-foreground">{node.groupName}</p>
+                  <p className="hidden sm:block text-xs text-muted-foreground">{node.groupName}</p>
                 )}
               </div>
             </button>
