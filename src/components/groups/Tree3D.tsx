@@ -133,6 +133,8 @@ interface NodeCardProps {
   onFocusTight: () => void;
   /** <1280px (tablet/phone): narrower card so framed siblings don't overlap. */
   compact: boolean;
+  /** Per-viewport world-scaling factor (undefined on desktop = fixed-size card). */
+  cardDistanceFactor?: number;
 }
 
 function NodeCardInner({
@@ -149,6 +151,7 @@ function NodeCardInner({
   onFocus,
   onFocusTight,
   compact,
+  cardDistanceFactor,
 }: NodeCardProps) {
   const { tRole, tStage } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
@@ -184,7 +187,7 @@ function NodeCardInner({
         position={[0, -1.3, 0]}
         center
         zIndexRange={[40, 0]}
-        distanceFactor={compact ? CARD_DISTANCE_FACTOR : undefined}
+        distanceFactor={cardDistanceFactor}
         style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <div
@@ -295,6 +298,7 @@ interface ContactLeaf3DProps {
   onOpen: () => void;
   onFocus: () => void;
   compact: boolean;
+  cardDistanceFactor?: number;
 }
 
 function ContactLeaf3DInner({
@@ -304,6 +308,7 @@ function ContactLeaf3DInner({
   onOpen,
   onFocus,
   compact,
+  cardDistanceFactor,
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -330,7 +335,7 @@ function ContactLeaf3DInner({
         position={[0, -0.9, 0]}
         center
         zIndexRange={[30, 0]}
-        distanceFactor={compact ? CARD_DISTANCE_FACTOR : undefined}
+        distanceFactor={cardDistanceFactor}
         style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
       >
         <button
@@ -489,6 +494,12 @@ function SceneContent({
   // mobile the canvas is offset below the toolbar, so it's shorter/narrower
   // than the window and the camera must fit that actual area.
   const { size: canvasSize } = useThree();
+  // Per-viewport distanceFactor (compact only) so card world-width stays
+  // ~CARD_WORLD_WIDTH regardless of canvas px height (see constant comment).
+  const cardDistanceFactor =
+    compact && canvasSize.height > 0
+      ? (CARD_WORLD_WIDTH * canvasSize.height) / CARD_BASE_PX
+      : undefined;
 
   // Snap-to-fit pipeline. The card's expand button bumps `focusReq`; the effect
   // below computes the camera target against the FRESH layout (after expandedIds
@@ -885,6 +896,7 @@ function SceneContent({
             onFocus={handleFocusById[ln.id]}
             onFocusTight={handleFocusTightById[ln.id]}
             compact={compact}
+            cardDistanceFactor={cardDistanceFactor}
           />
         );
       })}
@@ -899,6 +911,7 @@ function SceneContent({
           onOpen={handleContactOpenById[lc.id]}
           onFocus={handleContactFocusById[lc.id]}
           compact={compact}
+          cardDistanceFactor={cardDistanceFactor}
         />
       ))}
 
@@ -944,11 +957,13 @@ const DPR: [number, number] = [1, 1.5];
 // node's world extents above/below its center (avatar top / card bottom), used
 // to pad the camera framing so edge cards are never cut off. Keep the factor and
 // the measured widths calibrated together (see groups verification).
-// Calibrated live (412px): distanceFactor 10 rendered ~46px cards (≈2.15 wu) — too
-// small to read. Cards scale ∝ distanceFactor, so ×~2.3 → ~108px (≈5.0 wu wide).
-// 5.0 < HORIZONTAL_GAP(7) keeps a ~2 wu gutter so siblings still never overlap.
-const CARD_DISTANCE_FACTOR = 23;
-const CARD_WORLD_WIDTH = 5.0;
+// drei non-transform: cardWorldWidth = CARD_BASE_PX * distanceFactor / canvasHeight.
+// A STATIC factor (calibrated at 412) makes cards too WIDE on a narrower canvas
+// (320 → ~6.9wu → overlap), so distanceFactor is computed DYNAMICALLY from
+// canvasSize.height in SceneContent to hold cardWorldWidth ≈ CARD_WORLD_WIDTH at
+// every viewport/DPR. 4.8 < HORIZONTAL_GAP(7) ⇒ siblings never overlap anywhere.
+const CARD_BASE_PX = 156;
+const CARD_WORLD_WIDTH = 4.8;
 const AVATAR_WORLD_TOP = 2.1;
 const CARD_WORLD_DROP = 4.0;
 
