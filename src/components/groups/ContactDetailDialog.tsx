@@ -120,7 +120,7 @@ export function ContactDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {mode === 'view'
@@ -287,7 +287,7 @@ function ViewMode({
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {contact.subjectsStudied.map((s) => (
-                    <Badge key={s} variant="outline" className="text-xs font-normal">
+                    <Badge key={s} variant="outline" className="h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-xs font-normal leading-snug">
                       {s}
                     </Badge>
                   ))}
@@ -305,7 +305,7 @@ function ViewMode({
             partners.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {partners.map((p, i) => (
-                  <Badge key={i} variant="outline" className="text-sm">
+                  <Badge key={i} variant="outline" className="h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-sm leading-snug">
                     {p}
                   </Badge>
                 ))}
@@ -373,7 +373,7 @@ function ViewMode({
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap max-md:flex-col">
         <Button type="button" variant="outline" onClick={onClose} className="flex-1 min-w-[100px] h-11 text-base">
           Close
         </Button>
@@ -551,7 +551,7 @@ function Row({
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className="text-base mt-0.5">{value}</div>
+        <div className="text-base mt-0.5 min-w-0 break-words">{value}</div>
       </div>
     </div>
   );
