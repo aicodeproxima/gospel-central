@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Square,
   ArrowUpDown,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ContactForm } from '@/components/contacts/ContactForm';
 import { ContactCard } from '@/components/contacts/ContactCard';
 import { ContactDetailDialog } from '@/components/groups/ContactDetailDialog';
@@ -320,7 +328,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-xl:space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -334,49 +342,91 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Import + export are admin-tier only unless canExportImport's
-              feature flag is enabled. */}
-          {canExportImport(viewer) && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setImportOpen(true)}
-                className="gap-1.5"
+          {/* MOBILE (<xl): secondary actions collapse into one overflow menu so
+              the header stops eating the screen. Add Contact stays visible. */}
+          <div className="xl:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" size="sm" className="gap-1.5" aria-label="More actions" />}
               >
-                <Upload className="h-3.5 w-3.5" />
-                {t('btn.import')}
-              </Button>
-              {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
-              <Select
-                onValueChange={(v) => {
-                  if (v === 'current') doExport(filtered);
-                  else if (v === 'all') doExport(visibleContacts);
-                }}
-              >
-                <SelectTrigger className="w-[150px] h-8 text-xs">
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  <SelectValue placeholder={t('btn.export')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="current">Export current view</SelectItem>
-                  <SelectItem value="all">Export all I can see</SelectItem>
-                </SelectContent>
-              </Select>
-            </>
-          )}
-          <Button
-            variant={selectMode ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => {
-              setSelectMode((v) => !v);
-              if (selectMode) setSelectedIds(new Set());
-            }}
-            className="gap-1.5"
-          >
-            {selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-            {t('btn.select')}
-          </Button>
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {canExportImport(viewer) && (
+                  <>
+                    <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                      <Upload className="h-4 w-4" /> {t('btn.import')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => doExport(filtered)}>
+                      <Download className="h-4 w-4" /> Export current view
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => doExport(visibleContacts)}>
+                      <Download className="h-4 w-4" /> Export all I can see
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectMode((v) => !v);
+                    if (selectMode) setSelectedIds(new Set());
+                  }}
+                >
+                  {selectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                  {t('btn.select')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* DESKTOP (>=xl): inline buttons — unchanged. */}
+          <div className="hidden xl:flex items-center gap-2">
+            {/* Import + export are admin-tier only unless canExportImport's
+                feature flag is enabled. */}
+            {canExportImport(viewer) && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setImportOpen(true)}
+                  className="gap-1.5"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {t('btn.import')}
+                </Button>
+                {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
+                <Select
+                  onValueChange={(v) => {
+                    if (v === 'current') doExport(filtered);
+                    else if (v === 'all') doExport(visibleContacts);
+                  }}
+                >
+                  <SelectTrigger className="w-[150px] h-8 text-xs">
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    <SelectValue placeholder={t('btn.export')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current">Export current view</SelectItem>
+                    <SelectItem value="all">Export all I can see</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <Button
+              variant={selectMode ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setSelectMode((v) => !v);
+                if (selectMode) setSelectedIds(new Set());
+              }}
+              className="gap-1.5"
+            >
+              {selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+              {t('btn.select')}
+            </Button>
+          </div>
+
+          {/* Add Contact — always visible (primary action). */}
           <Button
             onClick={() => {
               setEditing(null);
@@ -391,13 +441,14 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Pipeline stage summary bar */}
-      <div className="flex flex-wrap gap-2">
+      {/* Pipeline stage summary bar — wraps on desktop, single horizontal
+          scroll row on mobile so it stops stealing vertical space. */}
+      <div className="flex gap-2 xl:flex-wrap max-xl:flex-nowrap max-xl:overflow-x-auto max-xl:pb-1 max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={() => setStageFilter('all')}
           className={cn(
-            'rounded-full border px-3 py-1 text-xs font-medium transition-all',
+            'rounded-full border px-3 py-1 text-xs font-medium transition-all shrink-0 whitespace-nowrap',
             stageFilter === 'all'
               ? 'border-primary bg-primary/10 text-primary'
               : 'border-border text-muted-foreground hover:border-primary/40',
@@ -411,7 +462,7 @@ export default function ContactsPage() {
             type="button"
             onClick={() => setStageFilter(stageFilter === key ? 'all' : key)}
             className={cn(
-              'rounded-full border px-3 py-1 text-xs font-medium transition-all flex items-center gap-1.5',
+              'rounded-full border px-3 py-1 text-xs font-medium transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap',
               stageFilter === key
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border text-muted-foreground hover:border-primary/40',
