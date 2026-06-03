@@ -53,6 +53,8 @@ interface OrgNodeProps {
   /** Map of nodeId -> active filter for that node */
   filters: Map<string, ContactFilter>;
   onFilter: (nodeId: string, filter: ContactFilter) => void;
+  /** When set, the node with this id gets a ring highlight (search / jump target). */
+  highlightId?: string | null;
 }
 
 export function OrgNodeComponent({
@@ -64,6 +66,7 @@ export function OrgNodeComponent({
   teacherMetrics,
   filters,
   onFilter,
+  highlightId,
 }: OrgNodeProps) {
   const expanded = expandedIds.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -108,7 +111,7 @@ export function OrgNodeComponent({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-node-id={node.id}>
       {depth > 0 && (
         <div className="absolute -left-3 sm:-left-6 top-0 h-6 w-3 sm:w-6 border-b-2 border-l-2 border-border rounded-bl-lg" />
       )}
@@ -122,6 +125,7 @@ export function OrgNodeComponent({
           className={cn(
             'transition-all hover:shadow-md',
             hasSomethingToExpand && 'hover:-translate-y-0.5',
+            node.id === highlightId && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
         >
           <CardContent className="flex items-center gap-3 p-3">
@@ -143,7 +147,7 @@ export function OrgNodeComponent({
 
               <div
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full text-white text-sm font-bold',
+                  'flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-white text-xs sm:text-sm font-bold',
                   ROLE_COLORS[node.role],
                 )}
               >
@@ -151,14 +155,25 @@ export function OrgNodeComponent({
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium truncate">{node.name}</span>
-                  <Badge variant="outline" className="text-[10px] shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium break-words xl:truncate">{node.name}</span>
+                  {/* role badge sits inline beside the name on desktop only */}
+                  <Badge variant="outline" className="hidden xl:inline-flex text-[10px] shrink-0">
                     {ROLE_LABELS[node.role]}
                   </Badge>
                 </div>
+                {/* MOBILE secondary line: role + group, so the NAME owns the full row */}
+                <div className="mt-0.5 flex items-center gap-1.5 xl:hidden">
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    {ROLE_LABELS[node.role]}
+                  </Badge>
+                  {node.groupName && (
+                    <span className="truncate text-xs text-muted-foreground">{node.groupName}</span>
+                  )}
+                </div>
+                {/* DESKTOP group line — unchanged */}
                 {node.groupName && (
-                  <p className="text-xs text-muted-foreground">{node.groupName}</p>
+                  <p className="hidden xl:block text-xs text-muted-foreground">{node.groupName}</p>
                 )}
               </div>
             </button>
@@ -203,7 +218,7 @@ export function OrgNodeComponent({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="ml-4 sm:ml-10 mt-2 space-y-2 border-l-2 border-border pl-2 sm:pl-4 overflow-hidden"
+            className="ml-0 sm:ml-10 mt-2 space-y-2 border-l-2 border-border pl-2 sm:pl-4 overflow-hidden"
           >
             {/* Org tree children */}
             {node.children.map((child) => (
@@ -217,6 +232,7 @@ export function OrgNodeComponent({
                 teacherMetrics={teacherMetrics}
                 filters={filters}
                 onFilter={onFilter}
+                highlightId={highlightId}
               />
             ))}
 

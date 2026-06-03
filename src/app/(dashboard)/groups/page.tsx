@@ -4,6 +4,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import dynamic from 'next/dynamic';
 import { OrgNodeComponent, collectAllIds, type ContactFilter } from '@/components/groups/OrgNode';
 import { TeacherMetricsCards } from '@/components/groups/TeacherMetrics';
@@ -28,7 +35,7 @@ import { groupsApi } from '@/lib/api/groups';
 import { contactsApi } from '@/lib/api/contacts';
 import type { OrgNode } from '@/lib/types';
 import type { TeacherMetrics } from '@/lib/types/user';
-import { ChevronsDownUp, ChevronsUpDown, Box, List, Maximize2, Crosshair, UserPlus } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Box, List, Maximize2, Crosshair, UserPlus, MoreHorizontal } from 'lucide-react';
 import { CreateUserWizard } from '@/components/users/CreateUserWizard';
 import { canCreateUsers } from '@/lib/utils/permissions';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -148,6 +155,20 @@ export default function GroupsPage() {
     localStorage.setItem('diamond-tree-view', viewMode);
   }, [viewMode]);
 
+  // F: the LIST view has no camera — when a search/jump sets the external focus,
+  // scroll that node to center so the user can see where the result landed.
+  // (3D handles centering via the camera rig; the ring highlight is passed as
+  // highlightId to OrgNodeComponent.) Delay lets the ancestor-expand render.
+  useEffect(() => {
+    if (viewMode !== 'list' || !externalFocusId) return;
+    const id = externalFocusId;
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-node-id="${id}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 140);
+    return () => clearTimeout(t);
+  }, [externalFocusId, viewMode]);
+
   useEffect(() => {
     Promise.all([
       groupsApi.getOrgTree(),
@@ -188,13 +209,24 @@ export default function GroupsPage() {
 
   const handleExpandAll = useCallback(() => {
     setExpandedIds(new Set(allIds));
+    // G: auto-fit the whole (now-expanded) tree so the user isn't stranded
+    // zoomed-in on one node (was: camera never moved -> 1/182 cards on-screen).
+    setTimeout(() => setResetSignal((n) => n + 1), 80);
   }, [allIds]);
 
   const handleCollapseAll = useCallback(() => {
     setExpandedIds(new Set());
     setFilters(new Map());
-    setTimeout(() => setResetSignal((n) => n + 1), 60);
-  }, []);
+    // H: snap-center the primary root (like startup) instead of framing the
+    // bbox of all roots, which left Michael off to the left of the field.
+    const rootId = orgTree[0]?.id;
+    if (rootId) {
+      setFocusRequest({ kind: 'none' });
+      setTimeout(() => setFocusRequest({ kind: 'node', id: rootId }), 60);
+    } else {
+      setTimeout(() => setResetSignal((n) => n + 1), 60);
+    }
+  }, [orgTree]);
 
   const handleFilter = useCallback((nodeId: string, filter: ContactFilter) => {
     setFilters((prev) => {
@@ -263,7 +295,9 @@ export default function GroupsPage() {
       next.add(entry.id);
       return next;
     });
-    requestFocus({ kind: 'subtree', id: entry.id });
+    // Center tightly on the searched PERSON (was 'subtree', which framed the
+    // whole descendant box and left the person off to one side).
+    requestFocus({ kind: 'node', id: entry.id });
   };
 
   const getUserNames = (nodes: OrgNode[]): { id: string; name: string }[] => {
@@ -315,7 +349,7 @@ export default function GroupsPage() {
             />
           </div>
         ) : (
-          <div className="h-full w-full overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+          <div className="h-full w-full overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
             <div className="mx-auto max-w-5xl space-y-3">
               {orgTree.map((node) => (
                 <OrgNodeComponent
@@ -327,6 +361,7 @@ export default function GroupsPage() {
                   teacherMetrics={metrics}
                   filters={filters}
                   onFilter={handleFilter}
+                  highlightId={externalFocusId}
                 />
               ))}
             </div>
@@ -334,13 +369,13 @@ export default function GroupsPage() {
         )}
       </TabsContent>
 
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
           <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} />
         </div>
       </TabsContent>
 
-      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-40 sm:px-8 sm:pt-24">
+      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
           <StudentPipeline contacts={contacts} />
         </div>
@@ -350,11 +385,11 @@ export default function GroupsPage() {
           z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50). */}
       <div
         ref={toolbarRef}
-        className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-20 sm:p-4 sm:pl-20"
+        className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20"
       >
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
+          <div className="hidden xl:flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <h1 className="text-sm font-semibold">{t('page.groups.title')}</h1>
             <InfoButton {...groupsHelp} />
           </div>
@@ -387,6 +422,8 @@ export default function GroupsPage() {
                 <span className="hidden xl:inline">{t('groups.list')}</span>
               </button>
             </div>
+            {/* DESKTOP (>=xl): inline action buttons — unchanged */}
+            <div className="hidden xl:flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
@@ -443,15 +480,60 @@ export default function GroupsPage() {
                 <span className="hidden xl:inline">Add User</span>
               </Button>
             )}
+            </div>
+
+            {/* MOBILE (<xl): secondary actions collapse into one overflow menu */}
+            <div className="xl:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="ghost" size="sm" className="h-7 rounded-full px-2.5" aria-label="More tree actions" />}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setJumpOpen(true)}>
+                    <Crosshair className="h-4 w-4" /> {t('groups.jumpTo')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExpandAll} disabled={allExpanded}>
+                    <ChevronsUpDown className="h-4 w-4" /> {t('groups.expand')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCollapseAll} disabled={expandedIds.size === 0}>
+                    <ChevronsDownUp className="h-4 w-4" /> {t('groups.collapse')}
+                  </DropdownMenuItem>
+                  {viewMode === '3d' && (
+                    <DropdownMenuItem onClick={() => setResetSignal((n) => n + 1)}>
+                      <Maximize2 className="h-4 w-4" /> {t('groups.reset')}
+                    </DropdownMenuItem>
+                  )}
+                  {showAddUser && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setAddUserOpen(true)}>
+                        <UserPlus className="h-4 w-4" /> Add User
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
         {/* Tabs row — sits just below the main toolbar */}
-        <div className="pointer-events-auto flex">
+        <div className="pointer-events-auto flex max-xl:overflow-x-auto max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden">
           <TabsList className="rounded-full border border-white/15 bg-card/75 shadow-lg backdrop-blur-md">
-            <TabsTrigger value="tree" className="rounded-full">{t('groups.orgTree')}</TabsTrigger>
-            <TabsTrigger value="metrics" className="rounded-full">{t('groups.teacherMetrics')}</TabsTrigger>
-            <TabsTrigger value="pipeline" className="rounded-full">{t('groups.studentPipeline')}</TabsTrigger>
+            <TabsTrigger value="tree" className="rounded-full whitespace-nowrap">
+              <span className="xl:hidden">Tree</span>
+              <span className="hidden xl:inline">{t('groups.orgTree')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="metrics" className="rounded-full whitespace-nowrap">
+              <span className="xl:hidden">Metrics</span>
+              <span className="hidden xl:inline">{t('groups.teacherMetrics')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="pipeline" className="rounded-full whitespace-nowrap">
+              <span className="xl:hidden">Pipeline</span>
+              <span className="hidden xl:inline">{t('groups.studentPipeline')}</span>
+            </TabsTrigger>
           </TabsList>
         </div>
       </div>

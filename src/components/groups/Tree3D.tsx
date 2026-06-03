@@ -629,7 +629,7 @@ function SceneContent({
         // 1.12x safety margin so edge cards never touch the frame on the
         // narrowest phones (the box otherwise fits EXACTLY → 360/320 clipped).
         const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
-        const distance = Math.min(120, Math.max(fit * 1.12, 7));
+        const distance = Math.min(280, Math.max(fit * 1.12, 7));
         // Bias look-at to the box's true vertical midpoint (card hangs lower than avatar).
         const cy = centerY + (padTop - padBottom) / 2;
         return { center: [centerX, cy, 0], distance };
@@ -734,7 +734,7 @@ function SceneContent({
       const boxW = maxX - minX + CARD_WORLD_WIDTH;
       const boxH = maxY - minY + padTop + padBottom;
       const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
-      const distance = Math.min(120, Math.max(fit * 1.12, 7));
+      const distance = Math.min(280, Math.max(fit * 1.12, 7));
       return {
         center: [(minX + maxX) / 2, (minY + maxY) / 2 + (padTop - padBottom) / 2, 0],
         distance,
@@ -772,8 +772,15 @@ function SceneContent({
     };
   }, [layout, compact, canvasSize]);
 
+  // Fit-all ONLY when resetSignal actually increments (Reset / Expand-All button),
+  // NOT every time computeFullTreeFocus changes identity on a layout change — else
+  // expand/collapse after a reset re-fits the whole tree and clobbers the node/
+  // subtree snap (this was why Collapse-All's snap-to-Michael got overridden). (H)
+  const lastResetRef = useRef(0);
   useEffect(() => {
     if (resetSignal === undefined || resetSignal === 0) return;
+    if (resetSignal === lastResetRef.current) return;
+    lastResetRef.current = resetSignal;
     const target = computeFullTreeFocus();
     if (target) setFocus(target);
   }, [resetSignal, computeFullTreeFocus]);
@@ -915,6 +922,10 @@ function SceneContent({
         />
       ))}
 
+      {/* Compact pushes the fog far plane out so the zoomed-out expand-all / fit
+          view isn't swallowed by fog; desktop keeps the original close 75. */}
+      <fog attach="fog" args={['#05091f', 22, compact ? 280 : 75]} />
+
       {/* Orbit controls */}
       <OrbitControls
         ref={controlsRef}
@@ -923,7 +934,7 @@ function SceneContent({
         enableRotate={false}
         screenSpacePanning
         makeDefault
-        maxDistance={compact ? 120 : 70}
+        maxDistance={compact ? 280 : 70}
         minDistance={3}
         target={[0, -4, 0]}
         mouseButtons={{
@@ -981,8 +992,8 @@ export function Tree3D(props: Tree3DProps) {
         frameloop="demand"
       >
         {/* No scene background — canvas is transparent so the starfield
-            behind it (mounted by the Groups page) shows through. */}
-        <fog attach="fog" args={['#05091f', 22, 75]} />
+            behind it (mounted by the Groups page) shows through. Fog is now
+            declared inside SceneContent so its far plane can be compact-aware. */}
         <Suspense fallback={null}>
           <SceneContent {...props} />
         </Suspense>
