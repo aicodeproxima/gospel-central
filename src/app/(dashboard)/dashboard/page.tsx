@@ -216,8 +216,8 @@ export default function DashboardPage() {
       {/* Quick Links */}
       <motion.div variants={item}>
         <h2 className="mb-4 text-xl font-semibold">{t('dash.quickAccess')}</h2>
-        {/* mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged */}
-        <div className="grid gap-4 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-3">
+        {/* 1-col phone (horizontal icon+text needs the full width), 2-col >=sm, 3-col >=lg */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {quickLinks.map((link) => (
             <Link key={link.href} href={link.href}>
               <Card className="group cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5">

@@ -201,12 +201,12 @@ export function ContactForm({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{contact ? 'Edit Contact' : 'New Contact'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5 min-w-0">
           {/* Name */}
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Name</Label>

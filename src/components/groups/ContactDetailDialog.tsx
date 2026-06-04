@@ -135,6 +135,7 @@ export function ContactDetailDialog({
           {mode === 'view' && (
             <motion.div
               key="view"
+              className="min-w-0"
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 8 }}
@@ -152,6 +153,7 @@ export function ContactDetailDialog({
           {mode === 'edit' && (
             <motion.div
               key="edit"
+              className="min-w-0"
               initial={{ opacity: 0, x: 8 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -8 }}
@@ -173,6 +175,7 @@ export function ContactDetailDialog({
           {mode === 'convert' && viewer && onConvert && (
             <motion.div
               key="convert"
+              className="min-w-0"
               initial={{ opacity: 0, x: 8 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -8 }}
@@ -517,7 +520,7 @@ function ConvertMode({
         </p>
       </div>
 
-      <div className="flex gap-3 pt-3 border-t border-border">
+      <div className="flex gap-3 pt-3 border-t border-border max-md:flex-col">
         <Button type="button" variant="outline" onClick={onCancel} className="gap-2" disabled={busy}>
           <X className="h-4 w-4" /> Cancel
         </Button>
@@ -712,7 +715,7 @@ function EditMode({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5 min-w-0">
       {/* Name */}
       <div className="space-y-2">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -836,7 +839,7 @@ function EditMode({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 pt-3 border-t border-border">
+      <div className="flex gap-3 pt-3 border-t border-border max-md:flex-col">
         <Button type="button" variant="outline" onClick={onCancel} className="gap-2">
           <X className="h-4 w-4" /> Cancel
         </Button>
