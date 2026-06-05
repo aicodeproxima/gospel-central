@@ -231,6 +231,11 @@ function ViewMode({
     .map(resolvePartnerName)
     .filter((n): n is string => !!n);
 
+  const teacherName = (() => {
+    const u = users.find((x) => x.id === contact.assignedTeacherId);
+    return u ? `${u.firstName} ${u.lastName}`.trim() : null;
+  })();
+
   return (
     <div className="space-y-5">
       {/* Header: avatar + name + stage badge */}
@@ -265,6 +270,11 @@ function ViewMode({
           value={contact.phone || <span className="text-muted-foreground italic">Not provided</span>}
         />
         <Row icon={Tag} label="Group" value={contact.groupName || '—'} />
+        <Row
+          icon={UserIcon}
+          label="Teacher"
+          value={teacherName || <span className="text-muted-foreground italic">Unassigned</span>}
+        />
         <Row
           icon={GraduationCap}
           label="Currently Studying"

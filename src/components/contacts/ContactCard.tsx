@@ -9,9 +9,10 @@ import {
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
-import { Phone, Mail } from 'lucide-react';
+import { Phone, Mail, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
+import { getAssignedTeacher, stepLabel } from '@/lib/utils/contact-helpers';
 
 function initialsOf(firstName?: string, lastName?: string): string {
   const a = (firstName || '').trim();
@@ -56,6 +57,9 @@ function ContactCardInner({
   const partnerNames = (contact.preachingPartnerIds || [])
     .map(resolvePartnerName)
     .filter((n): n is string => !!n);
+
+  const teacher = getAssignedTeacher(users, contact);
+  const step = stepLabel(contact);
 
   const handleClick = () => {
     if (selectMode && onToggleSelect) {
@@ -139,6 +143,14 @@ function ContactCardInner({
               <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title={t('misc.active')} />
             )}
           </div>
+          {teacher && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
+              <GraduationCap className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">
+                {teacher.firstName} {teacher.lastName}
+              </span>
+            </div>
+          )}
           <Badge
             variant="outline"
             className={cn(
@@ -234,7 +246,22 @@ function ContactCardInner({
                   {t('misc.active')}
                 </Badge>
               )}
+              {step && (
+                <Badge variant="outline" className="text-[9px] text-muted-foreground">
+                  {step}
+                </Badge>
+              )}
             </div>
+
+            {/* Assigned teacher */}
+            {teacher && (
+              <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <GraduationCap className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {teacher.firstName} {teacher.lastName}
+                </span>
+              </div>
+            )}
 
             {/* Partners + last session + sessions */}
             <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
