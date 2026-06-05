@@ -441,9 +441,9 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="pt-3 flex justify-between">
-            <Link href="/contacts">
+            <Link href="/contacts?stage=baptized">
               <Button variant="outline" size="sm" className="gap-1.5">
-                <Users className="h-3.5 w-3.5" /> View All Contacts
+                <Users className="h-3.5 w-3.5" /> View Baptized
               </Button>
             </Link>
             <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>Close</Button>

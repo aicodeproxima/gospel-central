@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -151,7 +151,6 @@ export default function ContactsPage() {
   const [importOpen, setImportOpen] = useState(false);
 
   const searchParams = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
   // Load data
@@ -165,18 +164,52 @@ export default function ContactsPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Auto-open edit form when navigated with ?edit=<contactId>
+  // ── Deep-link query params ─────────────────────────────────────
+  // Read once (after data loads so ?id/?edit can resolve): ?stage=, ?type=,
+  // ?q=, ?view=, ?id=<open detail>, ?edit=<open form>. Filter state is then
+  // written back to the URL (below) so a filtered view is shareable.
+  const didInitFromUrl = useRef(false);
   useEffect(() => {
-    const editId = searchParams.get('edit');
-    if (editId && contacts.length > 0) {
+    if (didInitFromUrl.current || contacts.length === 0) return;
+    didInitFromUrl.current = true;
+    const sp = searchParams;
+    const stage = sp.get('stage');
+    if (stage && (stage === 'all' || stage in PIPELINE_STAGE_CONFIG)) setStageFilter(stage);
+    const type = sp.get('type');
+    if (type) setTypeFilter(type);
+    const q = sp.get('q');
+    if (q) setSearch(q);
+    const view = sp.get('view');
+    if (view === 'grid' || view === 'kanban' || view === 'table') setViewMode(view);
+    const id = sp.get('id');
+    if (id && contacts.some((c) => c.id === id)) setViewingContactId(id);
+    const editId = sp.get('edit');
+    if (editId) {
       const target = contacts.find((c) => c.id === editId);
       if (target) {
         setEditing(target);
         setFormOpen(true);
       }
-      router.replace(pathname);
     }
-  }, [searchParams, contacts, router, pathname]);
+  }, [searchParams, contacts]);
+
+  // Mirror the active filters into the URL (shareable) via history.replaceState
+  // — lighter than router.replace (no soft-navigation / re-render) and reliably
+  // updates the address bar. view/id/edit are not continuously synced (view is
+  // an entry-only deep-link, id/edit are one-shot openers).
+  useEffect(() => {
+    if (!didInitFromUrl.current) return;
+    const params = new URLSearchParams();
+    if (stageFilter !== 'all') params.set('stage', stageFilter);
+    if (typeFilter !== 'all') params.set('type', typeFilter);
+    if (search.trim()) params.set('q', search.trim());
+    const qs = params.toString();
+    const tmr = setTimeout(() => {
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      window.history.replaceState(window.history.state, '', url);
+    }, 300);
+    return () => clearTimeout(tmr);
+  }, [stageFilter, typeFilter, search, pathname]);
 
   // Client-side filtering + sorting (all data is in memory from MSW)
   const filtered = useMemo(() => {
