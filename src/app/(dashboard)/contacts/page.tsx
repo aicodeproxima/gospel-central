@@ -377,7 +377,7 @@ export default function ContactsPage() {
       c.lastSessionDate ? format(parseISO(c.lastSessionDate), 'yyyy-MM-dd') : '',
       c.notes || '',
     ]);
-    exportCSV(headers, rows, 'diamond-contacts.csv');
+    exportCSV(headers, rows, 'diamond-contacts.csv'); // exportCSV already toasts "Exported N rows"
   };
 
   // ── Render ─────────────────────────────────────────────────────
@@ -541,7 +541,7 @@ export default function ContactsPage() {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2"
+          className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-card px-4 py-2 shadow-sm"
         >
           <span className="text-sm font-medium">{selectedIds.size} {t('contacts.selected')}</span>
           <Select onValueChange={(v) => { if (v) handleBulkStageChange(String(v)); }}>
@@ -660,7 +660,7 @@ export default function ContactsPage() {
       {/* View area */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Filter className="h-10 w-10 text-muted-foreground/40 mb-3" />
+          <Filter className="h-10 w-10 max-sm:h-8 max-sm:w-8 text-muted-foreground/40 mb-3" />
           <p className="text-sm font-medium text-muted-foreground">{t('contacts.noMatch')}</p>
           <p className="text-xs text-muted-foreground/70 mt-1">{t('contacts.tryBroadening')}</p>
           {hasFilters && (
@@ -798,8 +798,8 @@ function KanbanView({
         <div
           key={col.key}
           className={cn(
-            'min-w-[220px] flex-1 rounded-lg border bg-accent/20 p-3 transition-colors',
-            dragOverCol === col.key && 'border-primary bg-primary/10',
+            'min-w-[260px] flex-1 rounded-lg border bg-accent/20 p-3 transition-colors',
+            dragOverCol === col.key && 'border-primary bg-primary/10 ring-2 ring-primary',
           )}
           onDragOver={(e) => {
             e.preventDefault();
