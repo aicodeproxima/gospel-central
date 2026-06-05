@@ -32,8 +32,8 @@ export function StudentPipeline({ contacts }: StudentPipelineProps) {
             transition={{ delay: i * 0.08 }}
             className="flex items-center gap-3"
           >
-            {/* phone: tighter label col (widest label "Baptism Ready" ~74px) so bars shift left & aren't cramped on the right; >=sm reverts to 112px (desktop unchanged) */}
-            <div className="w-20 sm:w-28 shrink-0 text-right text-xs font-medium text-muted-foreground">
+            {/* phone: tighter label col (widest label "Baptism Ready" ~74px) + LEFT-aligned so every label starts at the same left margin (was text-right => ragged left edges) and bars shift left; >=sm reverts to 112px right-aligned (desktop unchanged) */}
+            <div className="w-20 sm:w-28 shrink-0 text-left sm:text-right text-xs font-medium text-muted-foreground">
               {config.label}
             </div>
             <div className="flex-1">
