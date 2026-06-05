@@ -409,7 +409,8 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     <Dialog open={isBookingModalOpen} onOpenChange={(open) => !open && closeBookingModal()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          {/* max-md:pr-9 clears the absolute close-X (top-2 right-2, size-9) so the step badge doesn't sit under it on phones */}
+          <DialogTitle className="flex items-center justify-between max-md:pr-9">
             <span>{isEdit ? t('wizard.editBooking') : t('wizard.newBooking')}</span>
             <Badge variant="outline" className="text-xs">
               {t('wizard.step')} {currentStepIndex + 1} {t('misc.of')} {stepsNeeded.length}

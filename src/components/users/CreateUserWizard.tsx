@@ -206,7 +206,8 @@ export function CreateUserWizard({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between gap-3">
+          {/* max-md:pr-9 clears the absolute close-X (top-2 right-2, size-9) so the step badge doesn't sit under it on phones */}
+          <div className="flex items-center justify-between gap-3 max-md:pr-9">
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-primary" />
               Add User

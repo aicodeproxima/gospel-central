@@ -181,6 +181,16 @@ export default function ReportsPage() {
     entries: AuditLogEntry[];
   } | null>(null);
 
+  // Phone breakpoint — pie switches to a wrapping legend (outside labels clip the card < ~768px)
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   // Compute date bounds from preset
   const dateBounds = useMemo(() => {
     const now = new Date();
@@ -582,8 +592,8 @@ export default function ReportsPage() {
         {/* ── Dashboard Tab ─────────────────────────────────────── */}
         <TabsContent value="dashboard" className="space-y-6 mt-0">
           {/* Summary cards — click any card to see the underlying entries */}
-          {/* mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged */}
-          <div className="grid gap-4 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-4">
+          {/* 1-col phone (icon+number+label row needs full width so labels don't squeeze), 2-col >=sm, 4-col >=lg */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {(() => {
               const monthMs = startOfMonth(new Date()).getTime();
               const stats = [
@@ -709,7 +719,7 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="h-[160px]">
+                  <div className={cn('h-[160px]', isPhone && 'h-[230px]')}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -721,8 +731,12 @@ export default function ReportsPage() {
                           paddingAngle={3}
                           dataKey="value"
                           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          label={(props: any) =>
-                            `${props.name} ${((props.percent ?? 0) * 100).toFixed(0)}%`
+                          label={
+                            isPhone
+                              ? false
+                              : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (props: any) =>
+                                  `${props.name} ${((props.percent ?? 0) * 100).toFixed(0)}%`
                           }
                           labelLine={false}
                         >
@@ -738,6 +752,24 @@ export default function ReportsPage() {
                             fontSize: 12,
                           }}
                         />
+                        {isPhone && (
+                          <Legend
+                            verticalAlign="bottom"
+                            height={48}
+                            iconType="circle"
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            formatter={(value: any) => {
+                              const total = pieData.reduce(
+                                (s, p) => s + (p.value || 0),
+                                0,
+                              );
+                              const d = pieData.find((p) => p.name === value);
+                              const pct = d && total ? Math.round((d.value / total) * 100) : 0;
+                              return `${value} ${pct}%`;
+                            }}
+                            wrapperStyle={{ fontSize: 11 }}
+                          />
+                        )}
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
