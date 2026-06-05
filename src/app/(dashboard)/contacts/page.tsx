@@ -12,6 +12,7 @@ import {
   Upload,
   LayoutGrid,
   Columns3,
+  Table2,
   CheckSquare,
   Square,
   ArrowUpDown,
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ContactForm } from '@/components/contacts/ContactForm';
 import { ContactCard } from '@/components/contacts/ContactCard';
+import { ContactsTable } from '@/components/contacts/ContactsTable';
 import { ContactDetailDialog } from '@/components/groups/ContactDetailDialog';
 import { ImportCSVDialog } from '@/components/contacts/ImportCSVDialog';
 import { contactsApi } from '@/lib/api/contacts';
@@ -57,13 +59,14 @@ import type { Contact, User } from '@/lib/types';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { contactsHelp } from '@/components/shared/pageHelp';
 import { exportCSV } from '@/lib/utils/csv';
+import { type ContactSortKey } from '@/lib/utils/contact-helpers';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n';
 import toast from 'react-hot-toast';
 
-type ViewMode = 'grid' | 'kanban';
-type SortKey = 'name' | 'sessions' | 'stage' | 'updated';
+type ViewMode = 'grid' | 'kanban' | 'table';
+type SortKey = ContactSortKey;
 
 export default function ContactsPage() {
   const { t, tStage, tBookingType } = useTranslation();
@@ -106,8 +109,34 @@ export default function ContactsPage() {
   const [stageFilter, setStageFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
 
-  // Views
+  // Views — table (desktop) / grid / kanban. Default: table on >=lg, grid below;
+  // remembers the viewer's explicit choice in localStorage. Table is desktop-only,
+  // so a saved 'table' on a small screen falls back to grid.
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  useEffect(() => {
+    const saved = (localStorage.getItem('contacts.view') as ViewMode | null) || null;
+    const desktop = window.matchMedia('(min-width: 1024px)').matches;
+    let next: ViewMode = saved || (desktop ? 'table' : 'grid');
+    if (next === 'table' && !desktop) next = 'grid';
+    setViewMode(next);
+  }, []);
+  const changeView = useCallback((v: ViewMode) => {
+    setViewMode(v);
+    try {
+      localStorage.setItem('contacts.view', v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const effectiveView: ViewMode = viewMode === 'table' && !isDesktop ? 'grid' : viewMode;
 
   // Dialogs
   const [formOpen, setFormOpen] = useState(false);
@@ -328,7 +357,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="space-y-5 max-xl:space-y-3">
+    <div className="space-y-5 max-xl:space-y-3 mx-auto w-full max-w-[1600px]">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -552,13 +581,24 @@ export default function ContactsPage() {
         </Select>
 
         <div className="flex items-center rounded-md border border-border p-0.5">
-          {/* icon toggles: larger tap area below xl (touch), desktop ≥xl unchanged */}
+          {/* icon toggles: Table (desktop-only) / Grid / Kanban. Larger tap area below xl (touch). */}
           <button
             type="button"
-            onClick={() => setViewMode('grid')}
+            onClick={() => changeView('table')}
+            className={cn(
+              'hidden lg:inline-flex rounded px-2 py-1 transition-colors touch-manipulation',
+              effectiveView === 'table' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+            aria-label="Table view"
+          >
+            <Table2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => changeView('grid')}
             className={cn(
               'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
-              viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+              effectiveView === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.gridView')}
           >
@@ -566,10 +606,10 @@ export default function ContactsPage() {
           </button>
           <button
             type="button"
-            onClick={() => setViewMode('kanban')}
+            onClick={() => changeView('kanban')}
             className={cn(
               'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
-              viewMode === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+              effectiveView === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.kanbanView')}
           >
@@ -596,7 +636,26 @@ export default function ContactsPage() {
             </Button>
           )}
         </div>
-      ) : viewMode === 'kanban' ? (
+      ) : effectiveView === 'table' ? (
+        <ContactsTable
+          contacts={filtered}
+          users={users}
+          sortKey={sortKey}
+          onSort={(k) => setSortKey(k)}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onRowClick={setViewingContactId}
+          onEdit={(c) => {
+            setEditing(c);
+            setFormOpen(true);
+          }}
+          onDelete={(id) => {
+            if (window.confirm('Delete this contact?')) handleFormDelete(id);
+          }}
+          canEdit={canEditAny}
+        />
+      ) : effectiveView === 'kanban' ? (
         <KanbanView
           contacts={filtered}
           users={users}
@@ -612,7 +671,7 @@ export default function ContactsPage() {
         />
       ) : (
         // mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged
-        <div className="grid gap-3 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           <AnimatePresence mode="popLayout">
             {filtered.map((contact) => (
               <motion.div
