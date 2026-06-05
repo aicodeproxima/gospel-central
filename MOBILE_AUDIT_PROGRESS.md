@@ -183,3 +183,30 @@ Remaining (optional spot-checks): themes, landscape 915×412, jump-to picker, me
 
 ### Loop 7b — responsive recon (tablet scaling) — DONE + VERIFIED
 Recon up the breakpoints (640→1440) found the phone card/list-row redesigns were gated at `xl` (1280), so the whole **tablet range 640–1279 showed the sparse phone layout stretched wide**. Fix: moved the **ContactCard** swap (`xl`→`sm`) + the **OrgNode list-row** swap (`xl`→`sm`) to 640. VERIFIED: @1024 proper horizontal cards + inline-badge rows; @275 still compact (unchanged); @1280 inline header (full desktop). Phone (<640) + desktop (≥1280) unaffected. Groups toolbar + 3D scene intentionally stay `compact`/`xl` (fine at tablet); the ⋯ headers/toolbars stay compact through tablet and swap to inline at xl (a deliberate density choice).
+
+---
+
+## Loop 8 — comprehensive every-screen audit @275 (S24 Ultra) — DONE + VERIFIED (2026-06-05)
+User raised the bar after Loop 7: **every screen + every dialog/form/wizard** must be screenshot-verified at **275px**, fixing all cut-off / overlap / disproportion / overflow, BEFORE the (deferred) desktop 2048px polish. Verification preview `diamond-4y3qen5ap` (mock; cookie-bypass). All changes gated `isPhone`/`max-md`/`grid-cols-1 sm:…`; desktop ≥md/lg re-verified unchanged @1440.
+
+### Fixes (committed)
+- **Commit `251dc01`** — Contacts dialogs + Dashboard:
+  - `ContactDetailDialog.tsx` (Edit/Convert) + `ContactForm.tsx`: `min-w-0` chain (motion.divs + `<form>`) + DialogContent `overflow-x-hidden` so the form never inflates past the dialog grid column. **Fixes the user-reported Edit Save-footer cut-off.** Edit/Convert footers stack via `max-md:flex-col`. VERIFIED @275: form 243px, every input ≤243 (`anyInputOverflowsViewport:false`), footer `flex-direction:column` (Cancel/Save/Delete full-width, all reachable).
+  - `dashboard/page.tsx`: quick-links grid `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` (was `max-xl:grid-cols-2` forcing 2-col phone). VERIFIED @275 full-width quick-link rows.
+- **Commit `66631d0`** — Reports + wizards:
+  - `reports/page.tsx`: summary stat grid `grid-cols-1` on phone (icon-left+number+label was squeezing "Cancellations" at 2-col/114px → ~65px label col). Action-Breakdown **donut** drops overflowing outside labels and renders a wrapping `<Legend>` (name + %) on phone via `isPhone` matchMedia (`(max-width:767px)`), container `h-[230px]`. VERIFIED @275: stat labels one-line, legend shows Create 31% / Delete 28% / Export 14% / Update 27% with no clipping; @1440 desktop unchanged (4-col stats, donut outside-labels, no legend).
+  - `BookingWizard.tsx` + `CreateUserWizard.tsx`: header row `max-md:pr-9` so the "Step N of M" badge clears the absolute close-X on phones (was sitting under it — old preview showed "Step 1 of ✕"). VERIFIED @275: BookingWizard "Step 1 of 6" + X separated; CreateUserWizard "Step 1/2 of 3" + X separated.
+
+### Audited PASS @275 (no fix needed — screenshot-verified, `pageHScroll:false`, no offenders outside x-scrollers)
+- **Login** — card fills width, inputs + Sign In full-width.
+- **Dashboard** — stat grid 2-col (114×188 cards, readable, icon badge doesn't obscure number); "Upcoming Bookings" detail dialog (scrollable list, footer row).
+- **Contacts** — grid cards (Fix A, full names + wrapping type badge), header ⋯ menu (Import/Export/Select), detail View footer stacks (Close/Convert/Edit), Add form (sticky Create footer, "+ New" not clipped), Import CSV dialog.
+- **Calendar** — agenda view; BookingWizard step 1 (full-width activity cards).
+- **Reports** — Change-Log/audit table 629px **inside x-scroller**; "Total Actions" detail dialog (3-col Action/Type/User table fits); bar chart; Top Contributors list.
+- **CreateUserWizard** — step 2 `grid-cols-2` role grid (Developer/Overseer/Branch Leader/Group Leader/Team Leader/Member) fits, no truncation; Reports-to dropdown full-width.
+- **Settings** — profile form full-width; theme picker (Dark/Light/System + 3-col accent swatches Default…Rain, all names readable).
+- **Admin** — Users tab is **card-based** on mobile (no wide table); **Permissions matrix** = 8 tables (600px) all **inside x-scrollers** (no page overflow); descriptive text + inline code badges wrap.
+- **Groups** — Metrics tab (Teacher Performance 2-col metric cards), Pipeline tab (Student Pipeline stage bars), Add-User overflow menu (Jump/Expand/Collapse/Reset/Add User). 3D/list/toolbar already verified Loop 7.
+
+### Status
+All Loop 8 fixes committed + pushed to `feat/mobile-opt-main` (HEAD `66631d0`). **Mobile phase = complete.** NOT merged to main (deliberate). Bypass secret `diamondMobileAudit2026realdevXYZ` **STILL ACTIVE** pending the user's real-device sign-off. **DEFERRED (separate phase, not started): desktop scale-up to 2048px** (cut-off/overlap/disproportion at 1440+2048) — the user explicitly sequenced this *after* mobile is signed off.
