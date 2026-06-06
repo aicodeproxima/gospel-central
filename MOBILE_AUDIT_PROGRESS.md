@@ -224,3 +224,19 @@ User: "audit and proactively fix/redesign the contacts page … ui/ux proportion
 
 ### Loop 9 status
 Commits on `feat/mobile-opt-main`: A `f287a9b` · B `5d7e91e` · C `3a51683` · D `0ed329a` (+ this ledger). Pushed. **Contacts redesign complete** — proportionate 275→2048, dense desktop table surfacing teacher/step/stage/sessions, deep-linkable filters, sticky bulk actions. NOT merged to main. Bypass secret still active. No backend/model changes; reused existing ui/ components + permission gates; "Built by AccessorySeezin" intact. Untouched by request: the desktop **2048 polish for OTHER screens** remains the user's separately-deferred phase.
+
+---
+
+## Loop 10 — iPhone login fix: MSW without a service worker (2026-06-06)
+**The open bug carried in the prior passdown.** On real **iOS Safari**, `admin`/`admin` → "invalid credentials" + blank data (worked on Android + desktop, reproduced on two iPhones). Root cause: the mock data/login ran on **MSW = a service worker**, and iOS Safari chronically fails to download/keep SWs → the SW never claimed the page → the login `fetch` escaped to the dead `localhost:8080` backend → caught and shown as the misleading "Invalid credentials" toast (`use-auth.ts:32` is a catch-all for ANY failure incl. network, not a real auth failure).
+
+- **Fix (commit `fbfe7ea`)** — make the mock run with **no service worker**:
+  - `src/mocks/browser.ts`: replaced `setupWorker(...handlers)` with a `BatchInterceptor` (`@mswjs/interceptors` `FetchInterceptor` + `XMLHttpRequestInterceptor`, the low-level lib MSW is built on) that patches `window.fetch`/XHR **in-page** and routes matched requests through the existing `handlers` via MSW's public `getResponse(handlers, request)`. Idempotent `startMockNetwork()`; unmatched → passthrough (mirrors the old `onUnhandledRequest:'bypass'`).
+  - `src/components/shared/MSWProvider.tsx`: removed the SW control-gate (`ensureControlled`), the one-time reload, and the `sessionStorage` guard. Now: dynamic-import → `startMockNetwork()` (synchronous patch) → `setReady(true)` immediately. Real-backend mode (`!MOCK`) still early-returns unchanged.
+  - **Resolution gotcha:** import the interceptor classes from the `/fetch` and `/XMLHttpRequest` subpaths, NOT `@mswjs/interceptors/presets/browser` — that preset declares only `browser`/`node:null` (no `import`/`default`), so Turbopack's SSR pass (it compiles client components for the server too) can't resolve it → "Module not found". The subpaths add `import`/`default` fallbacks; only the browser build ever executes (apply() is client-side).
+  - handlers.ts, client.ts, use-auth.ts **unchanged**. `public/mockServiceWorker.js` is now unused (harmless; nothing registers it).
+- **VERIFIED in Chromium** (chrome-devtools, S24 Ultra emulation 275×596×5.24) on mock preview `diamond-5iuhd8ttj`: login admin/admin → `/dashboard` with real data (Active Contacts 46, Sessions 101, Baptisms 4); `navigator.serviceWorker.controller === null`; **0 SW registrations**; direct `POST http://localhost:8080/api/login` intercepted in-page → **200** `{token: mock-jwt-token-u-michael}`; no escaped-to-localhost requests; 0 console errors. Build green (local Turbopack + remote Vercel). vitest **242/242 pass**.
+- **⚠️ NOT YET PROVEN on iOS Safari** — Chromium proves the SW-free *mechanism* (which removes the iOS SW failure cause) but cannot prove iOS Safari itself (the prior session fell into exactly this trap). Awaiting the user's on-device confirmation: open `https://diamond-5iuhd8ttj-aicodeproximas-projects.vercel.app/login` in iPhone Safari and log in admin/admin. SSO protection is OFF so the preview opens on any device with no login.
+
+### Loop 10 status
+Commit `fbfe7ea` on `feat/mobile-opt-main` (pushed). Surgical 2-file change. NOT merged to main. The SW-free mock is now the engine for ALL mock previews (works in any browser/device/in-app webview/Private mode). Pending: user taps the preview on a real iPhone to close the bug.
