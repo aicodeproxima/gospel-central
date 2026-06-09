@@ -240,3 +240,14 @@ Commits on `feat/mobile-opt-main`: A `f287a9b` · B `5d7e91e` · C `3a51683` · 
 
 ### Loop 10 status
 Commit `fbfe7ea` on `feat/mobile-opt-main` (pushed). Surgical 2-file change. NOT merged to main. The SW-free mock is now the engine for ALL mock previews (works in any browser/device/in-app webview/Private mode). Pending: user taps the preview on a real iPhone to close the bug.
+
+---
+
+## Loop 11 — real-device bug fixes: booking-conflict message + contact card scroll (2026-06-09)
+Two issues the user hit testing on the S24 Ultra (Chrome). Commit `d916046`.
+
+- **Booking "Failed to save booking" was opaque.** Root cause (browser-confirmed): a clean booking succeeds (201), but a duplicate / stale-state submit hits the server's `ROOM_CONFLICT` (409, "Room is already booked: <title>") or `BLOCKED_SLOT_CONFLICT` ("Overlaps blocked window: <reason>") — and `BookingWizard.handleSubmit`'s `catch` collapsed all of it into the generic "Failed to save booking", so the user couldn't tell the slot was already taken. Fix: `catch (e) { toast.error(isApiError(e) ? e.message : 'Failed to save booking') }` (+ `isApiError` import from `@/lib/api/client`). The wizard already greys occupied slots from fresh state, so this path is a stale-prop / duplicate-submit race. VERIFIED in Chromium (S24 emul, preview `diamond-c3q9ewev7`): injected a Room1@10am booking via API (the wizard's stale `bookings` prop still showed 10am free), drove the wizard to that slot, submitted → toast read **"Room is already booked: Prior booking (conflict test)"** (was "Failed to save booking").
+- **Contact detail card opened scrolled to the BOTTOM.** Root cause: `ContactDetailDialog`'s `DialogContent` is the scroll container; base-ui moves focus into the dialog on open and, with the first tabbable element being the bottom Close button, the browser scrolled the sheet down to it. Fix: a top focus anchor `<div ref={topRef} tabIndex={-1} />` + `initialFocus={topRef}` on the `DialogContent`. VERIFIED (S24 emul): opening Boaz → `scrollTop:0`, "Contact Details" + name at the top, focus on the sentinel (not a bottom button).
+
+### Loop 11 status
+Commit `d916046` on `feat/mobile-opt-main` (pushed; 2 files, +18/−4). Build green; vitest unaffected (no handler/mock-engine change). NOT merged to main. Both verified in Chromium on `diamond-c3q9ewev7`. (Mock-state note: the verification injected an ephemeral "Prior booking (conflict test)" row that vanishes on reload — no real data.)
