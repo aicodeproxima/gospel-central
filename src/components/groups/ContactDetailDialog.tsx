@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Dialog,
@@ -104,6 +104,12 @@ export function ContactDetailDialog({
   onConvert,
 }: ContactDetailDialogProps) {
   const [mode, setMode] = useState<'view' | 'edit' | 'convert'>('view');
+  // Focus anchor pinned to the TOP of the scroll container. base-ui moves
+  // focus into the dialog on open; without this it lands on the first tabbable
+  // element — the Close button at the BOTTOM — and the browser scrolls the
+  // sheet down to it (so the card opened scrolled to the bottom). Pointing
+  // initialFocus here keeps the dialog scrolled to the top on open.
+  const topRef = useRef<HTMLDivElement>(null);
 
   // Reset to view mode whenever a different contact is opened
   useEffect(() => {
@@ -120,7 +126,11 @@ export function ContactDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
+      <DialogContent
+        initialFocus={topRef}
+        className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl"
+      >
+        <div ref={topRef} tabIndex={-1} className="outline-none" />
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {mode === 'view'

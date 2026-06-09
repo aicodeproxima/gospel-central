@@ -19,6 +19,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { Activity, BookingType } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { getDaySlots } from '@/lib/utils/availability';
+import { isApiError } from '@/lib/api/client';
 import {
   buildVisibilityScope,
   canEditBooking,
@@ -369,8 +370,11 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       });
       toast.success(isEdit ? 'Booking updated' : 'Booking created');
       closeBookingModal();
-    } catch {
-      toast.error('Failed to save booking');
+    } catch (e) {
+      // Surface the specific reason (e.g. "Room is already booked: …" or
+      // "Overlaps blocked window: …") instead of a generic failure, so the
+      // user can actually act on it. Falls back to generic for network errors.
+      toast.error(isApiError(e) ? e.message : 'Failed to save booking');
     } finally {
       setLoading(false);
     }
