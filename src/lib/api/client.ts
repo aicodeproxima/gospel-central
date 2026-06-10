@@ -1,9 +1,9 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-
-// In mock mode the MSW service worker can briefly not be controlling the page
-// on a cold mobile load; a transient network failure is then a not-yet-claimed
-// SW rather than a real outage. Retry a couple times before surfacing it.
 const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
+// Mock mode: same-origin '/api' so a request the in-page interceptor fails to
+// match dies as a fast same-origin 404 instead of an iOS-Safari mixed-content
+// block (http://localhost from an HTTPS page is silently blocked on WebKit).
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || (IS_MOCK ? '/api' : 'http://localhost:8080/api');
 
 /**
  * Thin fetch wrapper with:

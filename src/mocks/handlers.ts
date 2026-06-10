@@ -30,7 +30,14 @@ import {
 import type { User } from '../lib/types/user';
 import { UserRole } from '../lib/types/user';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// Must mirror API_BASE resolution in src/lib/api/client.ts exactly, so the
+// handler patterns match whatever URL the client actually requests. In
+// Node/vitest both resolve to the absolute localhost URL (NEXT_PUBLIC_MOCK_API
+// unset); in the browser mock build both resolve '/api', and MSW resolves
+// relative handler patterns against location.origin.
+const API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_MOCK_API === 'true' ? '/api' : 'http://localhost:8080/api');
 
 /**
  * Mutable in-memory copies so PUT/DELETE/POST actually mutate and subsequent
