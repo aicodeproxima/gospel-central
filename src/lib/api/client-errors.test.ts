@@ -62,10 +62,10 @@ describe('ApiClient typed errors (network vs 401, skipAuthRedirect)', () => {
   });
 
   it('(a) fetch rejection → ApiError status 0, code NETWORK_ERROR', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-    );
+    const fetchStub = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchStub);
 
     const err = await rejectionOf(api.get('/me'));
 
@@ -73,6 +73,20 @@ describe('ApiClient typed errors (network vs 401, skipAuthRedirect)', () => {
     expect((err as ApiError).status).toBe(0);
     expect((err as ApiError).code).toBe('NETWORK_ERROR');
     expect((err as ApiError).message).toBe('Failed to fetch');
+    // Pins the single-attempt contract: no retries on transport failure.
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+  });
+
+  it('(a2) fetch rejecting with AbortError → same DOMException passes through, NOT an ApiError', async () => {
+    const abortErr = new DOMException('aborted', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortErr));
+
+    const err = await rejectionOf(api.get('/me'));
+
+    // request() must rethrow the abort as-is (client.ts isAbortError guard),
+    // so callers can distinguish "cancelled" from "network down".
+    expect(err).toBe(abortErr);
+    expect(isApiError(err)).toBe(false);
   });
 
   it('(b) 401 + skipAuthRedirect → typed 401 with body message, no redirect, token kept', async () => {
@@ -113,7 +127,9 @@ describe('ApiClient typed errors (network vs 401, skipAuthRedirect)', () => {
 
     expect(isApiError(err)).toBe(true);
     expect((err as ApiError).status).toBe(401);
-    expect((err as ApiError).code).toBe('PERMISSION_DENIED');
+    // 401 = UNAUTHORIZED (authentication); PERMISSION_DENIED is reserved
+    // for 403 per docs/BACKEND_GAPS.md.
+    expect((err as ApiError).code).toBe('UNAUTHORIZED');
     expect(storage.getItem('token')).toBeNull();
     expect(windowStub.location.href).toBe('/login');
   });

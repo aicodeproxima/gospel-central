@@ -9,7 +9,10 @@ const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
 // Mock mode: same-origin '/api' so a request the in-page interceptor fails to
 // match dies as a fast same-origin 404 instead of an iOS-Safari mixed-content
 // block (http://localhost from an HTTPS page is silently blocked on WebKit).
-const API_BASE =
+//
+// Single source of truth for the API base — import this; never re-derive
+// this expression elsewhere.
+export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || (IS_MOCK ? '/api' : 'http://localhost:8080/api');
 
 /**
@@ -55,9 +58,13 @@ export function isAbortError(err: unknown): boolean {
 /**
  * Documented error codes the backend should mirror — see
  * docs/BACKEND_GAPS.md "Cross-cutting contracts" section.
+ *
+ * Note: `NETWORK_ERROR` (transport failure) and the global-401-path
+ * `UNAUTHORIZED` are synthesized by this client, not backend body codes.
  */
 export type ApiErrorCode =
   | 'NETWORK_ERROR'
+  | 'UNAUTHORIZED'
   | 'PERMISSION_DENIED'
   | 'BLOCKED_SLOT_CONFLICT'
   | 'USERNAME_TAKEN'
@@ -124,7 +131,6 @@ class ApiClient {
       res = await fetch(`${API_BASE}${path}`, {
         ...fetchInit,
         headers,
-        signal: fetchInit.signal,
       });
     } catch (err) {
       if (isAbortError(err)) throw err;
@@ -146,7 +152,9 @@ class ApiClient {
       }
       throw new ApiError({
         status: 401,
-        code: 'PERMISSION_DENIED',
+        // 401 = "authentication required" — PERMISSION_DENIED is reserved
+        // for 403 (docs/BACKEND_GAPS.md cross-cutting contracts).
+        code: 'UNAUTHORIZED',
         message: 'Unauthorized',
       });
     }

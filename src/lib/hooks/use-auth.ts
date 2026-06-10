@@ -33,8 +33,10 @@ export function useAuth() {
     } catch (e) {
       if (isApiError(e) && e.status === 401) {
         toast.error('Invalid credentials');
-      } else {
+      } else if (isApiError(e) && e.code === 'NETWORK_ERROR') {
         toast.error('Can’t reach the server — please try again.');
+      } else {
+        toast.error('Login failed — please try again.');
       }
       throw new Error('Login failed');
     }

@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, API_BASE } from './client';
 import type { Area, BlockedSlot, Booking, BookingFormData } from '../types';
 
 export const bookingsApi = {
@@ -93,11 +93,10 @@ export const bookingsApi = {
   // (Mike). The shared `api` wrapper doesn't carry a body on DELETE
   // (RequestOptions has no `body` field), so we fetch directly here.
   deleteBlockedSlot(id: string, actorId?: string) {
-    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(`${base}/blocked-slots/${id}`, {
+    return fetch(`${API_BASE}/blocked-slots/${id}`, {
       method: 'DELETE',
       headers,
       body: JSON.stringify({ actorId }),
