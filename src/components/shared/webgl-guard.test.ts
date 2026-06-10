@@ -14,12 +14,30 @@
  * detector, so the detector carries the behavioral weight.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { detectWebGL } from './WebGLGuard';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { detectWebGL, resetWebGLCacheForTests } from './WebGLGuard';
 
 describe('detectWebGL', () => {
+  // The probe result is cached at module level (remounts mustn't leak GL
+  // contexts), so each test resets the cache before stubbing its own DOM.
+  beforeEach(() => {
+    resetWebGLCacheForTests();
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('caches the probe result across calls (one canvas per page load)', () => {
+    let calls = 0;
+    vi.stubGlobal('document', {
+      createElement: () => {
+        calls++;
+        return { getContext: (kind: string) => (kind === 'webgl2' ? {} : null) };
+      },
+    });
+    expect(detectWebGL()).toBe(true);
+    expect(detectWebGL()).toBe(true);
+    expect(calls).toBe(1);
   });
 
   it('returns false when document is undefined (SSR / node env)', () => {
