@@ -18,8 +18,8 @@ import type { NextRequest } from 'next/server';
  * localStorage/cookie mirror must be removed.
  *
  * For now this proxy does:
- *   - allow `/login`, `/_next`, `/favicon.ico`, `/mockServiceWorker.js`,
- *     and avatar assets through unconditionally
+ *   - allow `/login`, `/_next`, `/favicon.ico`, and avatar assets
+ *     through unconditionally
  *   - redirect any other route to `/login` when the session cookie is
  *     missing or empty
  *   - forward everything else
@@ -34,7 +34,6 @@ const PUBLIC_PREFIXES = [
   '/login',
   '/_next',
   '/favicon.ico',
-  '/mockServiceWorker.js',
   '/avatars',
 ];
 

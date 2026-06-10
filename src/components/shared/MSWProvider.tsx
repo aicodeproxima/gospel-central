@@ -40,6 +40,19 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Evict any service worker left over from pre-Loop-10 builds that
+  // registered mockServiceWorker.js — on a returning device (esp. iOS
+  // Safari) a stale SW would otherwise keep intercepting fetches with the
+  // OLD broken logic. The app itself registers no service worker anymore.
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {});
+    }
+  }, []);
+
   // Warn — don't block the app — when this artifact shipped without env
   // flags (mock off + localhost API base): every fetch will die, so tell
   // the user instead of faking "Invalid credentials".
