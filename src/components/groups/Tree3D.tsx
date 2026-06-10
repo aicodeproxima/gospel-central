@@ -23,6 +23,7 @@ import {
 } from '@/lib/utils/org-metrics';
 import { layoutTree } from '@/lib/utils/tree-layout';
 import { pickAvatarForUser } from '@/lib/avatars';
+import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
 
 type ContactFilter = null | 'studying' | 'total' | 'fruit';
@@ -981,27 +982,48 @@ const CARD_WORLD_DROP = 4.0;
 export function Tree3D(props: Tree3DProps) {
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {/* frameloop="demand" — idle render loop. Renders only when
-          invalidate() is called, or when drei's OrbitControls fires
-          change/start events (which call invalidate() automatically).
-          Saves CPU/battery while the scene is static (audit H-8). */}
-      <Canvas
-        camera={CAMERA_CONFIG}
-        gl={GL_CONFIG}
-        dpr={DPR}
-        frameloop="demand"
+      {/* WebGLGuard — iOS Lockdown Mode (and some webviews) disables WebGL,
+          which would make <Canvas> blank the view right after login. The
+          guard feature-detects up front and catches runtime GL crashes,
+          swapping in a friendly non-3D message instead. */}
+      <WebGLGuard
+        fallback={
+          <div className="flex h-full w-full items-center justify-center p-6">
+            <div className="max-w-md rounded-lg border border-border bg-card/75 p-6 text-center shadow-lg backdrop-blur-md">
+              <p className="mb-2 text-sm font-semibold text-foreground">
+                3D view isn&apos;t available on this device
+              </p>
+              <p className="text-sm text-muted-foreground">
+                WebGL is disabled — for example by iOS Lockdown Mode. Your
+                groups are still here: switch to the List view using the
+                toggle in the toolbar above.
+              </p>
+            </div>
+          </div>
+        }
       >
-        {/* No scene background — canvas is transparent so the starfield
-            behind it (mounted by the Groups page) shows through. Fog is now
-            declared inside SceneContent so its far plane can be compact-aware. */}
-        <Suspense fallback={null}>
-          <SceneContent {...props} />
-        </Suspense>
-      </Canvas>
-      {/* Hint overlay */}
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-3 py-1.5 text-[10px] text-white/80 backdrop-blur">
-        Drag to pan • Scroll or pinch to zoom
-      </div>
+        {/* frameloop="demand" — idle render loop. Renders only when
+            invalidate() is called, or when drei's OrbitControls fires
+            change/start events (which call invalidate() automatically).
+            Saves CPU/battery while the scene is static (audit H-8). */}
+        <Canvas
+          camera={CAMERA_CONFIG}
+          gl={GL_CONFIG}
+          dpr={DPR}
+          frameloop="demand"
+        >
+          {/* No scene background — canvas is transparent so the starfield
+              behind it (mounted by the Groups page) shows through. Fog is now
+              declared inside SceneContent so its far plane can be compact-aware. */}
+          <Suspense fallback={null}>
+            <SceneContent {...props} />
+          </Suspense>
+        </Canvas>
+        {/* Hint overlay */}
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-3 py-1.5 text-[10px] text-white/80 backdrop-blur">
+          Drag to pan • Scroll or pinch to zoom
+        </div>
+      </WebGLGuard>
     </div>
   );
 }
