@@ -11,7 +11,7 @@
 cd C:\Users\aicod\Projects\_src\diamond-live   # the ONLY correct repo. NOT C:\Users\aicod\Diamond (stale clone)
 git fetch --all --prune
 git branch --show-current        # expect: feat/mobile-opt-main
-git rev-parse --short HEAD       # expect: fbfe7ea (or later)
+git rev-parse --short HEAD       # ground truth — trust THIS, not any SHA written in a doc
 git log --oneline -8
 git status --short               # expect clean
 ```
@@ -21,7 +21,7 @@ Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → 
 ---
 
 ## 1. ✅ RESOLVED (commit `fbfe7ea`) — pending iPhone sign-off — iPhone login "invalid credentials"
-**Status: FIXED in code + Chromium-verified (2026-06-06). ⚠️ ONLY remaining step: user confirms on a real iPhone.**
+**Status: FIXED in code + Chromium-verified (2026-06-06). ⚠️ ONLY remaining step: user confirms on a real iPhone.** Subsequent hardening (same-origin API base, typed auth errors, dead-backend banner, ghost-SW eviction, pinned interceptors) landed 2026-06-10 — see ledger.
 
 - **Symptom (was):** on a real **iPhone (iOS Safari)**, `admin`/`admin` → "invalid credentials", data blank. Worked on Android + desktop. Reproduced on two iPhones → iOS-Safari-specific, not lost data.
 - **Root cause (confirmed):** the mock data + login ran on **MSW = a service worker**, and **iOS Safari has chronic SW failures** (script not downloaded, SW memory-evicted). When the SW didn't intercept, the login `fetch` fell through to `client.ts` `API_BASE = http://localhost:8080/api` (dead from a phone) → threw → caught.
@@ -36,11 +36,12 @@ Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → 
 
 ## 2. PROJECT STATE
 - **App:** Diamond (Bible-study room booking), Next.js 16 / React / Tailwind / framer-motion / react-three-fiber. Repo `C:\Users\aicod\Projects\_src\diamond-live`, GitHub `github.com/aicodeproxima/Diamond`.
-- **Branch:** `feat/mobile-opt-main` (off current `origin/main`). **Pushed. HEAD `fbfe7ea`.** NEVER push/merge to `main` (integration is the user's deliberate call). Ignore stale `feat/mobile-realdevice`.
+- **Branch:** `feat/mobile-opt-main` (off current `origin/main`). **Pushed; re-derive current HEAD from git.** NEVER push/merge to `main` (integration is the user's deliberate call). Ignore stale `feat/mobile-realdevice`.
 - **Device target:** Galaxy **S24 Ultra = 275×596 CSS @ DPR 5.24** (NOT 412×915 — that's the S20 Ultra preset; corrected this project). Design/verify to the narrowest realistic width.
 - **DONE + shipped (this project):**
   - Mobile audit **Loops 1–8** (shell/calendar/groups-3D/contacts/dashboard/settings/admin/reports/login) — verified 275→1440, desktop unchanged.
   - **Contacts redesign Loop 9** (commits `f287a9b` A, `5d7e91e` B, `3a51683` C, `0ed329a` D, `b2ff683` ledger): dense desktop **Table view** (`ContactsTable.tsx`) default ≥lg; `ViewMode = grid|kanban|table`; page `max-w-[1600px] mx-auto` + grid `2xl:grid-cols-4` (fixed the 2048 sparse-card stretch); cards/dialog surface **assigned teacher + Step N/5** (`contact-helpers.ts`); deep-link filters `?stage/?type/?q/?view/?id` synced to URL via **`history.replaceState`** (NOT `router.replace`); sticky bulk bar; kanban `min-w-[260px]`+`ring-2`.
+  - **Loop 11** (commit d916046): booking-conflict reason surfaced + contact card opens at top.
 - **OPEN:** none code-side — §1 (iPhone/MSW) is FIXED + Chromium-verified (commit `fbfe7ea`), pending only the user's on-device iPhone tap. Desktop 2048 polish for OTHER screens remains the user's separately-deferred phase.
 
 ---

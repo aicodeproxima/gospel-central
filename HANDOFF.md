@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED (2026-06-10)** — this document predates the mobile-audit project and is WRONG about: repo location (use `C:\Users\aicod\Projects\_src\diamond-live`, NOT a sibling clone), branch (`feat/mobile-opt-main`), deploy flow, and the mock architecture (MSW is service-worker-FREE since Loop 10 — `src/mocks/browser.ts` patches fetch/XHR in-page; there is no mockServiceWorker.js). Kept for history only. Authoritative state: `MOBILE_AUDIT_PROGRESS.md` + git.
+
 # Diamond — Agent Handoff Packet
 
 ## What it is

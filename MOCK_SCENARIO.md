@@ -192,8 +192,8 @@ switching to a different scenario is a single-file edit.
    - `src/mocks/subjects.ts`
    - `src/mocks/data.ts`
    - `src/mocks/handlers.ts`
-   - `src/mocks/browser.ts`
-   - `public/mockServiceWorker.js`
+   - `src/mocks/browser.ts` (in-page fetch/XHR interception — the mock layer is
+     service-worker-free; there is no SW script in `public/` to remove)
    - `src/components/shared/MSWProvider.tsx` (and its usage in `Providers.tsx`)
 
 No production code (pages, components, API client, stores) references

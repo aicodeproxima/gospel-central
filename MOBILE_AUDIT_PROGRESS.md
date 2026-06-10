@@ -1,11 +1,13 @@
 # Diamond — Mobile Optimization Audit (current `main`)
 
+> **This ledger + git are the single source of truth for project state.** Re-derive HEAD from `git rev-parse --short HEAD` — never trust a SHA written in prose (including here). Other docs (SESSION_PASSDOWN.md, HANDOFF.md) are pointers or history, not authority.
+
 **Objective:** make current `origin/main` Diamond genuinely smooth, reliable, space-efficient, and visually
 correct on mobile. Autonomous loop: plan → implement → verify-in-browser → audit → repeat until the success
 criteria are met or truly blocked (creds/permissions/irreversible).
 
 ## Source of truth & state
-- **Branch:** `feat/mobile-optimization` off `origin/main` `ccc65ca`. ⚠️ NOT the stale `feat/mobile-realdevice`
+- **Branch:** `feat/mobile-opt-main` off `origin/main` `ccc65ca`. ⚠️ NOT the stale `feat/mobile-realdevice`
   (`9aca3cd`) — that was built on `ff2ec0d`, 63 commits behind; it is a REFERENCE ONLY. Re-port a fix only after
   proving it's still needed on current main.
 - claude 2.1.112. `npm run build` GREEN on main (2026-06-02, exit 0; routes / /admin /calendar /contacts
@@ -90,7 +92,7 @@ ledger created.
   team's prior sweeps). All fixed + verified across 320/412/landscape + an animated theme.
 - Calendar: mobile agenda (was grid-only). Groups: framing/occlusion/snap/dense-row + readable list. Shell: dvh +
   overflow-x-hidden. No horizontal pan / clipped controls / hidden-under-nav on any audited screen.
-- Branch `feat/mobile-optimization` pushed. NOT merged to main. Bypass secret still active (revoke after sign-off).
+- Branch `feat/mobile-opt-main` pushed. NOT merged to main. Bypass secret still active (revoke after sign-off).
 - Known limit: 3D view with a VERY wide child row (5 branch leaders) can't show all cards at once on a phone —
   focused node + center child framed, siblings reachable by pan; list view is the readable alternative.
 - REMAINING (user/deliberate): real S24-Ultra sign-off; decide if/how to merge to main; revoke bypass secret
