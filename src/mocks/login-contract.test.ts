@@ -21,12 +21,13 @@
 import { describe, expect, it } from 'vitest';
 import { getResponse } from 'msw';
 import { handlers } from './handlers';
+import { API_BASE } from '../lib/api/client';
 import type { AuthResponse } from '../lib/types';
 
-// Mirror handlers.ts:33 exactly — in Node/vitest NEXT_PUBLIC_API_URL is
-// unset, so handler patterns resolve against the localhost fallback base
-// URL and our test requests must be built from the SAME expression to match.
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+// Import the single source of truth (client.ts API_BASE — the same value
+// handlers.ts builds its route patterns from), so test request URLs can
+// never drift from the handler patterns.
+const API = API_BASE;
 
 const post = (url: string, body: unknown) =>
   new Request(url, {
