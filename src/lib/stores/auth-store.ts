@@ -7,6 +7,8 @@ import type { User } from '../types';
  * KNOWN SECURITY GAP (audit C-2): tokens live in localStorage AND in a
  * non-httpOnly `diamond-session` cookie so the Next.js middleware can
  * gate routes. Both are readable from JS and therefore XSS-exfiltrable.
+ * The cookie is marked Secure (HTTPS-only transmission; the app deploys
+ * HTTPS-only on Vercel), but httpOnly is impossible to set from JS.
  * This is a deliberate compromise until the real Go backend is wired;
  * at that point, migrate to a Set-Cookie httpOnly SameSite=Lax flow
  * and remove the cookie-mirror + localStorage logic from this file.
@@ -19,12 +21,12 @@ function setSessionCookie(token: string) {
   if (typeof document === 'undefined') return;
   document.cookie =
     `${SESSION_COOKIE}=${encodeURIComponent(token)}; path=/; ` +
-    `max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax`;
+    `max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax; secure`;
 }
 
 function clearSessionCookie() {
   if (typeof document === 'undefined') return;
-  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; samesite=lax; secure`;
 }
 
 interface AuthState {
