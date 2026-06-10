@@ -73,7 +73,7 @@ const initialAuditLogLength = mockAuditLog.length;
  * resets on a full page reload (module scope). The seed re-inserts the SAME
  * user objects on reset, so these node-id keys stay valid across a reset.
  */
-let orgExportImportOverrides: Record<string, boolean> = {};
+const orgExportImportOverrides: Record<string, boolean> = {};
 
 /**
  * Stamp the server-computed effective `exportImportEnabled` flag onto a user
