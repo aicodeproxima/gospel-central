@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '../stores/auth-store';
 import { authApi } from '../api/auth';
+import { isApiError } from '../api/client';
 import toast from 'react-hot-toast';
 import { useEffect } from 'react';
 
@@ -29,8 +30,12 @@ export function useAuth() {
           ? next
           : '/dashboard';
       router.push(safeNext);
-    } catch {
-      toast.error('Invalid credentials');
+    } catch (e) {
+      if (isApiError(e) && e.status === 401) {
+        toast.error('Invalid credentials');
+      } else {
+        toast.error('Can’t reach the server — please try again.');
+      }
       throw new Error('Login failed');
     }
   };

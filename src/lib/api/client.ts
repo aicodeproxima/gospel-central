@@ -15,7 +15,8 @@ const API_BASE =
  *    overlap, taken username) without parsing message strings.
  *
  * Error thrown is `AbortError` (DOMException name) when cancelled,
- * `ApiError` for HTTP failures, regular `Error` for network failures.
+ * `ApiError` for HTTP failures, and `ApiError` with `status: 0` /
+ * `code: 'NETWORK_ERROR'` for transport failures (fetch rejected).
  * Callers can do:
  *
  *     try { await api.get(path, { signal: ctrl.signal }); }
@@ -29,6 +30,12 @@ const API_BASE =
 export interface RequestOptions {
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  /**
+   * Skip the global 401 → wipe-token + redirect-to-/login behavior.
+   * Used by login itself: a wrong-password 401 must surface as a typed
+   * ApiError to the caller, not bounce the user through a redirect.
+   */
+  skipAuthRedirect?: boolean;
 }
 
 export function isAbortError(err: unknown): boolean {
@@ -43,6 +50,7 @@ export function isAbortError(err: unknown): boolean {
  * docs/BACKEND_GAPS.md "Cross-cutting contracts" section.
  */
 export type ApiErrorCode =
+  | 'NETWORK_ERROR'
   | 'PERMISSION_DENIED'
   | 'BLOCKED_SLOT_CONFLICT'
   | 'USERNAME_TAKEN'
@@ -94,36 +102,33 @@ class ApiClient {
     path: string,
     init: RequestInit & RequestOptions = {},
   ): Promise<T> {
+    // Keep skipAuthRedirect out of the actual fetch init — it's our own
+    // option, not a RequestInit field.
+    const { skipAuthRedirect, ...fetchInit } = init;
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...((init.headers as Record<string, string>) || {}),
+      ...((fetchInit.headers as Record<string, string>) || {}),
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     let res: Response;
-    const maxAttempts = IS_MOCK ? 3 : 1;
-    for (let attempt = 1; ; attempt++) {
-      try {
-        res = await fetch(`${API_BASE}${path}`, {
-          ...init,
-          headers,
-          signal: init.signal,
-        });
-        break;
-      } catch (err) {
-        if (isAbortError(err)) throw err;
-        if (attempt >= maxAttempts) {
-          throw new Error(
-            err instanceof Error ? err.message : 'Network request failed',
-          );
-        }
-        // mock mode: brief backoff, then retry (MSW SW may not be controlling yet)
-        await new Promise((r) => setTimeout(r, attempt * 200));
-      }
+    try {
+      res = await fetch(`${API_BASE}${path}`, {
+        ...fetchInit,
+        headers,
+        signal: fetchInit.signal,
+      });
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      throw new ApiError({
+        status: 0,
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Network request failed',
+      });
     }
 
-    if (res.status === 401) {
+    if (res.status === 401 && !skipAuthRedirect) {
       try {
         localStorage.removeItem('token');
       } catch {
@@ -132,7 +137,11 @@ class ApiClient {
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
       }
-      throw new Error('Unauthorized');
+      throw new ApiError({
+        status: 401,
+        code: 'PERMISSION_DENIED',
+        message: 'Unauthorized',
+      });
     }
 
     if (!res.ok) {
