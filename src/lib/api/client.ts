@@ -1,4 +1,11 @@
 const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
+// The mock network layer is SW-free since Loop 10: src/mocks/browser.ts
+// patches window.fetch/XHR in-page via @mswjs/interceptors — there is NO
+// MSW service worker, so interception is synchronous and active before the
+// first render. A mock-mode network failure is therefore genuine (no
+// "SW not yet controlling the page" grace window exists), and request()
+// below correctly makes exactly one attempt with no retries.
+//
 // Mock mode: same-origin '/api' so a request the in-page interceptor fails to
 // match dies as a fast same-origin 404 instead of an iOS-Safari mixed-content
 // block (http://localhost from an HTTPS page is silently blocked on WebKit).
