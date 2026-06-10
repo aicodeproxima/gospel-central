@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
+import { isDeadBackendBuild } from './mock-guard';
+
 const MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
+
+// Build-time-inlined env, stable for the life of the bundle: a build with
+// the mock OFF whose API_BASE still points at the localhost dev fallback
+// can never reach a backend. Self-announce instead of letting every fetch
+// die and surface fake auth errors (the original iPhone trap).
+const DEAD_BACKEND = isDeadBackendBuild();
 
 /**
  * Starts the SW-FREE mock network (see `src/mocks/browser.ts`) before rendering
@@ -32,13 +40,30 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Warn — don't block the app — when this artifact shipped without env
+  // flags (mock off + localhost API base): every fetch will die, so tell
+  // the user instead of faking "Invalid credentials".
+  const banner = DEAD_BACKEND ? (
+    <div className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 py-2 text-center text-sm font-medium text-black">
+      Demo data isn’t active on this build — open the mock preview link instead.
+    </div>
+  ) : null;
+
   if (!ready) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading…</div>
-      </div>
+      <>
+        {banner}
+        <div className="flex min-h-dvh items-center justify-center bg-background">
+          <div className="animate-pulse text-muted-foreground">Loading…</div>
+        </div>
+      </>
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {banner}
+      {children}
+    </>
+  );
 }
