@@ -90,8 +90,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: () => {
     if (typeof window === 'undefined') return;
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
+    let token: string | null = null;
+    let userStr: string | null = null;
+    try {
+      token = localStorage.getItem('token');
+      userStr = localStorage.getItem('user');
+    } catch {
+      /* storage unreadable (private mode / lockdown) — treat as logged out */
+    }
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr) as User;
