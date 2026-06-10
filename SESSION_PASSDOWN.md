@@ -62,7 +62,7 @@ Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → 
 - **Grep/ripgrep has NO lookahead** (Rust regex) — `(?!…)` silently returns "No matches" (false negative). Use plain alternation + filter in code.
 - **base-ui (`@base-ui`) DropdownMenu/Select** don't open from a synchronous `.click()` in `evaluate_script` — use the chrome-devtools native `click` tool (real pointer events) on a snapshot uid, or async click + await the portal.
 - **SPA nav can briefly show the prior page** — confirm `location.pathname` + a page-specific selector before asserting.
-- **MSW SW-control timing** (relevant if you keep the SW): the SW doesn't control the page that registered it until reload; `MSWProvider.tsx` already gates + reloads once. (Going SW-free per §1 removes this entirely.)
+- **MSW SW-control timing** — HISTORICAL: the SW-control gate + one-time reload were removed when the mock went SW-free (§1); `MSWProvider.tsx` now starts the in-page interceptor and additionally unregisters any ghost SW on boot.
 - **Vercel cookie-bypass** (only if you re-enable protection): the bypass HEADER doesn't cover the SW script; use `?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=true`. (Moot while protection is off.)
 
 ---
@@ -72,7 +72,7 @@ Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → 
 - **Plan:** `C:\Users\aicod\.claude\plans\i-just-realized-that-humming-bentley.md` (Contacts redesign plan + safeguards).
 - **Recon doc (learnings to fold into memory/CLAUDE.md — not yet applied):** `C:\Users\aicod\Documents\Claude Improvement Results\Diamond Mobile 3 - 53458c63-619e-4ad4-b7e6-58a4ad469eb5.md`. Contains the MSW/iOS findings + sources, the SW-free fix, the "don't disable SSO" exception, tooling gotchas, and a file-ops table.
 - **Email:** "email me / email it to me" → **accessoryseezin@gmail.com** (send via Gmail-web-through-Playwright as aicodeproxima@gmail.com). Don't infer other addresses (classifier blocks novel recipients).
-- Architecture quick-facts: `client.ts` `API_BASE=http://localhost:8080/api`; `NEXT_PUBLIC_MOCK_API==='true'` gates MSW; rich `Contact` model in `src/lib/types/contact.ts`; mock seed `src/mocks/scenario-church-week.ts` (50 contacts); auth handler in `src/mocks/handlers.ts` (`POST /login`, seeded users use password `admin`).
+- Architecture quick-facts: `client.ts` exports `API_BASE` (the ONLY base-URL derivation — env `NEXT_PUBLIC_API_URL`, else `/api` in mock mode, else localhost dev fallback); `NEXT_PUBLIC_MOCK_API==='true'` gates the in-page mock (env now set in Vercel for ALL scopes); rich `Contact` model in `src/lib/types/contact.ts`; mock seed `src/mocks/scenario-church-week.ts` (50 contacts); auth handler in `src/mocks/handlers.ts` (`POST /login`, seeded users use password `admin`; wrong password = real 401 `UNAUTHORIZED`, transport failure = `NETWORK_ERROR` — the toast no longer lies).
 
 ## 6. WORKFLOW CONVENTIONS
 - Commit + push without asking; one commit per coherent step; end messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.

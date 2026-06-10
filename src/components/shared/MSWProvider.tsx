@@ -44,8 +44,9 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
   // registered mockServiceWorker.js. Per spec, unregister() only takes
   // effect on the NEXT load — a controlling stale SW keeps the page for
   // THIS session. That is safe: MSW's worker passes requests through for
-  // clients that never sent MOCK_ACTIVATE (this SW-free build never does),
-  // and the worker script's 404 (file deleted) unregisters it as a backstop.
+  // clients that never sent MOCK_ACTIVATE (this SW-free build never does).
+  // (The deleted worker script is NOT a reliable 404-unregister backstop —
+  // proxy redirects the cookieless fetch — so this effect is the mechanism.)
   // The app itself registers no service worker anymore.
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
