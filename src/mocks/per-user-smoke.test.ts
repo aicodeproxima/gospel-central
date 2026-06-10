@@ -31,6 +31,7 @@ import {
   canCreateRoom,
   canCreateUser,
   canDeactivateUser,
+  canEditContact,
   canEditUser,
   canManageBlockedSlot,
   canManageTags,
@@ -244,7 +245,7 @@ describe('per-user smoke — cross-user invariants hold across the matrix', () =
       const subtree = buildVisibilityScope(viewer, allUsers).userIds;
       // Even with empty subtree (kind:'all' sentinel), admin-tier should
       // be allowed to edit any contact via the early-return.
-      expect(canEditUser(viewer, allUsers.find((u) => u.id === 'u-mem-99')!), `${vid}: canEditUser should pass`).toBe(true);
+      expect(canEditContact(viewer, arbitraryContact, subtree), `${vid}: canEditContact should pass`).toBe(true);
     }
   });
 
