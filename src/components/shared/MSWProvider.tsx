@@ -41,23 +41,35 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Evict any service worker left over from pre-Loop-10 builds that
-  // registered mockServiceWorker.js — on a returning device (esp. iOS
-  // Safari) a stale SW would otherwise keep intercepting fetches with the
-  // OLD broken logic. The app itself registers no service worker anymore.
+  // registered mockServiceWorker.js. Per spec, unregister() only takes
+  // effect on the NEXT load — a controlling stale SW keeps the page for
+  // THIS session. That is safe: MSW's worker passes requests through for
+  // clients that never sent MOCK_ACTIVATE (this SW-free build never does),
+  // and the worker script's 404 (file deleted) unregisters it as a backstop.
+  // The app itself registers no service worker anymore.
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker
         .getRegistrations()
         .then((regs) => regs.forEach((r) => r.unregister()))
-        .catch(() => {});
+        .catch(() => {
+          // Best-effort cleanup; log so a misbehaving returning device is diagnosable.
+          console.warn('[mock] could not unregister a stale service worker');
+        });
     }
   }, []);
 
   // Warn — don't block the app — when this artifact shipped without env
   // flags (mock off + localhost API base): every fetch will die, so tell
   // the user instead of faking "Invalid credentials".
+  // z-[9999] deliberately tops the app's documented z-ladder (max 60,
+  // BookingWizard overlay) — a dead-backend build is non-functional, so the
+  // warning must outrank everything. pt accounts for the iOS notch.
   const banner = DEAD_BACKEND ? (
-    <div className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 py-2 text-center text-sm font-medium text-black">
+    <div
+      role="alert"
+      className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-black"
+    >
       Demo data isn’t active on this build — open the mock preview link instead.
     </div>
   ) : null;
