@@ -482,7 +482,13 @@ export default function SettingsPage() {
                 onValueChange={(v) => v && prefs.setCalendarDefaultView(v as 'day' | 'week' | 'month')}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {prefs.calendarDefaultView === 'day'
+                      ? t('cal.day')
+                      : prefs.calendarDefaultView === 'week'
+                        ? t('cal.week')
+                        : t('cal.month')}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">{t('cal.day')}</SelectItem>
@@ -498,7 +504,9 @@ export default function SettingsPage() {
                 onValueChange={(v) => v && prefs.setTimeFormat(v as '12h' | '24h')}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {prefs.timeFormat === '12h' ? '12-hour (9:00 am)' : '24-hour (09:00)'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="12h">12-hour (9:00 am)</SelectItem>

@@ -408,7 +408,7 @@ function SlotFormDialog({
               <Label>Scope</Label>
               <Select value={scope} onValueChange={(v) => v && setScope(v as 'global' | 'area')}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{scope === 'global' ? 'Global (all areas)' : 'Single area'}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="global">Global (all areas)</SelectItem>
@@ -420,7 +420,7 @@ function SlotFormDialog({
               <Label>Recurrence</Label>
               <Select value={recurrence} onValueChange={(v) => v && setRecurrence(v as 'weekly' | 'one-off')}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{recurrence === 'weekly' ? 'Weekly' : 'One-off'}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="weekly">Weekly</SelectItem>
@@ -435,7 +435,7 @@ function SlotFormDialog({
               <Label>Area</Label>
               <Select value={areaId} onValueChange={(v) => v && setAreaId(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Pick an area" />
+                  <SelectValue>{areas.find((a) => a.id === areaId)?.name ?? 'Pick an area'}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {areas.map((a) => (
@@ -452,7 +452,7 @@ function SlotFormDialog({
                 <Label>Day</Label>
                 <Select value={String(dayOfWeek)} onValueChange={(v) => setDayOfWeek(Number(v))}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>{DAY_LABELS[dayOfWeek] ?? String(dayOfWeek)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {DAY_LABELS.map((d, i) => (

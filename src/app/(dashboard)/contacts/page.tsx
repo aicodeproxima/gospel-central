@@ -465,7 +465,9 @@ export default function ContactsPage() {
                 >
                   <SelectTrigger className="w-[150px] h-8 text-xs">
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    <SelectValue placeholder={t('btn.export')} />
+                    {/* Action-style select: always show the action label, never
+                        the raw 'current' / 'all' value base-ui would render. */}
+                    <SelectValue>{t('btn.export')}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="current">Export current view</SelectItem>
@@ -546,7 +548,9 @@ export default function ContactsPage() {
           <span className="text-sm font-medium">{selectedIds.size} {t('contacts.selected')}</span>
           <Select onValueChange={(v) => { if (v) handleBulkStageChange(String(v)); }}>
             <SelectTrigger className="w-[160px] h-8 text-xs">
-              <SelectValue placeholder="Change stage..." />
+              {/* Action-style select: keep the label fixed instead of showing
+                  the raw pipeline-stage key after a bulk change. */}
+              <SelectValue>Change stage...</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {Object.entries(PIPELINE_STAGE_CONFIG).map(([k, v]) => (
@@ -591,7 +595,11 @@ export default function ContactsPage() {
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'all')}>
           <SelectTrigger className="w-[170px] max-md:flex-1">
             <Filter className="mr-1.5 h-3.5 w-3.5" />
-            <SelectValue placeholder="Type" />
+            <SelectValue>
+              {typeFilter === 'all'
+                ? t('contacts.allTypes')
+                : BOOKING_TYPE_CONFIG[typeFilter as keyof typeof BOOKING_TYPE_CONFIG]?.label ?? typeFilter}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('contacts.allTypes')}</SelectItem>
@@ -604,7 +612,7 @@ export default function ContactsPage() {
         <Select value={sortKey} onValueChange={(v) => setSortKey((v ?? 'name') as SortKey)}>
           <SelectTrigger className="w-[160px] max-md:flex-1">
             <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
-            <SelectValue />
+            <SelectValue>{SORT_OPTIONS.find((o) => o.value === sortKey)?.label ?? sortKey}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {SORT_OPTIONS.map((opt) => (

@@ -103,6 +103,51 @@ const ACTION_ICONS: Record<string, typeof PlusCircle> = {
 const PIE_COLORS = ['#22c55e', '#3b82f6', '#ef4444', '#f97316', '#a855f7'];
 const PAGE_SIZE = 15;
 
+// Filter labels — single source for both the SelectItems and the trigger's
+// SelectValue children (base-ui renders the raw enum value when SelectValue
+// has no children, so the trigger must mirror the item labels explicitly).
+const ACTION_FILTER_LABELS: Record<string, string> = {
+  all_actions: 'All Actions',
+  create: 'Create',
+  update: 'Update',
+  delete: 'Delete',
+  cancel: 'Cancel',
+  restore: 'Restore',
+  export: 'Export',
+  login: 'Login (success)',
+  login_failed: 'Login (failed)',
+  reset_password: 'Password reset',
+  rename: 'Rename',
+  role_change: 'Role change',
+  tag_grant: 'Tag grant',
+  tag_revoke: 'Tag revoke',
+  reassign: 'Reassignment',
+};
+
+const ENTITY_FILTER_LABELS: Record<string, string> = {
+  all_entities: 'All Entities',
+  booking: 'Booking',
+  contact: 'Contact',
+  user: 'User',
+  group: 'Group',
+  report: 'Report',
+  tag: 'Tag',
+  blocked_slot: 'Blocked slot',
+  password_reset: 'Password reset',
+  username_change: 'Username change',
+  login_success: 'Login (success)',
+  login_failed: 'Login (failed)',
+  role_change: 'Role change',
+  group_assignment: 'Group assignment',
+};
+
+const DATE_RANGE_LABELS = {
+  all: 'All Time',
+  today: 'Today',
+  week: 'This Week',
+  month: 'This Month',
+} as const;
+
 // ---------------------------------------------------------------------------
 // CSV Export — uses the shared `lib/utils/csv` helper so escape rules
 // stay consistent with the contacts page and any future export surface.
@@ -341,24 +386,14 @@ export default function ReportsPage() {
           tag_grant, tag_revoke, restore, reassign). */}
       <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? '')}>
         <SelectTrigger className="w-[150px] max-md:w-full">
-          <SelectValue placeholder="Action" />
+          <SelectValue>
+            {actionFilter ? ACTION_FILTER_LABELS[actionFilter] ?? actionFilter : 'Action'}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all_actions">All Actions</SelectItem>
-          <SelectItem value="create">Create</SelectItem>
-          <SelectItem value="update">Update</SelectItem>
-          <SelectItem value="delete">Delete</SelectItem>
-          <SelectItem value="cancel">Cancel</SelectItem>
-          <SelectItem value="restore">Restore</SelectItem>
-          <SelectItem value="export">Export</SelectItem>
-          <SelectItem value="login">Login (success)</SelectItem>
-          <SelectItem value="login_failed">Login (failed)</SelectItem>
-          <SelectItem value="reset_password">Password reset</SelectItem>
-          <SelectItem value="rename">Rename</SelectItem>
-          <SelectItem value="role_change">Role change</SelectItem>
-          <SelectItem value="tag_grant">Tag grant</SelectItem>
-          <SelectItem value="tag_revoke">Tag revoke</SelectItem>
-          <SelectItem value="reassign">Reassignment</SelectItem>
+          {Object.entries(ACTION_FILTER_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>{label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
@@ -368,29 +403,26 @@ export default function ReportsPage() {
           group_assignment, plus the existing five). */}
       <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v ?? '')}>
         <SelectTrigger className="w-[170px] max-md:w-full">
-          <SelectValue placeholder="Entity" />
+          <SelectValue>
+            {entityFilter ? ENTITY_FILTER_LABELS[entityFilter] ?? entityFilter : 'Entity'}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all_entities">All Entities</SelectItem>
-          <SelectItem value="booking">Booking</SelectItem>
-          <SelectItem value="contact">Contact</SelectItem>
-          <SelectItem value="user">User</SelectItem>
-          <SelectItem value="group">Group</SelectItem>
-          <SelectItem value="report">Report</SelectItem>
-          <SelectItem value="tag">Tag</SelectItem>
-          <SelectItem value="blocked_slot">Blocked slot</SelectItem>
-          <SelectItem value="password_reset">Password reset</SelectItem>
-          <SelectItem value="username_change">Username change</SelectItem>
-          <SelectItem value="login_success">Login (success)</SelectItem>
-          <SelectItem value="login_failed">Login (failed)</SelectItem>
-          <SelectItem value="role_change">Role change</SelectItem>
-          <SelectItem value="group_assignment">Group assignment</SelectItem>
+          {Object.entries(ENTITY_FILTER_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>{label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
       <Select value={userFilter} onValueChange={(v) => setUserFilter(v ?? '')}>
         <SelectTrigger className="w-[160px] max-md:w-full">
-          <SelectValue placeholder="User" />
+          <SelectValue>
+            {userFilter === ''
+              ? 'User'
+              : userFilter === 'all_users'
+                ? 'All Users'
+                : uniqueUsers.find((u) => u.id === userFilter)?.name ?? userFilter}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all_users">All Users</SelectItem>
@@ -405,13 +437,12 @@ export default function ReportsPage() {
       <Select value={dateRange} onValueChange={(v) => setDateRange((v ?? 'all') as typeof dateRange)}>
         <SelectTrigger className="w-[130px] max-md:w-full">
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-          <SelectValue />
+          <SelectValue>{DATE_RANGE_LABELS[dateRange]}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Time</SelectItem>
-          <SelectItem value="today">Today</SelectItem>
-          <SelectItem value="week">This Week</SelectItem>
-          <SelectItem value="month">This Month</SelectItem>
+          {Object.entries(DATE_RANGE_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>{label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
