@@ -393,10 +393,10 @@ function PlaceholderTab({ spec }: { spec: TabSpec }) {
       </CardHeader>
       <CardContent>
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
-          <p className="text-sm font-medium">Shipping in Phase {spec.phase}</p>
+          <p className="text-sm font-medium">Coming soon</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tab navigation + role gating are live now (Phase 2). The interactive UI lands in a
-            follow-up commit.
+            This section isn&rsquo;t available yet — it arrives in an upcoming
+            update.
           </p>
         </div>
       </CardContent>

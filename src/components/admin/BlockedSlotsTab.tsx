@@ -83,9 +83,6 @@ export function BlockedSlotsTab() {
 
   useEffect(() => { reload(); }, []);
 
-  if (!viewer) return null;
-  const canManage = canManageBlockedSlot(viewer);
-
   const sortedSlots = useMemo(() => {
     const score = (s: BlockedSlot) =>
       (s.scope === 'global' ? 0 : 1) * 100 +
@@ -93,6 +90,12 @@ export function BlockedSlotsTab() {
       (s.dayOfWeek ?? 0);
     return [...slots].sort((a, b) => score(a) - score(b));
   }, [slots]);
+
+  // Guard AFTER all hooks — an early return above a hook changes the hook
+  // count across renders and crashes on auth transition (same class as the
+  // ContactsAdminTab fix).
+  if (!viewer) return null;
+  const canManage = canManageBlockedSlot(viewer);
 
   const handleDelete = async (slot: BlockedSlot) => {
     try {
