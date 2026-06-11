@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { WeekView } from '@/components/calendar/WeekView';
 import { DayView } from '@/components/calendar/DayView';
 import { MonthView } from '@/components/calendar/MonthView';
@@ -379,7 +380,7 @@ export default function CalendarPage() {
 
           <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Select area" />
+              <SelectValue placeholder="Select church" />
             </SelectTrigger>
             <SelectContent>
               {areas.map((a) => (
@@ -477,9 +478,25 @@ export default function CalendarPage() {
             </TabsList>
           </Tabs>
 
+          <Button
+            onClick={() => openBookingModal()}
+            size="sm"
+            className="shrink-0 gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Book
+          </Button>
+
+          {/* Church picker — the closed trigger always reads a static
+               "Church" (the selected church's full name is too wide for a
+               phone row); the open list still shows full names. The actual
+               selection is conveyed to assistive tech via aria-label. */}
           <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
-            <SelectTrigger className="w-[120px] shrink-0">
-              <SelectValue placeholder="Area" />
+            <SelectTrigger
+              className="ml-auto w-auto shrink-0"
+              aria-label={'Church: ' + (selectedArea?.name ?? 'none selected')}
+            >
+              <span>Church</span>
             </SelectTrigger>
             <SelectContent>
               {areas.map((a) => (
@@ -488,14 +505,27 @@ export default function CalendarPage() {
             </SelectContent>
           </Select>
 
-          <Button
-            onClick={() => openBookingModal()}
-            size="sm"
-            className="ml-auto shrink-0 gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            Book
-          </Button>
+          {/* Legend popover — the Topbar is a FIXED 64px row, so an
+               inline-expanding disclosure would overflow it; the chips float
+               over the page in a popover instead. ≥md the in-page chip row
+               already shows the legend, so the trigger is phone-only. */}
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button variant="outline" size="sm" className="shrink-0 gap-1.5 md:hidden" />
+              }
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              Legend
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-auto max-w-[280px] flex-row flex-wrap gap-2">
+              {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+                <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
+                  {tBookingType(type)}
+                </Badge>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
       </>
     ),
@@ -504,6 +534,10 @@ export default function CalendarPage() {
       dateLabelShort,
       view,
       selectedAreaId,
+      // The compact Church trigger's aria-label + the Legend popover chips
+      // are rendered in the slot JSX now — both must invalidate it.
+      selectedArea,
+      tBookingType,
       areas,
       bookings,
       users,
@@ -560,8 +594,9 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend — full chip row on ≥md (unchanged on desktop); a tap-to-open
-           disclosure on phones so 7 chips don't eat ~5 rows above the calendar. */}
+      {/* Legend — full chip row on ≥md (unchanged on desktop). Phones get the
+           Legend popover in the compact topbar instead, so no vertical space
+           is spent above the calendar here. */}
       <div className="hidden flex-wrap gap-2 md:flex">
         {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
           <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
@@ -569,19 +604,6 @@ export default function CalendarPage() {
           </Badge>
         ))}
       </div>
-      <details className="group md:hidden">
-        <summary className="flex w-fit cursor-pointer touch-manipulation list-none items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
-          <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden="true" />
-          Legend
-        </summary>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
-            <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
-              {tBookingType(type)}
-            </Badge>
-          ))}
-        </div>
-      </details>
 
       {/* Calendar — swipe left/right to navigate periods */}
       <div ref={swipeContainerRef} className="touch-pan-y">
