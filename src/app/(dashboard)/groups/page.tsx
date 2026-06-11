@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,9 @@ import type { SearchEntry } from '@/lib/utils/tree-search';
 const Tree3D = dynamic(() => import('@/components/groups/Tree3D').then((m) => m.Tree3D), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[75vh] items-center justify-center rounded-lg border border-border bg-card">
+    // Full-bleed + transparent so the page starfield shows through while the
+    // 3D bundle loads — no hard-edged card panel flashing under the toolbar.
+    <div className="flex h-full w-full items-center justify-center">
       <div className="text-sm text-muted-foreground animate-pulse">Loading 3D view...</div>
     </div>
   ),
@@ -86,45 +88,19 @@ export default function GroupsPage() {
   const currentUser = useAuthStore((s) => s.user);
   const showAddUser = !!currentUser && canCreateUsers(currentUser.role);
 
-  // Mobile de-occlusion: the floating toolbar overlays the top of the 3D
-  // canvas. Measure its height and (on <xl) push the canvas BELOW it so tree
-  // nodes are never hidden behind it; clear the bottom nav on phones too.
-  // Desktop (≥xl) keeps the canvas at inset-0 (unchanged).
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  // Sane default (~2-row mobile toolbar) so the canvas is offset on the very
-  // first paint even before the ResizeObserver measures; refined below.
-  const [toolbarH, setToolbarH] = useState(150);
-  const [isBelowXl, setIsBelowXl] = useState(false);
+  // Edge-to-edge canvas: the floating toolbar sits OVER the 3D canvas on ALL
+  // breakpoints (user's edge-to-edge call, 2026-06-10) — the tree renders
+  // full-bleed from the top of the viewport and its content can pan behind
+  // the toolbar, matching the desktop behavior. The only inset kept is the
+  // phone bottom nav (64px): it's opaque bg-card, so extending the canvas
+  // behind it would just hide content and skew the auto-fit centering.
   const [isPhone, setIsPhone] = useState(false);
   useEffect(() => {
-    const xl = window.matchMedia('(max-width: 1279px)');
     const phone = window.matchMedia('(max-width: 767px)');
-    const apply = () => {
-      setIsBelowXl(xl.matches);
-      setIsPhone(phone.matches);
-    };
+    const apply = () => setIsPhone(phone.matches);
     apply();
-    xl.addEventListener('change', apply);
     phone.addEventListener('change', apply);
-    return () => {
-      xl.removeEventListener('change', apply);
-      phone.removeEventListener('change', apply);
-    };
-  }, []);
-  useEffect(() => {
-    const el = toolbarRef.current;
-    if (!el) return;
-    // Only accept positive measurements — keep the sane default if a layout
-    // race ever reports 0 (observed on cold mount).
-    const update = () => {
-      const h = el.offsetHeight;
-      if (h > 0) setToolbarH(h);
-    };
-    update();
-    requestAnimationFrame(update);
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
+    return () => phone.removeEventListener('change', apply);
   }, []);
 
   // Focus pipeline plumbing: converts the discriminated union into the
@@ -331,8 +307,8 @@ export default function GroupsPage() {
       <TabsContent value="tree" className="absolute inset-0 m-0">
         {viewMode === '3d' ? (
           <div
-            className="absolute inset-x-0"
-            style={{ top: isBelowXl ? toolbarH : 0, bottom: isPhone ? 64 : 0 }}
+            className="absolute inset-x-0 top-0"
+            style={{ bottom: isPhone ? 64 : 0 }}
           >
             <Tree3D
               roots={orgTree}
@@ -383,10 +359,7 @@ export default function GroupsPage() {
 
       {/* Floating top-right toolbar — search + tabs + buttons hover over the scene.
           z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50). */}
-      <div
-        ref={toolbarRef}
-        className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20"
-      >
+      <div className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20">
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <div className="hidden xl:flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
