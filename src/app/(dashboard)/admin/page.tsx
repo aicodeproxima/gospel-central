@@ -51,8 +51,12 @@ interface TabSpec {
   label: string;
   description: string;
   icon: typeof Shield;
-  /** Which Phase number adds the working UI for this tab. */
+  /** Which Phase number adds the working UI for this tab. Internal planning
+   *  metadata only — never rendered in the nav (PlaceholderTab still uses it). */
   phase: number;
+  /** Explicitly false for tabs that still render PlaceholderTab; drives the
+   *  user-facing 'Soon' badge in the side-nav. */
+  implemented?: boolean;
   notes?: string;
 }
 
@@ -126,6 +130,7 @@ const TAB_SPECS: TabSpec[] = [
     description: 'Application-level settings: theme defaults, maintenance mode, feature flags. Dev-only.',
     icon: Cog,
     phase: 8,
+    implemented: false,
   },
 ];
 
@@ -321,12 +326,12 @@ export default function AdminPage() {
                 )}
                 <Icon className="relative z-10 h-4 w-4 shrink-0" />
                 <span className="relative z-10 flex-1">{tab.label}</span>
-                {tab.phase > 2 && (
+                {tab.implemented === false && (
                   <Badge
                     variant="outline"
                     className="relative z-10 hidden text-[9px] uppercase tracking-wider xl:inline-flex"
                   >
-                    P{tab.phase}
+                    Soon
                   </Badge>
                 )}
               </button>
