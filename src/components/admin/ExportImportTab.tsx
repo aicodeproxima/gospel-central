@@ -305,54 +305,82 @@ function NodeRow({
 
   return (
     <div>
-      <div
-        className="flex items-center gap-2 rounded-lg border border-border bg-card p-2.5"
-        style={{ marginLeft: depth * 16 }}
-      >
-        <button
-          type="button"
-          onClick={() => hasChildren && onToggle(user.id)}
-          className={cn(
-            // h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl.
-            'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground touch-manipulation max-xl:h-11 max-xl:w-11',
-            hasChildren ? 'hover:bg-accent' : 'opacity-0 pointer-events-none',
-          )}
-          aria-label={isOpen ? 'Collapse' : 'Expand'}
-          aria-expanded={isOpen}
-        >
-          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </button>
-        <KindIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium">
-              {user.firstName} {user.lastName}
-            </span>
-            <Badge variant="outline" className="text-[10px]">
-              {ROLE_LABELS[user.role] ?? user.role}
-            </Badge>
+      {/* Indent without JS media queries: two CSS-gated spacer divs —
+          8px/level on phone (<md; 16px/level would eat too much of a 275px
+          viewport on deep nests), 16px/level ≥md (identical geometry to the
+          old `marginLeft: depth * 16`). */}
+      <div className="flex">
+        <div style={{ width: depth * 8 }} className="shrink-0 md:hidden" aria-hidden="true" />
+        <div style={{ width: depth * 16 }} className="hidden shrink-0 md:block" aria-hidden="true" />
+        {/* Phone (<md): two-line card — line 1 = chevron/icon/name/badge,
+            line 2 = compact meta + tri-state — so the name keeps the
+            remaining width instead of being starved by the shrink-0 control.
+            ≥md: single row, unchanged. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border border-border bg-card p-2.5 md:flex-row md:items-center md:gap-2">
+          <div className="flex min-w-0 items-center gap-2 md:flex-1">
+            <button
+              type="button"
+              onClick={() => hasChildren && onToggle(user.id)}
+              className={cn(
+                // h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl.
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground touch-manipulation max-xl:h-11 max-xl:w-11',
+                hasChildren ? 'hover:bg-accent' : 'opacity-0 pointer-events-none',
+              )}
+              aria-label={isOpen ? 'Collapse' : 'Expand'}
+              aria-expanded={isOpen}
+            >
+              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            <KindIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            {/* overflow-hidden: defensive truncation guard (≥md too). */}
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium max-md:min-w-0 max-md:flex-1">
+                  {user.firstName} {user.lastName}
+                </span>
+                {/* <360px: hide the role badge — kind is conveyed by the
+                    icon, and the name must keep the width. */}
+                <Badge variant="outline" className="hidden text-[10px] min-[360px]:inline-flex md:inline-flex">
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </Badge>
+              </div>
+              {/* Full meta string ≥md only; phone gets the compact line below. */}
+              <div className="hidden text-[11px] text-muted-foreground md:block">
+                {kindLabel} · Effective:{' '}
+                <span className={cn('font-medium', effectiveOn ? 'text-emerald-600' : 'text-muted-foreground')}>
+                  {effectiveOn ? 'On' : 'Off'}
+                </span>
+                {own === null ? (
+                  <> · inheriting from {inheritedSourceLabel}</>
+                ) : (
+                  <> · set on this {kindLabel.toLowerCase()}</>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            {kindLabel} · Effective:{' '}
-            <span className={cn('font-medium', effectiveOn ? 'text-emerald-600' : 'text-muted-foreground')}>
-              {effectiveOn ? 'On' : 'Off'}
-            </span>
-            {own === null ? (
-              <> · inheriting from {inheritedSourceLabel}</>
+
+          {/* Line 2 on phone, indented to align under the name: 44px chevron +
+              16px icon + 2 × gap-2 = 76px = pl-19. The flex-1 meta truncates;
+              the tri-state stays intact at the right. ≥md: just the control
+              at the right of the single row. */}
+          <div className="flex min-w-0 items-center gap-2 pl-19 md:shrink-0 md:pl-0">
+            <div className="min-w-0 flex-1 truncate whitespace-nowrap text-[11px] text-muted-foreground md:hidden">
+              Effective:{' '}
+              <span className={cn('font-medium', effectiveOn ? 'text-emerald-600' : 'text-muted-foreground')}>
+                {effectiveOn ? 'On' : 'Off'}
+              </span>
+              {own === null ? <> · inherited</> : <> · set here</>}
+            </div>
+            {editable ? (
+              <TriState value={own} busy={busy} onChange={(v) => onSet(user.id, v)} />
             ) : (
-              <> · set on this {kindLabel.toLowerCase()}</>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground">
+                <Lock className="h-3 w-3" />
+                {effectiveOn ? 'On' : 'Off'}
+              </span>
             )}
           </div>
         </div>
-
-        {editable ? (
-          <TriState value={own} busy={busy} onChange={(v) => onSet(user.id, v)} />
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground">
-            <Lock className="h-3 w-3" />
-            {effectiveOn ? 'On' : 'Off'}
-          </span>
-        )}
       </div>
 
       {isOpen && hasChildren && (
@@ -404,8 +432,9 @@ function TriState({
             disabled={busy}
             onClick={() => !active && onChange(o.v)}
             className={cn(
-              // ≥44px touch target below xl; unchanged compact size at ≥1280.
-              'px-2.5 py-1 text-xs transition-colors touch-manipulation max-xl:min-h-11 max-xl:px-3',
+              // ≥44px touch target below xl (h-11); h-7 (28px, was 24px via
+              // py-1) at ≥1280 for a slightly more comfortable click target.
+              'inline-flex h-7 items-center px-2.5 text-xs transition-colors touch-manipulation max-xl:h-11 max-xl:px-3',
               i > 0 && 'border-l border-border',
               active
                 ? 'bg-primary text-primary-foreground'
