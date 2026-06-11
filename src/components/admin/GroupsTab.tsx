@@ -10,10 +10,19 @@ import {
   Plus,
   Pencil,
   RefreshCw,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { usersApi } from '@/lib/api/users';
 import {
@@ -499,57 +508,120 @@ function NodeHeader({
   const editable = canEditUser(viewer, node.user);
   const childCount = node.children.length;
   const memberCount = node.memberCount;
+  // Single source of truth for the optional second add-action so the phone
+  // overflow menu and the ≥sm inline buttons render from the SAME condition
+  // and handlers — don't fork the permission logic.
+  const altAction =
+    canAlsoAddTeam && onAddAlt && addAltLabel ? { onAddAlt, addAltLabel } : null;
   return (
-    <div className="flex items-center gap-2 p-2.5">
-      {/* h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl. */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent touch-manipulation max-xl:h-11 max-xl:w-11"
-        aria-label={isOpen ? 'Collapse' : 'Expand'}
-        aria-expanded={isOpen}
-      >
-        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
-      <KindIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium">
-            {node.user.firstName} {node.user.lastName}
-          </span>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
-            {ROLE_LABELS[node.user.role] ?? node.user.role}
-          </Badge>
-          {node.user.isActive === false && (
-            <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">
-              Inactive
+    // Phone (<sm): two-line card — line 1 = chevron/icon/name, line 2 = meta +
+    // overflow menu — so the name keeps the remaining width instead of being
+    // starved by shrink-0 action buttons. ≥sm: single row, unchanged.
+    <div className="flex flex-col gap-1 p-2.5 sm:flex-row sm:items-center sm:gap-2">
+      <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+        {/* h-6/w-6 at ≥1280 (unchanged); ≥44px touch target below xl. */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent touch-manipulation max-xl:h-11 max-xl:w-11"
+          aria-label={isOpen ? 'Collapse' : 'Expand'}
+          aria-expanded={isOpen}
+        >
+          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+        <KindIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium max-sm:min-w-0 max-sm:flex-1">
+              {node.user.firstName} {node.user.lastName}
+            </span>
+            {/* <360px: hide the role badge — kind is already conveyed by the
+                icon + the meta line, and the name must keep the width. */}
+            <Badge variant="outline" className="hidden shrink-0 text-[10px] min-[360px]:inline-flex sm:inline-flex">
+              {ROLE_LABELS[node.user.role] ?? node.user.role}
             </Badge>
-          )}
-        </div>
-        <div className="text-[11px] text-muted-foreground">
-          {kindLabel} · {childCount} child node{childCount === 1 ? '' : 's'} · {memberCount} member{memberCount === 1 ? '' : 's'} in subtree
+            {node.user.isActive === false && (
+              <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">
+                Inactive
+              </Badge>
+            )}
+          </div>
+          {/* Full meta string ≥sm only; phone gets the compact line below. */}
+          <div className="hidden text-[11px] text-muted-foreground sm:block">
+            {kindLabel} · {childCount} child node{childCount === 1 ? '' : 's'} · {memberCount} member{memberCount === 1 ? '' : 's'} in subtree
+          </div>
         </div>
       </div>
-      {/* Action buttons stay intact (shrink-0); the name above truncates to
-          yield space so the row never overflows on narrow viewports. ≥44px
-          touch targets below xl; compact size unchanged at ≥1280. */}
-      {canAddChild && (
-        <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={onAddChild}>
-          <Plus className="h-3.5 w-3.5" />
-          {addChildLabel}
-        </Button>
-      )}
-      {canAlsoAddTeam && onAddAlt && addAltLabel && (
-        <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={onAddAlt}>
-          <Plus className="h-3.5 w-3.5" />
-          {addAltLabel}
-        </Button>
-      )}
-      {editable && (
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11" onClick={onEdit} aria-label="Edit node">
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      )}
+      {/* Line 2 on phone, indented to align under the name: 44px chevron +
+          16px icon + 2 × gap-2 = 76px = pl-19. ≥sm this is just the action
+          cluster at the right of the single row. */}
+      <div className="flex min-w-0 items-center gap-2 pl-19 sm:shrink-0 sm:pl-0">
+        <div className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground sm:hidden">
+          {kindLabel} · {childCount} node{childCount === 1 ? '' : 's'} · {memberCount} member{memberCount === 1 ? '' : 's'}
+        </div>
+        {/* Phone: ONE ⋯ overflow menu (pattern: UsersTab UserActionsMenu)
+            carrying exactly the actions the inline buttons show at ≥sm —
+            same flags, same handlers. Hidden when no action is permitted. */}
+        {(canAddChild || altAction || editable) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Node actions"
+                  className="h-11 w-11 shrink-0 touch-manipulation sm:hidden"
+                />
+              }
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuLabel>
+                {node.user.firstName} {node.user.lastName}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {canAddChild && (
+                <DropdownMenuItem onClick={onAddChild}>
+                  <Plus className="mr-2 h-4 w-4" /> {addChildLabel}
+                </DropdownMenuItem>
+              )}
+              {altAction && (
+                <DropdownMenuItem onClick={altAction.onAddAlt}>
+                  <Plus className="mr-2 h-4 w-4" /> {altAction.addAltLabel}
+                </DropdownMenuItem>
+              )}
+              {editable && (
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {/* ≥sm: inline action buttons, unchanged — shrink-0; the name
+            truncates to yield space. ≥44px touch targets below xl; compact
+            size unchanged at ≥1280. */}
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          {canAddChild && (
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={onAddChild}>
+              <Plus className="h-3.5 w-3.5" />
+              {addChildLabel}
+            </Button>
+          )}
+          {altAction && (
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 text-xs touch-manipulation max-xl:h-11" onClick={altAction.onAddAlt}>
+              <Plus className="h-3.5 w-3.5" />
+              {altAction.addAltLabel}
+            </Button>
+          )}
+          {editable && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11" onClick={onEdit} aria-label="Edit node">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
