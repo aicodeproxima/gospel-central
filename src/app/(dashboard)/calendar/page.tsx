@@ -380,7 +380,10 @@ export default function CalendarPage() {
 
           <Select value={selectedAreaId || ''} onValueChange={(v) => v && setAreaId(v)}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Select church" />
+              {/* base-ui SelectValue renders the raw VALUE (the area id) when
+                  given no children — render the church name from state like
+                  the other labeled selects (UsersTab/AuditLogTab) do. */}
+              <SelectValue>{selectedArea?.name ?? 'Select church'}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {areas.map((a) => (
