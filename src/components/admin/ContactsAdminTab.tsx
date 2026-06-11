@@ -135,14 +135,15 @@ export function ContactsAdminTab() {
     [filtered, visiblePage],
   );
 
-  if (!viewer) return null;
-
   // Resolve owner display name
   const userById = useMemo(() => {
     const m = new Map<string, User>();
     users.forEach((u) => m.set(u.id, u));
     return m;
   }, [users]);
+
+  if (!viewer) return null;
+
   const ownerName = (c: Contact) => {
     if (!c.assignedTeacherId) return '—';
     const u = userById.get(c.assignedTeacherId);
