@@ -163,20 +163,29 @@ export function GroupsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between max-xl:gap-3">
+      {/* Phone (<sm): title/description stack above the actions row so the
+          buttons never starve the text column at 275px. ≥sm: single row,
+          unchanged from before. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold">Org tree</h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Branches → Groups → Teams → Members. Click any node to expand it. Use the action buttons to rename a leader or add a child.
           </p>
+          {/* Phone: one short line — the full explanation lives in the admin
+              page-help InfoButton. */}
+          <p className="text-xs text-muted-foreground sm:hidden">
+            Tap a node to expand.
+          </p>
         </div>
-        <div className="flex gap-2 max-xl:shrink-0">
+        <div className="flex gap-2 max-xl:shrink-0 max-sm:items-center">
           <Button
             variant="outline"
             size="icon"
             onClick={reload}
             title="Refresh"
             aria-label="Refresh org tree"
+            className="touch-manipulation max-xl:h-11 max-xl:w-11"
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -194,7 +203,7 @@ export function GroupsTab() {
           {canCreateGroupNode(viewer, 'branch') && (
             <Button
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 touch-manipulation max-xl:h-11"
               onClick={() => setCreateCtx({ parent: viewer, childRole: UserRole.BRANCH_LEADER })}
             >
               <Plus className="h-4 w-4" />
