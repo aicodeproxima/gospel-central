@@ -329,7 +329,9 @@ export function UsersTab() {
           <RefreshCw className="h-4 w-4" />
         </Button>
 
-        {/* Export — shared dual-mode dropdown (current view + all in scope). */}
+        {/* Export — shared dual-mode dropdown (current view + all in scope).
+            xl:h-8 lifts the size-sm trigger (28px) to the toolbar's uniform
+            32px control height at desktop; below xl the 44px floor applies. */}
         <ExportDropdown
           currentRows={filtered}
           allRows={users}
@@ -337,12 +339,14 @@ export function UsersTab() {
           toRow={userToRow}
           filenamePrefix="diamond-users"
           allLabel="All users"
-          triggerClassName="touch-manipulation max-xl:h-11"
+          triggerClassName="touch-manipulation max-xl:h-11 xl:h-8"
         />
 
-        {/* Create */}
+        {/* Create — ml-auto pins the CTA to the row end so a toolbar wrap
+            breaks among the filters instead of orphaning Add User alone
+            left-aligned on a second row. */}
         {canCreateUsers(viewer.role) && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-1.5 touch-manipulation max-xl:h-11">
+          <Button onClick={() => setCreateOpen(true)} className="ml-auto gap-1.5 touch-manipulation max-xl:h-11">
             <Plus className="h-4 w-4" />
             Add User
           </Button>
