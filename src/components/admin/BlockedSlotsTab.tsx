@@ -10,7 +10,16 @@ import {
   Globe,
   MapPin,
   Loader2,
+  MoreHorizontal,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -240,13 +249,17 @@ function SlotRow({
   const inactive = slot.isActive === false;
   const area = slot.areaId ? areas.find((a) => a.id === slot.areaId) : null;
   return (
+    // relative: below sm the actions sit absolute top-right (see below).
     <div
-      className={`flex items-center gap-3 rounded-lg border border-border bg-card p-3 ${
+      className={`relative flex items-center gap-3 rounded-lg border border-border bg-card p-3 ${
         inactive ? 'opacity-60' : ''
       }`}
     >
-      <Ban className="h-4 w-4 text-muted-foreground shrink-0" />
-      <div className="min-w-0 flex-1">
+      {/* Decorative leading icon — hidden below sm so the content column
+          gets the full card width (~145px → ~90px cards at 275). */}
+      <Ban className="hidden h-4 w-4 text-muted-foreground shrink-0 sm:block" />
+      {/* max-sm:pr-10 clears the absolute 44px ⋯ trigger at top-right. */}
+      <div className={`min-w-0 flex-1 ${canEdit ? 'max-sm:pr-10' : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{slot.reason}</span>
           {slot.scope === 'global' ? (
@@ -280,22 +293,54 @@ function SlotRow({
         </div>
       </div>
       {canEdit && (
-        // H-03: wrap edit/delete in a shrink-0 group so they stay visible
-        // alongside long slot reasons on narrow viewports.
-        <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit slot" className="h-7 w-7 touch-manipulation max-xl:h-11 max-xl:w-11">
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onDelete}
-            aria-label="Delete slot"
-            className="h-7 w-7 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <>
+          {/* ≥sm: inline edit/delete, unchanged. H-03: shrink-0 group so
+              they stay visible alongside long slot reasons. */}
+          <div className="hidden shrink-0 gap-1 sm:flex">
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit slot" className="h-7 w-7 touch-manipulation max-xl:h-11 max-xl:w-11">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              aria-label="Delete slot"
+              className="h-7 w-7 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          {/* <sm: ONE ⋯ menu pinned top-right of the card — pulls the
+              actions out of the content row so the reason/meta column gets
+              the full width. Same handlers; the delete ConfirmDialog wiring
+              upstream is untouched. */}
+          <div className="absolute right-1 top-1 sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Slot actions"
+                    className="h-11 w-11 touch-manipulation"
+                  />
+                }
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuLabel className="truncate">{slot.reason}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit slot
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </>
       )}
     </div>
   );
