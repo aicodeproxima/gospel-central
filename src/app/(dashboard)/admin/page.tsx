@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -51,9 +51,6 @@ interface TabSpec {
   label: string;
   description: string;
   icon: typeof Shield;
-  /** Which Phase number adds the working UI for this tab. Internal planning
-   *  metadata only — never rendered in the nav (PlaceholderTab still uses it). */
-  phase: number;
   /** Explicitly false for tabs that still render PlaceholderTab; drives the
    *  user-facing 'Soon' badge in the side-nav. */
   implemented?: boolean;
@@ -65,72 +62,52 @@ const TAB_SPECS: TabSpec[] = [
     key: 'users',
     label: 'Users',
     description: 'Create, edit, deactivate, and restore user accounts. Reset passwords, change roles, manage tags (Teacher / Co-leaders).',
-    icon: Users,
-    phase: 3,
-  },
+    icon: Users,  },
   {
     key: 'groups',
     label: 'Groups',
     description: 'Manage the org tree — branches, groups, teams. Reassign users between nodes.',
-    icon: Network,
-    phase: 4,
-  },
+    icon: Network,  },
   {
     key: 'rooms',
     label: 'Rooms & Areas',
     description: 'Create and edit rooms inside any branch\'s area. Deactivate rooms that are no longer in use.',
-    icon: DoorOpen,
-    phase: 4,
-  },
+    icon: DoorOpen,  },
   {
     key: 'blocked',
     label: 'Blocked Slots',
     description: 'Reserved time windows that no role can book over (Tuesday + Saturday service times by default). Add one-off or recurring blocks.',
-    icon: Ban,
-    phase: 4,
-  },
+    icon: Ban,  },
   {
     key: 'contacts',
     label: 'Contacts',
     description: 'Branch-scoped contact CRUD with reassignment, conversion to user accounts, and bulk operations.',
-    icon: ContactIcon,
-    phase: 5,
-  },
+    icon: ContactIcon,  },
   {
     key: 'audit',
     label: 'Audit Log',
     description: 'Immutable record of every state-changing action: user / contact / group / room / report / login / password reset / username change / permission change.',
-    icon: Activity,
-    phase: 7,
-  },
+    icon: Activity,  },
   {
     key: 'tags',
     label: 'Tags',
     description: 'Manage tag definitions used across users (Teacher, Co-Group Leader, Co-Team Leader, plus any custom tags).',
-    icon: Tag,
-    phase: 7,
-  },
+    icon: Tag,  },
   {
     key: 'permissions',
     label: 'Permissions',
     description: 'Read-only view of the role × resource × action matrix from docs/PERMISSIONS.md. Devs may export.',
-    icon: Lock,
-    phase: 7,
-  },
+    icon: Lock,  },
   {
     key: 'export-import',
     label: 'Export / Import',
     description: 'Turn CSV export & import on/off per Branch, Group, or Team. Lower levels inherit unless overridden. Branch Leaders manage their own branch; Overseer / Dev manage all.',
-    icon: FileSpreadsheet,
-    phase: 8,
-  },
+    icon: FileSpreadsheet,  },
   {
     key: 'system',
     label: 'System Config',
     description: 'Application-level settings: theme defaults, maintenance mode, feature flags. Dev-only.',
-    icon: Cog,
-    phase: 8,
-    implemented: false,
+    icon: Cog,    implemented: false,
   },
 ];
 
@@ -146,6 +123,10 @@ export default function AdminPage() {
     rawTab && KNOWN_TAB_KEYS.includes(rawTab as AdminTab) ? (rawTab as AdminTab) : null;
   const [active, setActive] = useState<AdminTab | null>(initialTab);
 
+  // Pill-button refs keyed by tab so the deep-link effect below can center
+  // the active pill in the horizontal scroller.
+  const pillRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
   // Visible tabs = subset of TAB_SPECS that this user is allowed to see.
   const visibleTabs = useMemo(() => {
     if (!user) return [];
@@ -160,6 +141,19 @@ export default function AdminPage() {
     const isAllowed = active !== null && visibleTabs.some((t) => t.key === active);
     if (!isAllowed) setActive(visibleTabs[0].key);
   }, [hydrated, active, visibleTabs]);
+
+  // Center the active pill in the scroller whenever `active` changes. The
+  // onClick scrollIntoView covers taps; this effect covers `?tab=` deep
+  // links and the role-gated fallback above, where the active pill can sit
+  // offscreen-right with no click ever happening. It also fires after
+  // clicks, but centering the already-visible pill is idempotent — no
+  // guard needed beyond the null checks.
+  useEffect(() => {
+    if (!active) return;
+    pillRefs.current
+      .get(active)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [active]);
 
   // Keep the URL ?tab= in sync so deep-links + browser back work.
   useEffect(() => {
@@ -243,53 +237,71 @@ export default function AdminPage() {
            while scrolling content. Distinct layoutId from desktop sidebar
            to dodge Framer Motion's shared-layout collision warning.
            flex-nowrap + scrollbar hidden so the row scrolls horizontally and
-           never wraps or pushes the page wider than the viewport on <1280. */}
-      <nav
-        className="sticky top-[3.5rem] z-20 -mx-4 overflow-x-auto overscroll-x-contain border-b border-border bg-background/80 backdrop-blur-md [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden xl:hidden"
-        aria-label="Admin tabs"
-      >
-        <div className="flex flex-nowrap gap-2 px-4 py-2 snap-x">
-          {visibleTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = active === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={(e) => {
-                  setActive(tab.key);
-                  // Scroll the active pill into the visible area so users
-                  // don't lose track of it when it lives offscreen-right.
-                  e.currentTarget.scrollIntoView({
-                    inline: 'nearest',
-                    block: 'nearest',
-                  });
-                }}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'group relative flex min-h-11 shrink-0 snap-start touch-manipulation items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                  /* UI-5: drop the static bg-primary/10 here — the
-                     motion.div below already paints it, and stacking
-                     both produced bg-primary/20 on saturated themes. */
-                  isActive
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                )}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="admin-active-mobile"
-                    className="absolute inset-0 rounded-full bg-primary/10"
-                    transition={{ duration: 0.2 }}
-                  />
-                )}
-                <Icon className="relative z-10 h-3.5 w-3.5 shrink-0" />
-                <span className="relative z-10 whitespace-nowrap">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+           never wraps or pushes the page wider than the viewport on <1280.
+           C3: the sticky wrapper hosts the chrome (bg/blur/border) plus a
+           right-edge fade overlay so users can SEE there are more tabs
+           (10 tabs, ~3/4 offscreen at 275px); the inner <nav> stays the
+           scroller. position:sticky establishes the containing block, so
+           the absolute fade pins to the visible edge, not the scrolled
+           content. pointer-events-none keeps the last pill tappable. */}
+      <div className="sticky top-[3.5rem] z-20 -mx-4 border-b border-border bg-background/80 backdrop-blur-md xl:hidden">
+        <nav
+          className="overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Admin tabs"
+        >
+          <div className="flex flex-nowrap gap-2 px-4 py-2 snap-x">
+            {visibleTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = active === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  ref={(el) => {
+                    if (el) pillRefs.current.set(tab.key, el);
+                    else pillRefs.current.delete(tab.key);
+                  }}
+                  onClick={(e) => {
+                    setActive(tab.key);
+                    // Scroll the active pill into the visible area so users
+                    // don't lose track of it when it lives offscreen-right.
+                    e.currentTarget.scrollIntoView({
+                      inline: 'nearest',
+                      block: 'nearest',
+                    });
+                  }}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'group relative flex min-h-11 shrink-0 snap-start touch-manipulation items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    /* UI-5: drop the static bg-primary/10 here — the
+                       motion.div below already paints it, and stacking
+                       both produced bg-primary/20 on saturated themes. */
+                    isActive
+                      ? 'text-primary'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="admin-active-mobile"
+                      className="absolute inset-0 rounded-full bg-primary/10"
+                      transition={{ duration: 0.2 }}
+                    />
+                  )}
+                  <Icon className="relative z-10 h-3.5 w-3.5 shrink-0" />
+                  <span className="relative z-10 whitespace-nowrap">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+        {/* Overflow affordance — fades the right edge over the scroller.
+            from-background matches the page bg the blurred bar sits on. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent"
+        />
+      </div>
 
       {/* Two-column layout: side-nav (xl+) + tab content. The grid is
            xl+ only; below xl the scrollable pill row above takes over.
