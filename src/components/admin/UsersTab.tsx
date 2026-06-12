@@ -804,7 +804,12 @@ function UserCard({
             on ONE row under the name/@username instead of a label/value line
             per field (~165px → ~90px cards). text-xs (not 10px) on the card
             variant for phone readability; the table badges stay 10px. */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* relative: sr-only is position:absolute — without a positioned
+            ancestor it resolves against the initial containing block and
+            extends the DOCUMENT's scroll height past the app shell (25
+            cards × sr-only dt ≈ 3100px of phantom page scroll below the
+            bottom nav). The row being relative contains it. */}
+        <div className="relative flex flex-wrap items-center gap-1.5">
           <dt className="sr-only">Role and status</dt>
           <dd className="flex flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="text-xs">
