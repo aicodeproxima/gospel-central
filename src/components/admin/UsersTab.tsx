@@ -337,6 +337,7 @@ export function UsersTab() {
           toRow={userToRow}
           filenamePrefix="diamond-users"
           allLabel="All users"
+          triggerClassName="touch-manipulation max-xl:h-11"
         />
 
         {/* Create */}

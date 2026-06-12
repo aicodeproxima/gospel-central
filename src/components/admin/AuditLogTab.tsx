@@ -248,6 +248,7 @@ export function AuditLogTab() {
           toRow={auditToRow}
           filenamePrefix="diamond-audit"
           allLabel="All entries (cap 9999)"
+          triggerClassName="touch-manipulation max-xl:h-11"
         />
       </div>
 

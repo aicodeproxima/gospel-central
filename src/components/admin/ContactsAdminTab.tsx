@@ -299,6 +299,7 @@ export function ContactsAdminTab() {
           toRow={toRow}
           filenamePrefix="diamond-contacts-admin"
           allLabel="All in scope"
+          triggerClassName="touch-manipulation max-xl:h-11"
         />
       </div>
 

@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { exportCSV } from '@/lib/utils/csv';
+import { cn } from '@/lib/utils';
 import { Download } from 'lucide-react';
 
 /**
@@ -45,6 +46,12 @@ interface Props<T> {
   triggerLabel?: string;
   size?: 'sm' | 'default' | 'icon';
   variant?: 'outline' | 'default' | 'ghost' | 'secondary';
+  /**
+   * Optional extra classes merged onto the trigger Button (e.g. the admin
+   * tap-target convention `touch-manipulation max-xl:h-11`). Defaults to
+   * nothing so existing call sites render byte-identical.
+   */
+  triggerClassName?: string;
   /** Optional override for the menu items' label text. */
   currentLabel?: string;
   allLabel?: string;
@@ -60,6 +67,7 @@ export function ExportDropdown<T>({
   triggerLabel = 'Export',
   size = 'sm',
   variant = 'outline',
+  triggerClassName,
   currentLabel,
   allLabel,
 }: Props<T>) {
@@ -82,7 +90,13 @@ export function ExportDropdown<T>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant={variant} size={size} className="gap-1.5" />}
+        render={
+          <Button
+            variant={variant}
+            size={size}
+            className={cn('gap-1.5', triggerClassName)}
+          />
+        }
       >
         <Download className="h-4 w-4" />
         {triggerLabel}

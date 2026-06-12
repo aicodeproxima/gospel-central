@@ -208,6 +208,7 @@ export function GroupsTab() {
             filenamePrefix="diamond-org"
             currentLabel="Current view"
             allLabel="All leaders"
+            triggerClassName="touch-manipulation max-xl:h-11"
           />
           {canCreateGroupNode(viewer, 'branch') && (
             <Button
