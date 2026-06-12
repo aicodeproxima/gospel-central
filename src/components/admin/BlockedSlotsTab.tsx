@@ -110,12 +110,13 @@ export function BlockedSlotsTab() {
 
   return (
     <div className="space-y-4">
-      {/* H-03: min-w-0 flex-1 on the title column lets the long description
-          shrink + wrap, and shrink-0 on the actions column keeps the
-          Add/Refresh buttons visible on 430px-wide phones (where they were
-          previously pushed off the right edge entirely). */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      {/* H-03 / C2: below sm the title+description stack full-width with the
+          action buttons in a wrap row beneath (the single row squeezed the
+          text to ~110px at 275). ≥sm: single row — min-w-0 flex-1 on the
+          title column lets the long description shrink + wrap, and shrink-0
+          on the actions column keeps the Add/Refresh buttons visible. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 sm:flex-1">
           <h2 className="text-lg font-semibold">Blocked time slots</h2>
           <p className="text-xs text-muted-foreground">
             Service times + admin-defined blackout windows. Bookings overlapping these
@@ -123,7 +124,7 @@ export function BlockedSlotsTab() {
             edit, or remove slots.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
             size="icon"

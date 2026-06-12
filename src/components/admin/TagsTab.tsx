@@ -97,7 +97,11 @@ export function TagsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
+      {/* C2: below sm the title+description stack full-width with the action
+          buttons in a wrap row beneath (the single row squeezed the
+          description into a ~100px ribbon at 275). ≥sm: single row,
+          unchanged. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-xl:min-w-0 max-xl:flex-1">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <TagIcon className="h-5 w-5 text-primary" />
@@ -110,7 +114,7 @@ export function TagsTab() {
             {!canEdit && ' Branch Leaders see this catalog as view-only.'}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
             size="icon"

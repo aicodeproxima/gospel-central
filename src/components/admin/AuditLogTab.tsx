@@ -160,7 +160,9 @@ export function AuditLogTab() {
             <Activity className="h-5 w-5 text-primary" />
             Audit log
           </h2>
-          <p className="text-xs text-muted-foreground">
+          {/* C2: clamp to 2 lines on phone so the fold shows entries; the
+              full text remains visible ≥sm. */}
+          <p className="text-xs text-muted-foreground max-sm:line-clamp-2">
             Append-only record of every state-changing action. Branch Leaders see their
             branch&apos;s entries; Overseer + Dev see global. Filter by action / entity /
             free-text search.
@@ -178,15 +180,19 @@ export function AuditLogTab() {
         </Button>
       </div>
 
-      {/* Toolbar — search + filters + export */}
+      {/* Toolbar — search + filters + export.
+          C2 (<md): row 1 = search + Export, row 2 = the two filter selects
+          in a 2-col grid (was: selects wrapped at native width and Export
+          dangled on its own row). ≥md: single wrap row, unchanged — the
+          md:order-last on the Export wrapper keeps it at the row end. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full md:w-auto md:flex-1 md:min-w-[220px]">
+        <div className="relative min-w-0 flex-1 md:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search details, actor, entity ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 touch-manipulation max-xl:h-11"
           />
           {search && (
             <button
@@ -200,56 +206,61 @@ export function AuditLogTab() {
           )}
         </div>
 
-        <Select value={actionFilter} onValueChange={(v) => v && setActionFilter(v)}>
-          <SelectTrigger className="w-[160px]">
-            {/* H-04: explicit children so the trigger renders the friendly
-                label ('All actions') instead of the raw value ('all').
-                Mirrors UsersTab's pattern. */}
-            <SelectValue>{actionFilter === 'all' ? 'All actions' : actionFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {ACTIONS.map((a) => (
-              <SelectItem key={a} value={a}>
-                {a === 'all' ? 'All actions' : a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Export — shares the search row below md, returns to row end ≥md. */}
+        <div className="shrink-0 md:order-last">
+          <ExportDropdown
+            currentRows={entries}
+            loadAll={loadAll}
+            columns={auditColumns}
+            toRow={auditToRow}
+            filenamePrefix="diamond-audit"
+            allLabel="All entries (cap 9999)"
+            triggerClassName="touch-manipulation max-xl:h-11"
+          />
+        </div>
 
-        <Select value={entityFilter} onValueChange={(v) => v && setEntityFilter(v)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue>{entityFilter === 'all' ? 'All entities' : entityFilter}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {ENTITY_TYPES.map((e) => (
-              <SelectItem key={e} value={e}>
-                {e === 'all' ? 'All entities' : e}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="grid w-full grid-cols-2 gap-2 md:contents">
+          <Select value={actionFilter} onValueChange={(v) => v && setActionFilter(v)}>
+            <SelectTrigger className="w-full touch-manipulation max-xl:h-11 md:w-[160px]">
+              {/* H-04: explicit children so the trigger renders the friendly
+                  label ('All actions') instead of the raw value ('all').
+                  Mirrors UsersTab's pattern. */}
+              <SelectValue>{actionFilter === 'all' ? 'All actions' : actionFilter}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ACTIONS.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a === 'all' ? 'All actions' : a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={entityFilter} onValueChange={(v) => v && setEntityFilter(v)}>
+            <SelectTrigger className="w-full touch-manipulation max-xl:h-11 md:w-[180px]">
+              <SelectValue>{entityFilter === 'all' ? 'All entities' : entityFilter}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ENTITY_TYPES.map((e) => (
+                <SelectItem key={e} value={e}>
+                  {e === 'all' ? 'All entities' : e}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {hasFilters && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => { setActionFilter('all'); setEntityFilter('all'); setSearch(''); }}
-            className="gap-1.5"
+            className="gap-1.5 touch-manipulation max-xl:h-11"
           >
             <Filter className="h-3.5 w-3.5" />
             Clear filters
           </Button>
         )}
-
-        <ExportDropdown
-          currentRows={entries}
-          loadAll={loadAll}
-          columns={auditColumns}
-          toRow={auditToRow}
-          filenamePrefix="diamond-audit"
-          allLabel="All entries (cap 9999)"
-          triggerClassName="touch-manipulation max-xl:h-11"
-        />
       </div>
 
       {/* Desktop table (≥1280). Below xl, the same entries render as stacked

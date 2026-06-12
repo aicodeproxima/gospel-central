@@ -270,7 +270,7 @@ export function UsersTab() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1.5 touch-manipulation max-xl:h-11"
                   aria-label={`Filters · ${activeFilterCount} active`}
                   aria-haspopup="dialog"
                 />
@@ -342,7 +342,7 @@ export function UsersTab() {
 
         {/* Create */}
         {canCreateUsers(viewer.role) && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+          <Button onClick={() => setCreateOpen(true)} className="gap-1.5 touch-manipulation max-xl:h-11">
             <Plus className="h-4 w-4" />
             Add User
           </Button>
