@@ -340,7 +340,7 @@ function NodeRow({
                 </span>
                 {/* <360px: hide the role badge — kind is conveyed by the
                     icon, and the name must keep the width. */}
-                <Badge variant="outline" className="hidden text-[10px] min-[360px]:inline-flex md:inline-flex">
+                <Badge variant="outline" className="hidden text-[10px] min-[360px]:inline-flex">
                   {ROLE_LABELS[user.role] ?? user.role}
                 </Badge>
               </div>
@@ -359,11 +359,12 @@ function NodeRow({
             </div>
           </div>
 
-          {/* Line 2 on phone, indented to align under the name: 44px chevron +
-              16px icon + 2 × gap-2 = 76px = pl-19. The flex-1 meta truncates;
-              the tri-state stays intact at the right. ≥md: just the control
-              at the right of the single row. */}
-          <div className="flex min-w-0 items-center gap-2 pl-19 md:shrink-0 md:pl-0">
+          {/* Line 2 on phone: deliberately NO alignment indent — the tri-state
+              needs ~149px min, so a 76px indent + gap would overflow the row
+              at 275px (~233px > the ~179px available at depth 2). The flex-1
+              meta truncates and absorbs the slack instead. ≥md: just the
+              control at the right of the single row. */}
+          <div className="flex min-w-0 items-center gap-2 md:shrink-0">
             <div className="min-w-0 flex-1 truncate whitespace-nowrap text-[11px] text-muted-foreground md:hidden">
               Effective:{' '}
               <span className={cn('font-medium', effectiveOn ? 'text-emerald-600' : 'text-muted-foreground')}>

@@ -187,7 +187,7 @@ export function GroupsTab() {
             Tap a node to expand.
           </p>
         </div>
-        <div className="flex gap-2 max-xl:shrink-0 max-sm:items-center">
+        <div className="flex flex-wrap gap-2 max-xl:shrink-0 max-sm:items-center">
           <Button
             variant="outline"
             size="icon"
@@ -535,13 +535,14 @@ function NodeHeader({
             <span className="truncate text-sm font-medium max-sm:min-w-0 max-sm:flex-1">
               {node.user.firstName} {node.user.lastName}
             </span>
-            {/* <360px: hide the role badge — kind is already conveyed by the
-                icon + the meta line, and the name must keep the width. */}
-            <Badge variant="outline" className="hidden shrink-0 text-[10px] min-[360px]:inline-flex sm:inline-flex">
+            {/* <360px: hide the role + Inactive badges — kind is already
+                conveyed by the icon + the meta line, and the name must keep
+                the width. */}
+            <Badge variant="outline" className="hidden shrink-0 text-[10px] min-[360px]:inline-flex">
               {ROLE_LABELS[node.user.role] ?? node.user.role}
             </Badge>
             {node.user.isActive === false && (
-              <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">
+              <Badge variant="outline" className="hidden shrink-0 text-[10px] border-orange-600/40 text-orange-600 min-[360px]:inline-flex">
                 Inactive
               </Badge>
             )}
