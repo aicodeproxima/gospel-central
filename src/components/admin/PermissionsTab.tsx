@@ -205,7 +205,13 @@ export function PermissionsTab() {
             ← scroll the matrix →
           </div>
           <CardContent className="overflow-x-auto pt-0">
-            <table className="w-full min-w-[600px] text-xs">
+            {/* max-xl:min-w-0 — with a 600px floor, the width freed by the
+                capped pinned column pours back into the 6 role columns
+                (~82px each → only ~1 fits the 275px band). Shrinking to
+                min-content collapses role cols to their natural initials
+                width (~30-40px) → 2-3 visible per swipe; the matrix is
+                still wider than the band, so x-scroll + hint remain. */}
+            <table className="w-full min-w-[600px] max-xl:min-w-0 text-xs">
               <thead>
                 <tr className="border-b border-border">
                   {/* First column pinned while the matrix scrolls horizontally
