@@ -24,6 +24,11 @@ const ROLES: UserRole[] = [
   UserRole.DEV,
 ];
 
+/** Initials shown in the matrix column headers AND the legend strip —
+ *  derived from the one ROLE_LABELS source so the two can't drift. */
+const roleInitials = (role: UserRole) =>
+  ROLE_LABELS[role].split(' ').map((w) => w[0]).join('');
+
 interface MatrixRow {
   action: string;
   cells: Array<string | boolean>;  // boolean → ✓/✗; string → custom note
@@ -170,6 +175,17 @@ export function PermissionsTab() {
         </CardContent>
       </Card>
 
+      {/* Role legend — decodes the bare column initials (M / TL / GL / BL /
+          O / D). Same roleInitials derivation as the matrix headers. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {ROLES.map((role) => (
+          <Badge key={role} variant="outline" className="gap-1 text-[10px]">
+            <span className="font-semibold">{roleInitials(role)}</span>
+            <span className="font-normal text-muted-foreground">{ROLE_LABELS[role]}</span>
+          </Badge>
+        ))}
+      </div>
+
       {SECTIONS.map((section) => (
         // H-05: overflow-hidden contains the matrix table's min-w-[600px]
         // inside the Card. CardContent's overflow-x-auto then scrolls
@@ -194,11 +210,17 @@ export function PermissionsTab() {
                 <tr className="border-b border-border">
                   {/* First column pinned while the matrix scrolls horizontally
                       on < xl. max-xl: keeps ≥1280 byte-identical. bg-card
-                      occludes cells sliding under it. */}
-                  <th className="py-2 pr-2 text-left font-medium text-muted-foreground max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card">Action</th>
+                      occludes cells sliding under it. The < xl width cap
+                      (110px, labels wrap) frees room so 2-3 role columns are
+                      visible per swipe at 275 instead of 1. */}
+                  <th className="py-2 pr-2 text-left font-medium text-muted-foreground max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card max-xl:max-w-[110px] max-xl:whitespace-normal">Action</th>
                   {ROLES.map((role) => (
-                    <th key={role} className="px-1.5 py-2 text-center font-medium text-muted-foreground">
-                      {ROLE_LABELS[role].split(' ').map((w) => w[0]).join('')}
+                    <th
+                      key={role}
+                      title={ROLE_LABELS[role]}
+                      className="px-1.5 py-2 text-center font-medium text-muted-foreground max-xl:px-1"
+                    >
+                      {roleInitials(role)}
                     </th>
                   ))}
                 </tr>
@@ -206,9 +228,9 @@ export function PermissionsTab() {
               <tbody>
                 {section.rows.map((row) => (
                   <tr key={row.action} className="border-b border-border/50 last:border-0">
-                    <td className="py-1.5 pr-2 align-top max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card">{row.action}</td>
+                    <td className="py-1.5 pr-2 align-top max-xl:sticky max-xl:left-0 max-xl:z-10 max-xl:bg-card max-xl:max-w-[110px] max-xl:whitespace-normal">{row.action}</td>
                     {row.cells.map((cell, i) => (
-                      <td key={i} className="px-1.5 py-1.5 text-center">
+                      <td key={i} className="px-1.5 py-1.5 text-center max-xl:px-1">
                         {cell === true ? (
                           <Check className="mx-auto h-3.5 w-3.5 text-green-500" />
                         ) : cell === false ? (
