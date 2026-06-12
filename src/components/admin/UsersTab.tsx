@@ -358,9 +358,10 @@ export function UsersTab() {
       {/* Table — UI-3: overflow-x-auto wrapper so the 6-column table
            horizontally scrolls inside its card on 390-wide viewports
            instead of forcing page-level horizontal pan.
-           MOBILE: dual-render — the table is desktop-only (≥1280); below xl
-           the same rows render as stacked <UserCard>s (see card list below). */}
-      <div className="hidden xl:block rounded-lg border border-border bg-card overflow-x-auto">
+           MOBILE: dual-render — the table renders from lg (≥1024; the
+           overflow-x-auto wrapper absorbs the ~1024px content width); below
+           lg the same rows render as <UserCard>s (see card list below). */}
+      <div className="hidden lg:block rounded-lg border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -422,16 +423,18 @@ export function UsersTab() {
         </Table>
       </div>
 
-      {/* Mobile / tablet card list (<1280). Mirrors the table rows above as
-          stacked cards; same handlers, same per-row action menu. */}
-      <div className="xl:hidden space-y-2">
+      {/* Mobile / tablet card list (<1024). Mirrors the table rows above as
+          cards; same handlers, same per-row action menu. One column below sm
+          (unchanged on phones), 2-up grid in the sm–lg band so tablet cards
+          don't stretch to ~660px. */}
+      <div className="lg:hidden grid gap-2 sm:grid-cols-2">
         {loading ? (
-          <div className="rounded-lg border border-border bg-card py-8 text-center text-sm text-muted-foreground">
+          <div className="sm:col-span-2 rounded-lg border border-border bg-card py-8 text-center text-sm text-muted-foreground">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent align-middle" />
             <span className="ml-2">Loading users…</span>
           </div>
         ) : loadError ? (
-          <div className="rounded-lg border border-border bg-card py-12 text-center">
+          <div className="sm:col-span-2 rounded-lg border border-border bg-card py-12 text-center">
             <div className="text-sm font-medium text-destructive">Failed to load users</div>
             <div className="mt-1 text-xs text-muted-foreground">{loadError}</div>
             <Button variant="outline" size="sm" className="mt-3" onClick={reload}>
@@ -440,7 +443,7 @@ export function UsersTab() {
             </Button>
           </div>
         ) : pagedUsers.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card py-12 text-center">
+          <div className="sm:col-span-2 rounded-lg border border-border bg-card py-12 text-center">
             <div className="text-sm font-medium">No users match your filters</div>
             <div className="mt-1 text-xs text-muted-foreground">
               Adjust the search or filters above, or click <span className="font-medium">Add User</span> to create a new account.
@@ -666,7 +669,7 @@ function UserActionsMenu({
 
 // ---------------------------------------------------------------------------
 // One row of the table — extracted so the action menu logic stays readable.
-// (Desktop ≥1280 only; mobile uses <UserCard>.)
+// (≥1024 only; below lg uses <UserCard>.)
 // ---------------------------------------------------------------------------
 function UserRowComponent({
   user,
@@ -712,14 +715,21 @@ function UserRowComponent({
         )}
       </TableCell>
       <TableCell>
-        <UserActionsMenu user={user} viewer={viewer} actions={actions} />
+        {/* Table is visible from lg now — keep the 44px tap floor in the
+            lg–xl touch band, per the admin-wide convention. */}
+        <UserActionsMenu
+          user={user}
+          viewer={viewer}
+          actions={actions}
+          triggerClassName="touch-manipulation max-xl:h-11 max-xl:w-11"
+        />
       </TableCell>
     </TableRow>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Card variant of a user row — rendered below xl (<1280). Name as the bold
+// Card variant of a user row — rendered below lg (<1024). Name as the bold
 // title, remaining columns as label/value rows, actions in the ⋯ menu with a
 // ≥44px touch trigger.
 // ---------------------------------------------------------------------------
