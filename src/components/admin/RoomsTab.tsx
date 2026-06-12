@@ -10,7 +10,16 @@ import {
   Building2,
   Eye,
   EyeOff,
+  MoreHorizontal,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -295,7 +304,9 @@ function AreaCard({
         {/* Area header */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            {/* flex-wrap: at 275 the room-count badge wraps under the area
+                name instead of colliding with the Edit button column. */}
+            <div className="flex flex-wrap items-center gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
               <h3 className="text-base font-semibold">{area.name}</h3>
               {inactive && (
@@ -417,31 +428,69 @@ function RoomRow({
       </div>
       {canEdit && (
         <>
-          <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit room" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11">
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          {!inactive && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onToggle('deactivate')}
-              aria-label="Deactivate room"
-              className="h-7 w-7 shrink-0 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
-            >
-              <Power className="h-3.5 w-3.5" />
+          {/* ≥md: inline icon buttons, unchanged. */}
+          <div className="hidden md:contents">
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit room" className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11">
+              <Pencil className="h-3.5 w-3.5" />
             </Button>
-          )}
-          {inactive && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onToggle('restore')}
-              aria-label="Restore room"
-              className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11"
-            >
-              <Power className="h-3.5 w-3.5" />
-            </Button>
-          )}
+            {!inactive && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onToggle('deactivate')}
+                aria-label="Deactivate room"
+                className="h-7 w-7 shrink-0 text-destructive touch-manipulation max-xl:h-11 max-xl:w-11"
+              >
+                <Power className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {inactive && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onToggle('restore')}
+                aria-label="Restore room"
+                className="h-7 w-7 shrink-0 touch-manipulation max-xl:h-11 max-xl:w-11"
+              >
+                <Power className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          {/* <md: ONE ⋯ overflow menu (UserActionsMenu pattern) so two 44px
+              buttons stop squeezing room names into 3-line wraps at 275.
+              Same handlers — the ConfirmDialog wiring upstream is untouched. */}
+          <div className="shrink-0 md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Room actions"
+                    className="h-11 w-11 touch-manipulation"
+                  />
+                }
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuLabel>{room.name}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit room
+                </DropdownMenuItem>
+                {!inactive ? (
+                  <DropdownMenuItem onClick={() => onToggle('deactivate')} className="text-destructive">
+                    <Power className="mr-2 h-4 w-4" /> Deactivate
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => onToggle('restore')}>
+                    <Power className="mr-2 h-4 w-4" /> Restore
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </>
       )}
     </div>
