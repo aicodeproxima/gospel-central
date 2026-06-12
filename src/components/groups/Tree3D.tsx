@@ -22,6 +22,7 @@ import {
   getContactsForSubtree,
 } from '@/lib/utils/org-metrics';
 import { layoutTree } from '@/lib/utils/tree-layout';
+import { clampCamToDollyRange } from '@/lib/utils/camera';
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
@@ -398,36 +399,92 @@ function CameraRig({ focus, controlsRef }: CameraRigProps) {
   // freely zoom/pan/rotate without the rig fighting their input.
   const animatingRef = useRef(false);
 
+  // True while the user has a drag/pinch/wheel gesture in flight — a focus
+  // that lands mid-gesture is dropped instead of fighting the user's input.
+  const gestureActiveRef = useRef(false);
+
+  // User input always wins: the moment a drag/pinch/wheel interaction starts,
+  // cancel the fly-to so the rig can never fight (or permanently lock out)
+  // pan/zoom. `focus` in deps re-attaches after every animation request,
+  // covering a controls instance that wasn't mounted yet on first render.
+  useEffect(() => {
+    const ctl = controlsRef.current;
+    if (!ctl) return;
+    const onStart = () => {
+      gestureActiveRef.current = true;
+      animatingRef.current = false;
+    };
+    const onEnd = () => {
+      gestureActiveRef.current = false;
+    };
+    ctl.addEventListener('start', onStart);
+    ctl.addEventListener('end', onEnd);
+    return () => {
+      ctl.removeEventListener('start', onStart);
+      ctl.removeEventListener('end', onEnd);
+    };
+  }, [controlsRef, focus]);
+
   useEffect(() => {
     if (!focus) {
       animatingRef.current = false;
       return;
     }
+    // A queued snap arriving while the user is mid-gesture would yank the
+    // camera out from under their fingers — their input wins; drop it.
+    if (gestureActiveRef.current) return;
     const [x, y, z] = focus.center;
     targetLook.set(x, y, z);
-    targetCam.set(x, y + focus.distance * 0.2, z + focus.distance);
+    targetCam.set(x, y + focus.distance * RIG_Y_OFFSET, z + focus.distance);
+    // The vertical offset puts the true camera↔look radius at ~1.02×distance.
+    // A fly-to point outside the controls' dolly range can never be reached —
+    // update() re-clamps the camera each frame, the arrival check below never
+    // passes, and the rig animates forever, overriding all user input (this
+    // was the Expand-All lock on phones). Margins keep float wobble at the
+    // exact boundary from stalling the arrival.
+    if (controlsRef.current) {
+      clampCamToDollyRange(
+        targetCam,
+        targetLook,
+        controlsRef.current.minDistance * 1.02,
+        controlsRef.current.maxDistance * 0.98,
+      );
+    }
     animatingRef.current = true;
     // Kick the render loop once so useFrame starts animating on
     // frameloop="demand".
     invalidate();
-  }, [focus, targetLook, targetCam, invalidate]);
+  }, [focus, targetLook, targetCam, invalidate, controlsRef]);
 
   useFrame((_, dt) => {
     if (!animatingRef.current) return;
+    if (controlsRef.current) {
+      // The dolly range can change mid-flight (compact↔desktop breakpoint
+      // flip swaps maxDistance 280↔70) — re-clamp so the fly-to point always
+      // stays reachable and the arrival check below can pass. No-op when
+      // nothing changed.
+      clampCamToDollyRange(
+        targetCam,
+        targetLook,
+        controlsRef.current.minDistance * 1.02,
+        controlsRef.current.maxDistance * 0.98,
+      );
+    }
     const lerp = Math.min(1, dt * 5);
     camera.position.lerp(targetCam, lerp);
     if (controlsRef.current) {
       controlsRef.current.target.lerp(targetLook, lerp);
       controlsRef.current.update();
     }
-    // Arrival check — epsilon scales with distance so huge subtrees don't
-    // get stuck "always animating". Once within 1% of target (or 0.5 units,
-    // whichever is larger) we stop and hand control back to the user.
+    // Arrival check — epsilon scales with the fly-to radius (NOT distance
+    // from the world origin, which inflated the threshold for edge-of-tree
+    // nodes and let the rig stop visibly short). Once within 1% (or 0.5
+    // units, whichever is larger) we stop and hand control back to the user.
     const camDist = camera.position.distanceTo(targetCam);
     const lookDist = controlsRef.current
       ? controlsRef.current.target.distanceTo(targetLook)
       : 0;
-    const threshold = Math.max(0.5, targetCam.length() * 0.01);
+    const threshold = Math.max(0.5, targetCam.distanceTo(targetLook) * 0.01);
     if (camDist < threshold && lookDist < threshold) {
       animatingRef.current = false;
     } else {
@@ -482,7 +539,13 @@ function SceneContent({
   // <1280px: compact cards + readability-capped framing so framed siblings
   // don't overlap on a phone/tablet. ≥1280 keeps full-size cards + the
   // original framing. Client-only (the Canvas is dynamically ssr:false).
-  const [compact, setCompact] = useState(false);
+  // Lazy-init from matchMedia: with useState(false) the initial external
+  // focus (u-michael, arrives before the first effect's re-render lands)
+  // applied with the DESKTOP closure on phones, and appliedExternalRef then
+  // pinned that stale framing — defeating the compact tight-focus fit.
+  const [compact, setCompact] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches,
+  );
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1279px)');
     const apply = () => setCompact(mq.matches);
@@ -630,18 +693,19 @@ function SceneContent({
         // 1.12x safety margin so edge cards never touch the frame on the
         // narrowest phones (the box otherwise fits EXACTLY → 360/320 clipped).
         const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
-        const distance = Math.min(280, Math.max(fit * 1.12, 7));
+        const distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
         // Bias look-at to the box's true vertical midpoint (card hangs lower than avatar).
         const cy = centerY + (padTop - padBottom) / 2;
         return { center: [centerX, cy, 0], distance };
       }
 
-      // Desktop (≥1280) — original framing, unchanged. Pick a camera
-      // distance that fits the whole bounding box plus card/border margins.
+      // Desktop (≥1280) — original framing, plus the dolly-range cap: a huge
+      // subtree (e.g. root clicked while fully expanded) used to compute a
+      // distance past maxDistance(70) and trigger the same animation lock.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
       const size = Math.max(paddedWidth, paddedHeight, 10);
-      const distance = Math.max(14, size * 1.6);
+      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
 
       return {
         // Shift the look-at point down so the cards (which sit below
@@ -653,18 +717,45 @@ function SceneContent({
     [layout, contacts, compact, canvasSize],
   );
 
+  /** Tight single-card framing at an arbitrary layout position — shared by
+   *  node tight-focus AND contact-leaf focus so the two paths can't drift. */
+  const computeTightFocusAt = useCallback(
+    (x: number, y: number): FocusTarget => {
+      if (compact) {
+        // World-scaled cards: at the desktop-tuned distance 8 the ~4.8wu card
+        // is WIDER than a phone canvas (412px ≈ 3.8wu visible) and renders cut
+        // off at both edges. Fit the single card's padded box with the same
+        // aspect-aware math as the subtree framing, with extra breathing room
+        // (1.35 vs 1.12) so the card sits comfortably inside the frame.
+        const vw = canvasSize.width || 1;
+        const vh = canvasSize.height || 1;
+        const aspect = vw / vh;
+        const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+        const padTop = AVATAR_WORLD_TOP + 1.5;
+        const padBottom = CARD_WORLD_DROP;
+        const fit = Math.max(
+          (padTop + padBottom) / 2 / tan,
+          CARD_WORLD_WIDTH / 2 / (tan * aspect),
+        );
+        const distance = Math.max(fit * 1.35, 9);
+        return { center: [x, y + (padTop - padBottom) / 2, 0], distance };
+      }
+      return {
+        // Shift look-at slightly down so the card below the platform is framed
+        center: [x, y - 1.5, 0],
+        distance: 8,
+      };
+    },
+    [compact, canvasSize],
+  );
+
   /** Zoom in tight on a single node — used by the Jump-to picker. */
   const computeNodeFocus = useCallback(
     (nodeId: string): FocusTarget | null => {
       const node = layout.nodes.find((n) => n.id === nodeId);
-      if (!node) return null;
-      return {
-        // Shift look-at slightly down so the card below the platform is framed
-        center: [node.x, node.y - 1.5, 0],
-        distance: 8,
-      };
+      return node ? computeTightFocusAt(node.x, node.y) : null;
     },
-    [layout],
+    [layout, computeTightFocusAt],
   );
 
   // Apply focus requests against the CURRENT layout. The compute callbacks
@@ -696,8 +787,10 @@ function SceneContent({
     // Apply only when the external target actually changes — keep `layout` in
     // deps so we still retry once the node is laid out, but the ref guard stops
     // re-applying on unrelated layout changes (an expand) which would override
-    // the internal subtree snap.
-    const key = `${externalFocusMode}:${externalFocusId}`;
+    // the internal subtree snap. `compact` is part of the key so a breakpoint
+    // flip re-applies the focus with the correct framing instead of being
+    // swallowed by the guard.
+    const key = `${compact ? 'c' : 'd'}:${externalFocusMode}:${externalFocusId}`;
     if (appliedExternalRef.current === key) return;
     const target =
       externalFocusMode === 'node'
@@ -707,7 +800,7 @@ function SceneContent({
       setFocus(target);
       appliedExternalRef.current = key;
     }
-  }, [externalFocusId, externalFocusMode, computeNodeFocus, computeSubtreeFocus, layout]);
+  }, [externalFocusId, externalFocusMode, compact, computeNodeFocus, computeSubtreeFocus, layout]);
 
   // Reset view — frames the entire currently-laid-out tree
   const computeFullTreeFocus = useCallback((): FocusTarget | null => {
@@ -735,7 +828,7 @@ function SceneContent({
       const boxW = maxX - minX + CARD_WORLD_WIDTH;
       const boxH = maxY - minY + padTop + padBottom;
       const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
-      const distance = Math.min(280, Math.max(fit * 1.12, 7));
+      const distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
       return {
         center: [(minX + maxX) / 2, (minY + maxY) / 2 + (padTop - padBottom) / 2, 0],
         distance,
@@ -839,10 +932,12 @@ function SceneContent({
   const handleContactFocusById = useMemo(() => {
     const m: Record<string, () => void> = {};
     layout.contacts.forEach((lc) => {
-      m[lc.id] = () => setFocus({ center: [lc.x, lc.y, 0], distance: 8 });
+      // Same tight framing as nodes — contact cards are world-scaled on
+      // compact too, so a hardcoded distance 8 clips them just like bug 2.
+      m[lc.id] = () => setFocus(computeTightFocusAt(lc.x, lc.y));
     });
     return m;
-  }, [layout.contacts]);
+  }, [layout.contacts, computeTightFocusAt]);
 
   return (
     <>
@@ -935,7 +1030,7 @@ function SceneContent({
         enableRotate={false}
         screenSpacePanning
         makeDefault
-        maxDistance={compact ? 280 : 70}
+        maxDistance={compact ? MAX_DIST_COMPACT : MAX_DIST_DESKTOP}
         minDistance={3}
         target={[0, -4, 0]}
         mouseButtons={{
@@ -958,6 +1053,18 @@ function SceneContent({
 const CAMERA_CONFIG = { position: [0, 2, 22] as [number, number, number], fov: 55, near: 0.1, far: 2000 };
 const GL_CONFIG = { antialias: true, alpha: true, powerPreference: 'high-performance' as const };
 const DPR: [number, number] = [1, 1.5];
+
+// CameraRig places the camera at [x, y + d·RIG_Y_OFFSET, z + d], so its true
+// radius from the look-at is d·√(1 + RIG_Y_OFFSET²) ≈ 1.02·d. Auto-focus
+// distances must stay BELOW maxDistance/1.02 or OrbitControls.update() clamps
+// the camera away from the rig's fly-to point on every frame and the rig
+// never "arrives" — permanently locking out user pan/zoom (Expand-All bug).
+const RIG_Y_OFFSET = 0.2;
+const MAX_DIST_COMPACT = 280;
+const MAX_DIST_DESKTOP = 70;
+const RIG_RADIUS_FACTOR = Math.hypot(1, RIG_Y_OFFSET);
+const MAX_FOCUS_DIST_COMPACT = Math.floor((MAX_DIST_COMPACT / RIG_RADIUS_FACTOR) * 0.98); // 269
+const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR) * 0.98); // 67
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
