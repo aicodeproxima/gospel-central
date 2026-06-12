@@ -349,11 +349,42 @@ export function UsersTab() {
         )}
       </motion.div>
 
-      {/* Result count */}
-      <p className="text-xs text-muted-foreground">
-        Showing {pagedUsers.length} of {filtered.length} match{filtered.length === 1 ? '' : 'es'}
-        {filtered.length !== users.length && ` · ${users.length} total`}
-      </p>
+      {/* Result count — below xl it doubles as a top pager (page indicator +
+          the SAME prev/next handlers as the bottom pager) so phone users can
+          page without first scrolling past a full page of cards. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Showing {pagedUsers.length} of {filtered.length} match{filtered.length === 1 ? '' : 'es'}
+          {filtered.length !== users.length && ` · ${users.length} total`}
+          {totalPages > 1 && (
+            <span className="xl:hidden"> · page {visiblePage}/{totalPages}</span>
+          )}
+        </p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 xl:hidden">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={visiblePage === 1}
+              aria-label="Previous page"
+              className="h-11 w-11 touch-manipulation"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={visiblePage === totalPages}
+              aria-label="Next page"
+              className="h-11 w-11 touch-manipulation"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Table — UI-3: overflow-x-auto wrapper so the 6-column table
            horizontally scrolls inside its card on 390-wide viewports
@@ -764,42 +795,41 @@ function UserCard({
         />
       </div>
 
-      <dl className="mt-3 space-y-2 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-xs text-muted-foreground">Role</dt>
-          <dd>
-            <Badge variant="outline" className="text-[10px]">
+      <dl className="mt-2 space-y-2 text-sm">
+        {/* Role + Status are each a single badge — render them side by side
+            on ONE row under the name/@username instead of a label/value line
+            per field (~165px → ~90px cards). text-xs (not 10px) on the card
+            variant for phone readability; the table badges stay 10px. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <dt className="sr-only">Role and status</dt>
+          <dd className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="text-xs">
               {ROLE_LABELS[user.role] ?? user.role}
             </Badge>
-          </dd>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <dt className="text-xs text-muted-foreground">Tags</dt>
-          <dd className="flex min-w-0 flex-wrap justify-end gap-1">
-            {(user.tags ?? []).map((t) => (
-              <Badge key={t} variant="secondary" className="text-[10px]">
-                {TAG_LABELS[t] ?? t}
-              </Badge>
-            ))}
-            {(user.tags ?? []).length === 0 && (
-              <span className="text-xs text-muted-foreground">—</span>
-            )}
-          </dd>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-xs text-muted-foreground">Status</dt>
-          <dd>
             {inactive ? (
-              <Badge variant="outline" className="gap-1 text-[10px] text-orange-600 border-orange-600/40">
+              <Badge variant="outline" className="gap-1 text-xs text-orange-600 border-orange-600/40">
                 <ShieldAlert className="h-3 w-3" /> Inactive
               </Badge>
             ) : (
-              <Badge variant="outline" className="gap-1 text-[10px] text-green-600 border-green-600/40">
+              <Badge variant="outline" className="gap-1 text-xs text-green-600 border-green-600/40">
                 <ShieldCheck className="h-3 w-3" /> Active
               </Badge>
             )}
           </dd>
         </div>
+        {/* Tags row only when the user HAS tags — no "Tags —" filler row. */}
+        {(user.tags ?? []).length > 0 && (
+          <div className="flex items-start justify-between gap-3">
+            <dt className="text-xs text-muted-foreground">Tags</dt>
+            <dd className="flex min-w-0 flex-wrap justify-end gap-1">
+              {(user.tags ?? []).map((t) => (
+                <Badge key={t} variant="secondary" className="text-xs">
+                  {TAG_LABELS[t] ?? t}
+                </Badge>
+              ))}
+            </dd>
+          </div>
+        )}
       </dl>
     </div>
   );
