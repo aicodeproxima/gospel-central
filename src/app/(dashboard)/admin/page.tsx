@@ -62,52 +62,62 @@ const TAB_SPECS: TabSpec[] = [
     key: 'users',
     label: 'Users',
     description: 'Create, edit, deactivate, and restore user accounts. Reset passwords, change roles, manage tags (Teacher / Co-leaders).',
-    icon: Users,  },
+    icon: Users,
+  },
   {
     key: 'groups',
     label: 'Groups',
     description: 'Manage the org tree — branches, groups, teams. Reassign users between nodes.',
-    icon: Network,  },
+    icon: Network,
+  },
   {
     key: 'rooms',
     label: 'Rooms & Areas',
     description: 'Create and edit rooms inside any branch\'s area. Deactivate rooms that are no longer in use.',
-    icon: DoorOpen,  },
+    icon: DoorOpen,
+  },
   {
     key: 'blocked',
     label: 'Blocked Slots',
     description: 'Reserved time windows that no role can book over (Tuesday + Saturday service times by default). Add one-off or recurring blocks.',
-    icon: Ban,  },
+    icon: Ban,
+  },
   {
     key: 'contacts',
     label: 'Contacts',
     description: 'Branch-scoped contact CRUD with reassignment, conversion to user accounts, and bulk operations.',
-    icon: ContactIcon,  },
+    icon: ContactIcon,
+  },
   {
     key: 'audit',
     label: 'Audit Log',
     description: 'Immutable record of every state-changing action: user / contact / group / room / report / login / password reset / username change / permission change.',
-    icon: Activity,  },
+    icon: Activity,
+  },
   {
     key: 'tags',
     label: 'Tags',
     description: 'Manage tag definitions used across users (Teacher, Co-Group Leader, Co-Team Leader, plus any custom tags).',
-    icon: Tag,  },
+    icon: Tag,
+  },
   {
     key: 'permissions',
     label: 'Permissions',
     description: 'Read-only view of the role × resource × action matrix from docs/PERMISSIONS.md. Devs may export.',
-    icon: Lock,  },
+    icon: Lock,
+  },
   {
     key: 'export-import',
     label: 'Export / Import',
     description: 'Turn CSV export & import on/off per Branch, Group, or Team. Lower levels inherit unless overridden. Branch Leaders manage their own branch; Overseer / Dev manage all.',
-    icon: FileSpreadsheet,  },
+    icon: FileSpreadsheet,
+  },
   {
     key: 'system',
     label: 'System Config',
     description: 'Application-level settings: theme defaults, maintenance mode, feature flags. Dev-only.',
-    icon: Cog,    implemented: false,
+    icon: Cog,
+    implemented: false,
   },
 ];
 
@@ -142,18 +152,18 @@ export default function AdminPage() {
     if (!isAllowed) setActive(visibleTabs[0].key);
   }, [hydrated, active, visibleTabs]);
 
-  // Center the active pill in the scroller whenever `active` changes. The
-  // onClick scrollIntoView covers taps; this effect covers `?tab=` deep
-  // links and the role-gated fallback above, where the active pill can sit
-  // offscreen-right with no click ever happening. It also fires after
-  // clicks, but centering the already-visible pill is idempotent — no
-  // guard needed beyond the null checks.
+  // Center the active pill in the scroller. Covers clicks, `?tab=` deep
+  // links, AND the cold-load case: on a hard load of /admin?tab=audit the
+  // page renders the hydration spinner first (no pills mounted), so an
+  // [active]-only effect would fire once against an empty ref map and never
+  // again — `visibleTabs` in the deps re-runs it after hydration mounts the
+  // pills. Centering an already-visible pill is harmless.
   useEffect(() => {
     if (!active) return;
     pillRefs.current
       .get(active)
       ?.scrollIntoView({ inline: 'center', block: 'nearest' });
-  }, [active]);
+  }, [active, visibleTabs]);
 
   // Keep the URL ?tab= in sync so deep-links + browser back work.
   useEffect(() => {
@@ -246,7 +256,10 @@ export default function AdminPage() {
            content. pointer-events-none keeps the last pill tappable. */}
       <div className="sticky top-[3.5rem] z-20 -mx-4 border-b border-border bg-background/80 backdrop-blur-md xl:hidden">
         <nav
-          className="overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          /* isolate: the pills' internal z-10 (icon/label above the motion
+             highlight) must not escape this scroller's stacking context, or
+             they'd paint OVER the sibling fade overlay below. */
+          className="isolate overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Admin tabs"
         >
           <div className="flex flex-nowrap gap-2 px-4 py-2 snap-x">
@@ -261,15 +274,9 @@ export default function AdminPage() {
                     if (el) pillRefs.current.set(tab.key, el);
                     else pillRefs.current.delete(tab.key);
                   }}
-                  onClick={(e) => {
-                    setActive(tab.key);
-                    // Scroll the active pill into the visible area so users
-                    // don't lose track of it when it lives offscreen-right.
-                    e.currentTarget.scrollIntoView({
-                      inline: 'nearest',
-                      block: 'nearest',
-                    });
-                  }}
+                  // Scrolling is handled by the [active, visibleTabs] effect
+                  // (it centers the pill on click AND on deep-link).
+                  onClick={() => setActive(tab.key)}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'group relative flex min-h-11 shrink-0 snap-start touch-manipulation items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
