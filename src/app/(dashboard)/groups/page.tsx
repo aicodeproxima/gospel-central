@@ -347,7 +347,7 @@ export default function GroupsPage() {
 
       <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
-          <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} />
+          <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} highlightId={externalFocusId} />
         </div>
       </TabsContent>
 

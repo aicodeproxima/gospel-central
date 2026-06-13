@@ -1,16 +1,46 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Award, BookOpen, GraduationCap } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { TeacherMetrics as TMetrics } from '@/lib/types/user';
 
 interface TeacherMetricsProps {
   metrics: TMetrics[];
   users: { id: string; name: string }[];
+  /**
+   * When set (from the shared tree search bar), scroll that teacher's card to
+   * center and pulse a ring so the result is found on THIS tab — the same
+   * "snap to the person" behavior the 3D tree and list view already have.
+   * Null / a person with no metrics card → no-op (nothing to center).
+   */
+  highlightId?: string | null;
 }
 
-export function TeacherMetricsCards({ metrics, users }: TeacherMetricsProps) {
+export function TeacherMetricsCards({ metrics, users, highlightId }: TeacherMetricsProps) {
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [pulseId, setPulseId] = useState<string | null>(null);
+
+  // Search-to-center for the Metrics tab. externalFocusId arrives via the
+  // search bar's requestFocus (none → id), so this re-fires even when the
+  // same person is chosen twice. The 120ms delay lets the tab's layout settle.
+  useEffect(() => {
+    if (!highlightId) return;
+    const el = cardRefs.current.get(highlightId);
+    if (!el) return; // searched person isn't a teacher with a metrics card
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPulseId(highlightId);
+    }, 120);
+    const clear = setTimeout(() => setPulseId(null), 2200);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(clear);
+    };
+  }, [highlightId]);
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Teacher Performance</h3>
@@ -23,9 +53,19 @@ export function TeacherMetricsCards({ metrics, users }: TeacherMetricsProps) {
           return (
             <motion.div
               key={m.userId}
+              ref={(el) => {
+                if (el) cardRefs.current.set(m.userId, el);
+                else cardRefs.current.delete(m.userId);
+              }}
+              data-metric-id={m.userId}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
+              className={cn(
+                'scroll-mt-28 rounded-xl transition-shadow',
+                pulseId === m.userId &&
+                  'ring-2 ring-primary ring-offset-2 ring-offset-background',
+              )}
             >
               <Card>
                 <CardHeader className="pb-2">
