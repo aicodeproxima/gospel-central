@@ -5,7 +5,6 @@ import {
   mockBookings,
   mockBlockedSlots,
   mockContacts,
-  mockOrgTree,
   mockTeacherMetrics,
   mockAuditLog,
 } from './data';
@@ -29,6 +28,7 @@ import {
 } from '../lib/utils/permissions';
 import type { User } from '../lib/types/user';
 import { UserRole } from '../lib/types/user';
+import { buildOrgTree } from '../lib/utils/org-tree';
 import { API_BASE } from '../lib/api/client';
 
 // IMPORTS the single source of truth (API_BASE in src/lib/api/client.ts), so
@@ -1357,7 +1357,14 @@ export const handlers = [
 
   // Groups / Org
   http.get(`${API}/groups/tree`, () => {
-    return HttpResponse.json(mockOrgTree);
+    // Built LIVE from current user state — NOT the frozen scenarioOrgTree
+    // snapshot. So a role change, a reassignment, or a relocation (all of
+    // which mutate usersState) restructure the tree on the very next fetch,
+    // exactly as a real backend rebuilding from parentId would. This is what
+    // lets the Groups view actually reflect org churn.
+    return HttpResponse.json(
+      buildOrgTree(usersState as User[], mockTeacherMetrics, areasState),
+    );
   }),
 
   http.get(`${API}/metrics/teachers`, () => {
@@ -1600,6 +1607,21 @@ export const handlers = [
         details: `Reassignment for @${updated.username}: parent ${before.parentId ?? '∅'} → ${updated.parentId ?? '∅'}`,
         before: { parentId: before.parentId, groupId: before.groupId },
         after: { parentId: updated.parentId, groupId: updated.groupId },
+        timestamp: now,
+      });
+    }
+    // Relocation row — moving a person to a different physical location (Area).
+    if (before.locationId !== updated.locationId) {
+      mockAuditLog.push({
+        id: 'al-' + Date.now() + '-loc',
+        action: 'reassign',
+        entityType: 'group_assignment',
+        entityId: updated.id,
+        userId: actor.id,
+        userName: actor.name,
+        details: `Location for @${updated.username}: ${before.locationId ?? '∅'} → ${updated.locationId ?? '∅'}`,
+        before: { locationId: before.locationId },
+        after: { locationId: updated.locationId },
         timestamp: now,
       });
     }

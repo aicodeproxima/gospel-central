@@ -576,6 +576,22 @@ function areaIdForBranch(branchUser: User): string {
   return idx >= 0 ? BRANCH_LEADER_SEEDS[idx].areaId : 'area-newport-news';
 }
 
+// Seed each person's HOME LOCATION (= their branch's area). Walk parentId up to
+// the branch leader, then map to its area. Overseer/Dev span all locations and
+// stay unset. This makes `locationId` a real, queryable attribute from day one
+// so the org can model relocations (e.g. moving people to the new VA Beach area).
+(() => {
+  const byId = new Map(scenarioUsers.map((u) => [u.id, u] as const));
+  for (const u of scenarioUsers) {
+    if (u.role === UserRole.OVERSEER || u.role === UserRole.DEV) continue;
+    let cur: User | undefined = u;
+    while (cur && cur.role !== UserRole.BRANCH_LEADER) {
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+    if (cur) u.locationId = areaIdForBranch(cur);
+  }
+})();
+
 // ---------------------------------------------------------------------------
 // Blocked slots — service times no role can override
 // ---------------------------------------------------------------------------

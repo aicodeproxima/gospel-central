@@ -100,6 +100,14 @@ export interface User {
   tags: string[];
   groupId?: string;
   parentId?: string;
+  /**
+   * Home physical location — an `Area` id (the "Church" a person is based at).
+   * People relocate by changing this; "who's at <location>" = users whose
+   * locationId matches. Overseers/Dev span all locations and may be unset.
+   * Orthogonal to `parentId` (reporting line) — a person can report to a leader
+   * at one location while being based at another during a transition.
+   */
+  locationId?: string;
   /** Soft-delete flag. Inactive users cannot log in but their historical
    *  records (bookings, contacts, audit entries) are preserved. */
   isActive?: boolean;
