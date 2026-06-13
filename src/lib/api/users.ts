@@ -23,6 +23,8 @@ export interface UpdateUserPayload {
   role?: UserRole;
   parentId?: string;
   groupId?: string;
+  /** Home physical location (an Area id) — set when relocating a person. */
+  locationId?: string;
   /** Audit attribution. */
   actorId?: string;
 }

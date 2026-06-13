@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 import {
   ROLE_LABELS,
   UserRole,
+  type Area,
   type User,
 } from '@/lib/types';
 import {
@@ -31,6 +32,7 @@ import {
   isAdminTier,
 } from '@/lib/utils/permissions';
 import { usersApi } from '@/lib/api/users';
+import { bookingsApi } from '@/lib/api/bookings';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -73,7 +75,20 @@ export function EditUserDialog({
   const [phone, setPhone] = useState(user.phone ?? '');
   const [role, setRole] = useState<UserRole>(user.role);
   const [parentId, setParentId] = useState<string>(user.parentId ?? '');
+  const [locationId, setLocationId] = useState<string>(user.locationId ?? '');
+  const [areas, setAreas] = useState<Area[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Load locations (Areas = the "Church" each person can be based at) when the
+  // dialog opens, so relocating a person to e.g. the new VA Beach location is a
+  // first-class edit — not just a backend field. Only active areas are pickable.
+  useEffect(() => {
+    if (!open) return;
+    bookingsApi
+      .getAreas()
+      .then((a) => setAreas(a.filter((x) => x.isActive !== false)))
+      .catch(() => {});
+  }, [open]);
 
   // Roles the viewer can grant. Always include the user's CURRENT role so
   // that "I'm just editing the name" doesn't accidentally lose role context.
@@ -115,6 +130,7 @@ export function EditUserDialog({
         phone: phone.trim() || undefined,
         role,
         parentId: parentId || undefined,
+        locationId: locationId || undefined,
         actorId: viewer.id,
       });
       toast.success(`Updated ${firstName}`);
@@ -190,6 +206,29 @@ export function EditUserDialog({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <Label htmlFor="location">Location</Label>
+            <select
+              id="location"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">— no home location —</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            {locationId !== (user.locationId ?? '') && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Relocating {firstName || 'this person'} to{' '}
+                {areas.find((a) => a.id === locationId)?.name ?? 'no location'}.
+              </p>
+            )}
           </div>
         </div>
 
