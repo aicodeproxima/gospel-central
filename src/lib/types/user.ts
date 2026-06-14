@@ -111,6 +111,10 @@ export interface User {
   /** Soft-delete flag. Inactive users cannot log in but their historical
    *  records (bookings, contacts, audit entries) are preserved. */
   isActive?: boolean;
+  /** Server-managed batch id stamped when a user is deactivated as part of a
+   *  cascade. A cascade-restore only revives members sharing the root's batch,
+   *  so it never resurrects someone who was deactivated independently. */
+  deactivatedCascadeId?: string;
   /** Set by admin password reset; UI must route to forced-change page. */
   mustChangePassword?: boolean;
   avatarUrl?: string;

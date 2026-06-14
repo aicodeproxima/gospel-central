@@ -215,7 +215,7 @@ export function UsersTab() {
   // them" cascade prompt so a branch is never silently orphaned (Phase C).
   // MUST stay above the early return below — it's a hook (Rules of Hooks).
   const affectedDescendantCount = useMemo(() => {
-    if (!confirmTarget) return 0;
+    if (!confirmTarget || !viewer) return 0;
     const childrenOf = new Map<string, User[]>();
     for (const u of users) {
       if (!u.parentId) continue;
@@ -223,6 +223,7 @@ export function UsersTab() {
       if (arr) arr.push(u);
       else childrenOf.set(u.parentId, [u]);
     }
+    const rootBatch = confirmTarget.user.deactivatedCascadeId;
     const seen = new Set<string>([confirmTarget.user.id]);
     const stack = [confirmTarget.user.id];
     let n = 0;
@@ -231,14 +232,20 @@ export function UsersTab() {
       for (const c of childrenOf.get(id) ?? []) {
         if (seen.has(c.id)) continue;
         seen.add(c.id);
-        const relevant =
-          confirmTarget.kind === 'deactivate' ? c.isActive !== false : c.isActive === false;
-        if (relevant) n++;
         stack.push(c.id);
+        // Only count people the viewer is actually authorized to flip (audit #7),
+        // and for a restore only those removed in THIS leader's cascade batch
+        // (audit #3) — so the "N people" prompt matches what the server will do.
+        if (!canDeactivateUser(viewer, c)) continue;
+        const relevant =
+          confirmTarget.kind === 'deactivate'
+            ? c.isActive !== false
+            : c.isActive === false && rootBatch != null && c.deactivatedCascadeId === rootBatch;
+        if (relevant) n++;
       }
     }
     return n;
-  }, [confirmTarget, users]);
+  }, [confirmTarget, users, viewer]);
 
   if (!viewer) return null;
 

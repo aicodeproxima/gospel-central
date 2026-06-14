@@ -1753,10 +1753,30 @@ export const handlers = [
       body.cascade === true
         ? subtreeUserRecords(params.id as string)
         : [usersState[idx]];
+    // AUDIT #1/#6 (critical): a cascade must NOT let the viewer disable someone
+    // who outranks them just because they sit inside the subtree (the tree is
+    // mutable — a higher-ranked user can be grafted under a lower node). The
+    // root gate alone is insufficient. All-or-nothing: reject the whole request
+    // if ANY target is above the viewer's authority.
+    if (targets.some((t) => !canDeactivateUser(viewer, t as User))) {
+      return permissionDenied(
+        'You cannot deactivate one or more people in this branch — they are above your authority',
+      );
+    }
+    // Batch id so a later cascade-restore revives ONLY this removal, never people
+    // who were deactivated independently (audit #3).
+    const cascadeId = body.cascade === true ? 'cas-' + Date.now() : undefined;
+    let changed = 0;
     for (const u of targets) {
       const i = usersState.findIndex((x) => x.id === u.id);
       if (i === -1 || usersState[i].isActive === false) continue;
-      usersState[i] = { ...usersState[i], isActive: false, updatedAt: now };
+      usersState[i] = {
+        ...usersState[i],
+        isActive: false,
+        updatedAt: now,
+        ...(cascadeId ? { deactivatedCascadeId: cascadeId } : {}),
+      };
+      changed++;
       mockAuditLog.push({
         id: 'al-' + Date.now() + '-' + usersState[i].id,
         action: 'delete', // closest existing action; entityType disambiguates
@@ -1772,7 +1792,7 @@ export const handlers = [
         timestamp: now,
       });
     }
-    return HttpResponse.json({ ...usersState[idx], deactivatedCount: targets.length });
+    return HttpResponse.json({ ...usersState[idx], deactivatedCount: changed });
   }),
 
   http.post(`${API}/users/:id/restore`, async ({ request, params }) => {
@@ -1787,14 +1807,34 @@ export const handlers = [
     }
     const actor = resolveActor(viewer.id);
     const now = new Date().toISOString();
+    // AUDIT #3: scope a cascade-restore to the root's deactivation BATCH so it
+    // never resurrects someone who was deactivated independently before the
+    // leader. Members without the root's batch id are left as the admin set them.
+    const rootBatch = usersState[idx].deactivatedCascadeId;
     const targets =
       body.cascade === true
-        ? subtreeUserRecords(params.id as string)
+        ? subtreeUserRecords(params.id as string).filter(
+            (t) => t.id === params.id || (rootBatch != null && t.deactivatedCascadeId === rootBatch),
+          )
         : [usersState[idx]];
+    // AUDIT #2: per-node authority — symmetric with deactivate, so a junior
+    // leader can't re-enable a superior a higher authority intentionally disabled.
+    if (targets.some((t) => !canDeactivateUser(viewer, t as User))) {
+      return permissionDenied(
+        'You cannot restore one or more people in this branch — they are above your authority',
+      );
+    }
+    let changed = 0;
     for (const u of targets) {
       const i = usersState.findIndex((x) => x.id === u.id);
       if (i === -1 || usersState[i].isActive !== false) continue;
-      usersState[i] = { ...usersState[i], isActive: true, updatedAt: now };
+      usersState[i] = {
+        ...usersState[i],
+        isActive: true,
+        updatedAt: now,
+        deactivatedCascadeId: undefined, // clear the batch stamp on restore
+      };
+      changed++;
       mockAuditLog.push({
         id: 'al-' + Date.now() + '-' + usersState[i].id,
         action: 'restore',
@@ -1808,7 +1848,7 @@ export const handlers = [
         timestamp: now,
       });
     }
-    return HttpResponse.json({ ...usersState[idx], restoredCount: targets.length });
+    return HttpResponse.json({ ...usersState[idx], restoredCount: changed });
   }),
 
   // POST /users/:id/reset-password — generates a one-time temp password,
