@@ -22,6 +22,9 @@ interface Props {
   onClose: () => void;
   /** Async confirm — dialog stays open while pending; closes after success. */
   onConfirm: () => Promise<void> | void;
+  /** Optional extra content (e.g. a cascade checkbox) rendered between the
+   *  description and the footer. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -38,6 +41,7 @@ export function ConfirmDialog({
   confirmVariant = 'default',
   onClose,
   onConfirm,
+  children,
 }: Props) {
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +61,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             {cancelLabel}

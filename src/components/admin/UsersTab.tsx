@@ -116,6 +116,9 @@ export function UsersTab() {
     | { kind: 'deactivate' | 'restore'; user: User }
     | null
   >(null);
+  // Cascade choice for deactivate/restore — defaults on (remove/restore the
+  // whole branch so nobody is orphaned); reset each time a confirm opens.
+  const [cascade, setCascade] = useState(true);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [tagsTarget, setTagsTarget] = useState<User | null>(null);
   const [renameTarget, setRenameTarget] = useState<User | null>(null);
@@ -206,6 +209,37 @@ export function UsersTab() {
     (effectiveLocationFilter !== 'all' ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0);
 
+  // Count the confirm target's descendants that the cascade would affect:
+  // ACTIVE reports for a deactivate, INACTIVE reports for a restore. Walks the
+  // loaded user set via parentId, cycle-safe. Drives the "X has N people under
+  // them" cascade prompt so a branch is never silently orphaned (Phase C).
+  // MUST stay above the early return below — it's a hook (Rules of Hooks).
+  const affectedDescendantCount = useMemo(() => {
+    if (!confirmTarget) return 0;
+    const childrenOf = new Map<string, User[]>();
+    for (const u of users) {
+      if (!u.parentId) continue;
+      const arr = childrenOf.get(u.parentId);
+      if (arr) arr.push(u);
+      else childrenOf.set(u.parentId, [u]);
+    }
+    const seen = new Set<string>([confirmTarget.user.id]);
+    const stack = [confirmTarget.user.id];
+    let n = 0;
+    while (stack.length) {
+      const id = stack.pop() as string;
+      for (const c of childrenOf.get(id) ?? []) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        const relevant =
+          confirmTarget.kind === 'deactivate' ? c.isActive !== false : c.isActive === false;
+        if (relevant) n++;
+        stack.push(c.id);
+      }
+    }
+    return n;
+  }, [confirmTarget, users]);
+
   if (!viewer) return null;
 
   // ExportDropdown row mapper — shared CSV format for the User entity.
@@ -234,20 +268,26 @@ export function UsersTab() {
     'Created',
   ];
 
-  const handleDeactivate = async (user: User) => {
+  const handleDeactivate = async (user: User, withCascade: boolean) => {
     try {
-      await usersApi.deactivate(user.id, viewer.id);
-      toast.success(`Deactivated ${user.firstName}`);
+      const res = await usersApi.deactivate(user.id, viewer.id, withCascade);
+      const n = res.deactivatedCount ?? 1;
+      toast.success(
+        withCascade && n > 1 ? `Deactivated ${user.firstName} + ${n - 1} reports` : `Deactivated ${user.firstName}`,
+      );
       setConfirmTarget(null);
       reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Deactivate failed');
     }
   };
-  const handleRestore = async (user: User) => {
+  const handleRestore = async (user: User, withCascade: boolean) => {
     try {
-      await usersApi.restore(user.id, viewer.id);
-      toast.success(`Restored ${user.firstName}`);
+      const res = await usersApi.restore(user.id, viewer.id, withCascade);
+      const n = res.restoredCount ?? 1;
+      toast.success(
+        withCascade && n > 1 ? `Restored ${user.firstName} + ${n - 1} reports` : `Restored ${user.firstName}`,
+      );
       setConfirmTarget(null);
       reload();
     } catch (e) {
@@ -492,8 +532,8 @@ export function UsersTab() {
                   viewer={viewer}
                   locationName={u.locationId ? areaNameById.get(u.locationId) : undefined}
                   onEdit={() => setEditTarget(u)}
-                  onDeactivate={() => setConfirmTarget({ kind: 'deactivate', user: u })}
-                  onRestore={() => setConfirmTarget({ kind: 'restore', user: u })}
+                  onDeactivate={() => { setCascade(true); setConfirmTarget({ kind: 'deactivate', user: u }); }}
+                  onRestore={() => { setCascade(true); setConfirmTarget({ kind: 'restore', user: u }); }}
                   onResetPassword={() => setResetTarget(u)}
                   onManageTags={() => setTagsTarget(u)}
                   onRenameUsername={() => setRenameTarget(u)}
@@ -538,8 +578,8 @@ export function UsersTab() {
               viewer={viewer}
               locationName={u.locationId ? areaNameById.get(u.locationId) : undefined}
               onEdit={() => setEditTarget(u)}
-              onDeactivate={() => setConfirmTarget({ kind: 'deactivate', user: u })}
-              onRestore={() => setConfirmTarget({ kind: 'restore', user: u })}
+              onDeactivate={() => { setCascade(true); setConfirmTarget({ kind: 'deactivate', user: u }); }}
+              onRestore={() => { setCascade(true); setConfirmTarget({ kind: 'restore', user: u }); }}
               onResetPassword={() => setResetTarget(u)}
               onManageTags={() => setTagsTarget(u)}
               onRenameUsername={() => setRenameTarget(u)}
@@ -616,10 +656,39 @@ export function UsersTab() {
           onClose={() => setConfirmTarget(null)}
           onConfirm={() =>
             confirmTarget.kind === 'deactivate'
-              ? handleDeactivate(confirmTarget.user)
-              : handleRestore(confirmTarget.user)
+              ? handleDeactivate(confirmTarget.user, affectedDescendantCount > 0 && cascade)
+              : handleRestore(confirmTarget.user, affectedDescendantCount > 0 && cascade)
           }
-        />
+        >
+          {/* Cascade choice — only when the target actually has reports that the
+              action would otherwise orphan (deactivate) or leave behind (restore). */}
+          {affectedDescendantCount > 0 && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={cascade}
+                onChange={(e) => setCascade(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span>
+                {confirmTarget.kind === 'deactivate' ? (
+                  <>
+                    Also deactivate the <strong>{affectedDescendantCount}</strong>{' '}
+                    {affectedDescendantCount === 1 ? 'person' : 'people'} reporting under
+                    them. Leaving this unchecked deactivates only{' '}
+                    {confirmTarget.user.firstName} and leaves their reports without a leader.
+                  </>
+                ) : (
+                  <>
+                    Also restore the <strong>{affectedDescendantCount}</strong>{' '}
+                    {affectedDescendantCount === 1 ? 'person' : 'people'} under them who were
+                    deactivated with them.
+                  </>
+                )}
+              </span>
+            </label>
+          )}
+        </ConfirmDialog>
       )}
 
       {resetTarget && (
