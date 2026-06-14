@@ -18,6 +18,7 @@ import {
   X,
   MoreHorizontal,
   SlidersHorizontal,
+  MapPin,
 } from 'lucide-react';
 import {
   Sheet,
@@ -56,6 +57,7 @@ import { ExportDropdown } from '@/components/shared/ExportDropdown';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { usersApi } from '@/lib/api/users';
+import { bookingsApi } from '@/lib/api/bookings';
 import {
   ROLE_HIERARCHY,
   ROLE_LABELS,
@@ -63,6 +65,7 @@ import {
   KNOWN_TAGS,
   UserRole,
   type User,
+  type Area,
   tagLabel,
 } from '@/lib/types';
 import {
@@ -88,6 +91,7 @@ type ActiveFilter = 'all' | 'active' | 'inactive';
 export function UsersTab() {
   const viewer = useAuthStore((s) => s.user);
   const [users, setUsers] = useState<User[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   // UI-8: distinct error state so a fetch failure doesn't masquerade as
   // "no users match your filters". Set on catch; cleared on every reload().
@@ -97,6 +101,7 @@ export function UsersTab() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
   const [tagFilter, setTagFilter] = useState<'all' | string>('all');
+  const [locationFilter, setLocationFilter] = useState<'all' | string>('all');
   const [statusFilter, setStatusFilter] = useState<ActiveFilter>('all');
   const [page, setPage] = useState(1);
 
@@ -122,6 +127,10 @@ export function UsersTab() {
         setLoadError(e instanceof Error ? e.message : 'Failed to load users');
       })
       .finally(() => setLoading(false));
+    bookingsApi
+      .getAreas()
+      .then((a) => setAreas(a.filter((x) => x.isActive !== false)))
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -131,7 +140,7 @@ export function UsersTab() {
   // Reset paging when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, roleFilter, tagFilter, statusFilter]);
+  }, [search, roleFilter, tagFilter, locationFilter, statusFilter]);
 
   // Compute the filtered set
   const filtered = useMemo(() => {
@@ -139,13 +148,14 @@ export function UsersTab() {
     return users.filter((u) => {
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       if (tagFilter !== 'all' && !(Array.isArray(u.tags) && u.tags.includes(tagFilter))) return false;
+      if (locationFilter !== 'all' && u.locationId !== locationFilter) return false;
       if (statusFilter === 'active' && u.isActive === false) return false;
       if (statusFilter === 'inactive' && u.isActive !== false) return false;
       if (!q) return true;
       const hay = `${u.firstName} ${u.lastName} ${u.username} ${u.email}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [users, search, roleFilter, tagFilter, statusFilter]);
+  }, [users, search, roleFilter, tagFilter, locationFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visiblePage = Math.min(page, totalPages);
@@ -161,11 +171,17 @@ export function UsersTab() {
     return Array.from(seen).sort();
   }, [users]);
 
+  const areaNameById = useMemo(
+    () => new Map(areas.map((a) => [a.id, a.name] as const)),
+    [areas],
+  );
+
   // UI-2: count of currently-active filter Selects, for the mobile
   // "Filters · N" badge.
   const activeFilterCount =
     (roleFilter !== 'all' ? 1 : 0) +
     (tagFilter !== 'all' ? 1 : 0) +
+    (locationFilter !== 'all' ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0);
 
   if (!viewer) return null;
@@ -254,10 +270,13 @@ export function UsersTab() {
           <UserFilters
             roleFilter={roleFilter}
             tagFilter={tagFilter}
+            locationFilter={locationFilter}
             statusFilter={statusFilter}
             allTagOptions={allTagOptions}
+            areas={areas}
             onRoleChange={setRoleFilter}
             onTagChange={setTagFilter}
+            onLocationChange={setLocationFilter}
             onStatusChange={setStatusFilter}
           />
         </div>
@@ -291,10 +310,13 @@ export function UsersTab() {
               <UserFilters
                 roleFilter={roleFilter}
                 tagFilter={tagFilter}
+                locationFilter={locationFilter}
                 statusFilter={statusFilter}
                 allTagOptions={allTagOptions}
+                areas={areas}
                 onRoleChange={setRoleFilter}
                 onTagChange={setTagFilter}
+                onLocationChange={setLocationFilter}
                 onStatusChange={setStatusFilter}
                 stacked
               />
@@ -306,6 +328,7 @@ export function UsersTab() {
                   onClick={() => {
                     setRoleFilter('all');
                     setTagFilter('all');
+                    setLocationFilter('all');
                     setStatusFilter('all');
                   }}
                 >
@@ -445,6 +468,7 @@ export function UsersTab() {
                   key={u.id}
                   user={u}
                   viewer={viewer}
+                  locationName={u.locationId ? areaNameById.get(u.locationId) : undefined}
                   onEdit={() => setEditTarget(u)}
                   onDeactivate={() => setConfirmTarget({ kind: 'deactivate', user: u })}
                   onRestore={() => setConfirmTarget({ kind: 'restore', user: u })}
@@ -490,6 +514,7 @@ export function UsersTab() {
               key={u.id}
               user={u}
               viewer={viewer}
+              locationName={u.locationId ? areaNameById.get(u.locationId) : undefined}
               onEdit={() => setEditTarget(u)}
               onDeactivate={() => setConfirmTarget({ kind: 'deactivate', user: u })}
               onRestore={() => setConfirmTarget({ kind: 'restore', user: u })}
@@ -709,8 +734,9 @@ function UserActionsMenu({
 function UserRowComponent({
   user,
   viewer,
+  locationName,
   ...actions
-}: { user: User; viewer: User } & UserRowActions) {
+}: { user: User; viewer: User; locationName?: string } & UserRowActions) {
   const inactive = user.isActive === false;
 
   return (
@@ -719,6 +745,12 @@ function UserRowComponent({
         <div className="font-medium">
           {user.firstName} {user.lastName}
         </div>
+        {locationName && (
+          <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            {locationName}
+          </div>
+        )}
       </TableCell>
       <TableCell>
         <code className="rounded bg-muted px-1.5 py-0.5 text-xs">@{user.username}</code>
@@ -771,8 +803,9 @@ function UserRowComponent({
 function UserCard({
   user,
   viewer,
+  locationName,
   ...actions
-}: { user: User; viewer: User } & UserRowActions) {
+}: { user: User; viewer: User; locationName?: string } & UserRowActions) {
   const inactive = user.isActive === false;
   return (
     <div
@@ -824,6 +857,12 @@ function UserCard({
                 <ShieldCheck className="h-3 w-3" /> Active
               </Badge>
             )}
+            {locationName && (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <MapPin className="h-3 w-3" />
+                {locationName}
+              </Badge>
+            )}
           </dd>
         </div>
         {/* Tags row only when the user HAS tags — no "Tags —" filler row. */}
@@ -851,19 +890,25 @@ function UserCard({
 function UserFilters({
   roleFilter,
   tagFilter,
+  locationFilter,
   statusFilter,
   allTagOptions,
+  areas,
   onRoleChange,
   onTagChange,
+  onLocationChange,
   onStatusChange,
   stacked = false,
 }: {
   roleFilter: 'all' | UserRole;
   tagFilter: 'all' | string;
+  locationFilter: 'all' | string;
   statusFilter: ActiveFilter;
   allTagOptions: string[];
+  areas: Area[];
   onRoleChange: (v: 'all' | UserRole) => void;
   onTagChange: (v: 'all' | string) => void;
+  onLocationChange: (v: 'all' | string) => void;
   onStatusChange: (v: ActiveFilter) => void;
   /** When true, render Selects full-width stacked vertically (mobile sheet). */
   stacked?: boolean;
@@ -896,6 +941,25 @@ function UserFilters({
           {allTagOptions.map((t) => (
             <SelectItem key={t} value={t}>
               {TAG_LABELS[t] ?? t}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Location filter */}
+      <Select value={locationFilter} onValueChange={(v) => onLocationChange(v as string)}>
+        <SelectTrigger className={cn(stacked ? 'w-full' : 'w-[180px]')}>
+          <SelectValue>
+            {locationFilter === 'all'
+              ? 'All locations'
+              : areas.find((a) => a.id === locationFilter)?.name ?? 'All locations'}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All locations</SelectItem>
+          {areas.map((a) => (
+            <SelectItem key={a.id} value={a.id}>
+              {a.name}
             </SelectItem>
           ))}
         </SelectContent>
