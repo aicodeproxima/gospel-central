@@ -57,11 +57,16 @@ function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & {
+}: React.ComponentProps<"div"> & {
   inset?: boolean
 }) {
+  // Render a plain heading div, NOT base-ui's <Menu.GroupLabel>. GroupLabel
+  // requires a surrounding <Menu.Group> context — without one it throws
+  // "MenuGroupRootContext is missing" (Base UI error #31) the moment the menu
+  // opens, crashing the whole menu. Every admin ⋯ menu uses a standalone label
+  // (no group), so this presentational div is the correct + universal fix.
   return (
-    <MenuPrimitive.GroupLabel
+    <div
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
