@@ -66,7 +66,6 @@ import type {
   BlockedSlot,
   Booking,
   Contact,
-  OrgNode,
   TimelineEntry,
   User,
 } from '@/lib/types';
@@ -435,12 +434,6 @@ const branchLeaders: User[] = BRANCH_LEADER_SEEDS.map((s, i) => {
   });
 });
 
-/** Helper — branch leader for a given areaId. */
-function branchLeaderFor(areaId: string): User {
-  const idx = BRANCH_LEADER_SEEDS.findIndex((s) => s.areaId === areaId);
-  return branchLeaders[idx];
-}
-
 // --- Group Leaders (10) — names #5, #9, #11–18 ---
 // 2 groups per branch
 const GROUP_LEADER_NAME_INDICES = [5, 9, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -585,10 +578,12 @@ function areaIdForBranch(branchUser: User): string {
   for (const u of scenarioUsers) {
     if (u.role === UserRole.OVERSEER || u.role === UserRole.DEV) continue;
     let cur: User | undefined = u;
-    while (cur && cur.role !== UserRole.BRANCH_LEADER) {
+    const seen = new Set<string>(); // guard against a parentId cycle (audit #10)
+    while (cur && cur.role !== UserRole.BRANCH_LEADER && !seen.has(cur.id)) {
+      seen.add(cur.id);
       cur = cur.parentId ? byId.get(cur.parentId) : undefined;
     }
-    if (cur) u.locationId = areaIdForBranch(cur);
+    if (cur && cur.role === UserRole.BRANCH_LEADER) u.locationId = areaIdForBranch(cur);
   }
 })();
 
@@ -1177,113 +1172,12 @@ export const scenarioTeacherMetrics: TeacherMetrics[] = metricUsers.map((u) => {
   };
 });
 
-// ---------------------------------------------------------------------------
-// Org tree — nested, with rolled-up metrics per level
-// ---------------------------------------------------------------------------
-function rollupMetrics(userIds: string[]) {
-  const rows = scenarioTeacherMetrics.filter((m) => userIds.includes(m.userId));
-  return rows.reduce(
-    (acc, r) => ({
-      totalStudents: acc.totalStudents + r.totalStudents,
-      activeStudents: acc.activeStudents + r.activeStudents,
-      currentlyStudying: acc.currentlyStudying + r.currentlyStudying,
-      continuedStudying: acc.continuedStudying + r.continuedStudying,
-      baptizedSinceStudying: acc.baptizedSinceStudying + r.baptizedSinceStudying,
-    }),
-    { totalStudents: 0, activeStudents: 0, currentlyStudying: 0, continuedStudying: 0, baptizedSinceStudying: 0 },
-  );
-}
-
-function memberNode(member: User): OrgNode {
-  return {
-    id: member.id,
-    name: `${member.firstName} ${member.lastName}`.trim(),
-    role: member.role,
-    avatarUrl: member.avatarUrl,
-    metrics: rollupMetrics([member.id]),
-    children: [],
-  };
-}
-
-function teamNode(team: User): OrgNode {
-  const teamMembers = members.filter((m) => m.parentId === team.id);
-  const memberIds = teamMembers.map((m) => m.id);
-  return {
-    id: team.id,
-    name: `${team.firstName} ${team.lastName}`.trim(),
-    role: team.role,
-    avatarUrl: team.avatarUrl,
-    groupName: `Team ${team.username.replace('team', '')}`,
-    metrics: rollupMetrics([team.id, ...memberIds]),
-    children: teamMembers.map(memberNode),
-  };
-}
-
-function groupNode(group: User): OrgNode {
-  const myTeams = teamLeaders.filter((t) => t.parentId === group.id);
-  const teamIds = myTeams.map((t) => t.id);
-  const memberIds = members.filter((m) => teamIds.includes(m.parentId!)).map((m) => m.id);
-  return {
-    id: group.id,
-    name: `${group.firstName} ${group.lastName}`.trim(),
-    role: group.role,
-    avatarUrl: group.avatarUrl,
-    groupName: `Group ${group.username.replace('group', '')}`,
-    metrics: rollupMetrics([group.id, ...teamIds, ...memberIds]),
-    children: myTeams.map(teamNode),
-  };
-}
-
-function branchNodeFor(branch: User): OrgNode {
-  const myGroups = groupLeaders.filter((g) => g.parentId === branch.id);
-  const groupIds = myGroups.map((g) => g.id);
-  const teamIds = teamLeaders.filter((t) => groupIds.includes(t.parentId!)).map((t) => t.id);
-  const memberIds = members.filter((m) => teamIds.includes(m.parentId!)).map((m) => m.id);
-  const areaId = areaIdForBranch(branch);
-  const branchAreaName = scenarioAreas.find((a) => a.id === areaId)?.name ?? 'Branch';
-  return {
-    id: branch.id,
-    name: `${branch.firstName} ${branch.lastName}`.trim(),
-    role: branch.role,
-    avatarUrl: branch.avatarUrl,
-    groupName: branchAreaName,
-    metrics: rollupMetrics([...groupIds, ...teamIds, ...memberIds]),
-    children: myGroups.map(groupNode),
-  };
-}
-
-const overseerMetrics = rollupMetrics([
-  ...branchLeaders.map((b) => b.id),
-  ...groupLeaders.map((g) => g.id),
-  ...teamLeaders.map((t) => t.id),
-  ...members.map((m) => m.id),
-]);
-
-export const scenarioOrgTree: OrgNode[] = [
-  {
-    id: uMichael.id,
-    name: 'Michael',
-    role: uMichael.role,
-    avatarUrl: uMichael.avatarUrl,
-    children: [
-      {
-        id: uOverseer.id,
-        name: `${uOverseer.firstName} ${uOverseer.lastName}`.trim(),
-        role: uOverseer.role,
-        avatarUrl: uOverseer.avatarUrl,
-        metrics: overseerMetrics,
-        children: branchLeaders.map(branchNodeFor),
-      },
-    ],
-  },
-  {
-    id: uStephen.id,
-    name: 'Stephen Wright',
-    role: uStephen.role,
-    avatarUrl: uStephen.avatarUrl,
-    children: [],
-  },
-];
+// NOTE: the org tree is no longer a static snapshot. It is built LIVE from the
+// current user records by buildOrgTree (src/lib/utils/org-tree.ts), which the
+// /groups/tree handler calls against usersState — so role changes, reassignments
+// and relocations restructure it immediately. The old static scenarioOrgTree +
+// its per-level node builders were removed (audit #8/#13) to keep one source of
+// truth and prevent silent divergence.
 
 // ---------------------------------------------------------------------------
 // Audit log — ~120 entries across the past 30 days

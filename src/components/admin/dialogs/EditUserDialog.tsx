@@ -116,6 +116,11 @@ export function EditUserDialog({
   const roleChanged = role !== user.role;
   const canChangeRoleNow = !roleChanged || canChangeRole(viewer, user, role);
 
+  // Relocation authority mirrors the server gate (admin-tier OR the target is in
+  // the viewer's own subtree). When false, the location field is read-only so we
+  // don't offer an action the API would 403.
+  const canRelocate = viewerIsAdmin || subtreeUserIds.includes(user.id);
+
   const handleSave = async () => {
     if (!canChangeRoleNow) {
       toast.error(`You cannot promote this user to ${ROLE_LABELS[role]}`);
@@ -214,7 +219,8 @@ export function EditUserDialog({
               id="location"
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={!canRelocate}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">— no home location —</option>
               {areas.map((a) => (
@@ -223,7 +229,12 @@ export function EditUserDialog({
                 </option>
               ))}
             </select>
-            {locationId !== (user.locationId ?? '') && (
+            {!canRelocate && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Only this person&apos;s branch admins can relocate them.
+              </p>
+            )}
+            {canRelocate && locationId !== (user.locationId ?? '') && (
               <p className="mt-1 text-xs text-muted-foreground">
                 Relocating {firstName || 'this person'} to{' '}
                 {areas.find((a) => a.id === locationId)?.name ?? 'no location'}.

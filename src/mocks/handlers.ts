@@ -21,6 +21,7 @@ import {
   canManageBlockedSlot,
   canManageRoom,
   canManageTags,
+  canReassignUserToGroup,
   canResetPassword,
   isAdminTier,
   resolveExportImportEnabled,
@@ -1562,6 +1563,55 @@ export const handlers = [
         );
       }
     }
+    // §7 SHIM (C-04, audit #1/#2/#5): when parentId differs, enforce the same
+    // canReassignUserToGroup scope the UI applies — the dedicated helper exists
+    // but was never called server-side, so a direct PUT let any leader re-graft
+    // a cross-branch user under any parent. Also reject a self-parent or a
+    // descendant target, which would create a reporting cycle.
+    if (typeof body.parentId === 'string' && body.parentId !== before.parentId) {
+      if (body.parentId === before.id) {
+        return permissionDenied('A user cannot report to themselves');
+      }
+      // Walk the proposed parent chain; if we reach the user being moved, the
+      // move would create a cycle.
+      const seen = new Set<string>([before.id]);
+      let cursor: User | undefined = usersState.find((u) => u.id === body.parentId);
+      while (cursor) {
+        if (seen.has(cursor.id)) {
+          return permissionDenied('That reassignment would create a reporting cycle');
+        }
+        seen.add(cursor.id);
+        cursor = cursor.parentId ? usersState.find((u) => u.id === cursor!.parentId) : undefined;
+      }
+      if (
+        !canReassignUserToGroup(
+          viewer,
+          before as User,
+          body.parentId,
+          viewerSubtreeUserIds(viewer),
+        )
+      ) {
+        return permissionDenied('You cannot reassign this user to that parent');
+      }
+    }
+    // Relocation scope (audit #3): locationId had NO check — anyone who could
+    // edit the user could relocate them to ANY branch's area. Gate it the same
+    // way as reassignment (admin-tier OR within own subtree) and reject unknown/
+    // inactive target areas.
+    if (typeof body.locationId === 'string' && body.locationId !== before.locationId) {
+      const inScope =
+        isAdminTier(viewer) || viewerSubtreeUserIds(viewer).includes(before.id);
+      if (!inScope) return permissionDenied('You cannot relocate this user');
+      if (
+        body.locationId &&
+        !areasState.some((a) => a.id === body.locationId && a.isActive !== false)
+      ) {
+        return HttpResponse.json(
+          { message: 'Unknown or inactive location' },
+          { status: 400 },
+        );
+      }
+    }
     // Sanitize body — never let username/id/createdAt or status flags sneak
     // in via the generic PUT (USER-1).
     // §7 SHIM (C-02): strip `tags` so the dedicated /tags endpoint is the
@@ -1577,7 +1627,9 @@ export const handlers = [
     delete sanitized.tags;           // §7 SHIM C-02: dedicated endpoint only
     const updated = { ...before, ...sanitized, updatedAt: new Date().toISOString() };
     usersState[idx] = updated as typeof usersState[number];
-    const actor = resolveActor(typeof body.actorId === 'string' ? body.actorId : undefined);
+    // Audit #4: attribute the actor to the JWT-authenticated viewer, NOT the
+    // client-supplied body.actorId (which a caller could forge to frame anyone).
+    const actor = resolveActor(viewer.id);
     const now = new Date().toISOString();
 
     // Role change row
@@ -1611,11 +1663,13 @@ export const handlers = [
       });
     }
     // Relocation row — moving a person to a different physical location (Area).
+    // entityType 'area' (not 'group_assignment') so the audit filter can tell a
+    // location move apart from a reporting-line move (audit #7/#9).
     if (before.locationId !== updated.locationId) {
       mockAuditLog.push({
         id: 'al-' + Date.now() + '-loc',
         action: 'reassign',
-        entityType: 'group_assignment',
+        entityType: 'area',
         entityId: updated.id,
         userId: actor.id,
         userName: actor.name,

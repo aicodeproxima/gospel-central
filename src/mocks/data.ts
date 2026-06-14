@@ -14,7 +14,6 @@ import {
   scenarioBookings,
   scenarioBlockedSlots,
   scenarioContacts,
-  scenarioOrgTree,
   scenarioTeacherMetrics,
   scenarioAuditLog,
 } from './scenario-church-week';
@@ -24,6 +23,5 @@ export const mockAreas = scenarioAreas;
 export const mockBookings = scenarioBookings;
 export const mockBlockedSlots = scenarioBlockedSlots;
 export const mockContacts = scenarioContacts;
-export const mockOrgTree = scenarioOrgTree;
 export const mockTeacherMetrics = scenarioTeacherMetrics;
 export const mockAuditLog = scenarioAuditLog;

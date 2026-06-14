@@ -86,6 +86,48 @@ describe('buildOrgTree', () => {
     expect(tree.map((n) => n.id)).toEqual(['group']); // branch gone, group surfaces
   });
 
+  it('NEVER drops people caught in a parentId cycle (surfaces them as forced roots)', () => {
+    const users = [
+      base({ id: 'root', role: UserRole.OVERSEER }),
+      base({ id: 'g', role: UserRole.GROUP_LEADER, parentId: 'm' }), // g <-> m cycle
+      base({ id: 'm', role: UserRole.MEMBER, parentId: 'g' }),
+    ];
+    const all = buildOrgTree(users, [], AREAS).flatMap(ids);
+    expect(all).toContain('root');
+    expect(all).toContain('g'); // would vanish without the guard
+    expect(all).toContain('m');
+    // each appears exactly once (no double-build / infinite recursion)
+    expect(all.filter((x) => x === 'g')).toHaveLength(1);
+    expect(all.filter((x) => x === 'm')).toHaveLength(1);
+  });
+
+  it('a self-parented user still renders (does not vanish)', () => {
+    const users = [
+      base({ id: 'R', role: UserRole.OVERSEER }),
+      base({ id: 'S', role: UserRole.MEMBER, parentId: 'S' }),
+    ];
+    const all = buildOrgTree(users, [], AREAS).flatMap(ids);
+    expect(all).toContain('S');
+    expect(all.filter((x) => x === 'S')).toHaveLength(1);
+  });
+
+  it('a duplicate id never double-builds a subtree or double-counts metrics', () => {
+    const users = [
+      base({ id: 'dup', role: UserRole.GROUP_LEADER }),
+      base({ id: 'dup', role: UserRole.GROUP_LEADER }), // collision
+      base({ id: 'c', role: UserRole.MEMBER, parentId: 'dup' }),
+    ];
+    const metrics = [
+      { userId: 'dup', totalStudents: 10, activeStudents: 0, currentlyStudying: 0, continuedStudying: 0, baptizedSinceStudying: 0, totalSessionsLed: 0 },
+      { userId: 'c', totalStudents: 5, activeStudents: 0, currentlyStudying: 0, continuedStudying: 0, baptizedSinceStudying: 0, totalSessionsLed: 0 },
+    ];
+    const tree = buildOrgTree(users, metrics, AREAS);
+    const dupNodes = tree.filter((n) => n.id === 'dup');
+    expect(dupNodes).toHaveLength(1); // collapsed, not two roots
+    expect(dupNodes[0].metrics?.totalStudents).toBe(15); // 10 + child 5, counted once
+    expect(tree.flatMap(ids).filter((x) => x === 'c')).toHaveLength(1);
+  });
+
   it('rolls metrics up from descendants without double-counting', () => {
     const users = [
       base({ id: 'g', role: UserRole.GROUP_LEADER }),
