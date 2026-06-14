@@ -91,7 +91,11 @@ type ActiveFilter = 'all' | 'active' | 'inactive';
 export function UsersTab() {
   const viewer = useAuthStore((s) => s.user);
   const [users, setUsers] = useState<User[]>([]);
+  // `areas` = active only (pickable filter options); `allAreas` = incl. inactive,
+  // used ONLY to resolve location NAMES so a user based at a now-deactivated area
+  // still shows their location badge during a branch transition (audit #6).
   const [areas, setAreas] = useState<Area[]>([]);
+  const [allAreas, setAllAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   // UI-8: distinct error state so a fetch failure doesn't masquerade as
   // "no users match your filters". Set on catch; cleared on every reload().
@@ -131,6 +135,10 @@ export function UsersTab() {
       .getAreas()
       .then((a) => setAreas(a.filter((x) => x.isActive !== false)))
       .catch(() => {});
+    bookingsApi
+      .getAreasFull({ includeInactive: true })
+      .then((a) => setAllAreas(Array.isArray(a) ? a : []))
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -142,20 +150,32 @@ export function UsersTab() {
     setPage(1);
   }, [search, roleFilter, tagFilter, locationFilter, statusFilter]);
 
+  // Self-heal a stale location filter WITHOUT a setState-in-effect: if the
+  // filtered-on area was deactivated (dropped from `areas`), derive it back to
+  // "all" so the list never shows an unexplained empty result (audit #5). The
+  // raw setter stays the source of truth; only the *effective* value is healed.
+  const effectiveLocationFilter = useMemo(
+    () =>
+      locationFilter !== 'all' && !areas.some((a) => a.id === locationFilter)
+        ? 'all'
+        : locationFilter,
+    [locationFilter, areas],
+  );
+
   // Compute the filtered set
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       if (tagFilter !== 'all' && !(Array.isArray(u.tags) && u.tags.includes(tagFilter))) return false;
-      if (locationFilter !== 'all' && u.locationId !== locationFilter) return false;
+      if (effectiveLocationFilter !== 'all' && u.locationId !== effectiveLocationFilter) return false;
       if (statusFilter === 'active' && u.isActive === false) return false;
       if (statusFilter === 'inactive' && u.isActive !== false) return false;
       if (!q) return true;
       const hay = `${u.firstName} ${u.lastName} ${u.username} ${u.email}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [users, search, roleFilter, tagFilter, locationFilter, statusFilter]);
+  }, [users, search, roleFilter, tagFilter, effectiveLocationFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visiblePage = Math.min(page, totalPages);
@@ -171,9 +191,11 @@ export function UsersTab() {
     return Array.from(seen).sort();
   }, [users]);
 
+  // Resolve names from the FULL set (incl. inactive) so a deactivated location
+  // still labels its users; the filter/picker options stay active-only.
   const areaNameById = useMemo(
-    () => new Map(areas.map((a) => [a.id, a.name] as const)),
-    [areas],
+    () => new Map(allAreas.map((a) => [a.id, a.name] as const)),
+    [allAreas],
   );
 
   // UI-2: count of currently-active filter Selects, for the mobile
@@ -181,7 +203,7 @@ export function UsersTab() {
   const activeFilterCount =
     (roleFilter !== 'all' ? 1 : 0) +
     (tagFilter !== 'all' ? 1 : 0) +
-    (locationFilter !== 'all' ? 1 : 0) +
+    (effectiveLocationFilter !== 'all' ? 1 : 0) +
     (statusFilter !== 'all' ? 1 : 0);
 
   if (!viewer) return null;
@@ -270,7 +292,7 @@ export function UsersTab() {
           <UserFilters
             roleFilter={roleFilter}
             tagFilter={tagFilter}
-            locationFilter={locationFilter}
+            locationFilter={effectiveLocationFilter}
             statusFilter={statusFilter}
             allTagOptions={allTagOptions}
             areas={areas}
@@ -310,7 +332,7 @@ export function UsersTab() {
               <UserFilters
                 roleFilter={roleFilter}
                 tagFilter={tagFilter}
-                locationFilter={locationFilter}
+                locationFilter={effectiveLocationFilter}
                 statusFilter={statusFilter}
                 allTagOptions={allTagOptions}
                 areas={areas}

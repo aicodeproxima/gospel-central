@@ -116,10 +116,11 @@ export function EditUserDialog({
   const roleChanged = role !== user.role;
   const canChangeRoleNow = !roleChanged || canChangeRole(viewer, user, role);
 
-  // Relocation authority mirrors the server gate (admin-tier OR the target is in
-  // the viewer's own subtree). When false, the location field is read-only so we
-  // don't offer an action the API would 403.
-  const canRelocate = viewerIsAdmin || subtreeUserIds.includes(user.id);
+  // Scope gate shared by BOTH the "Reports to" (parent) and Location fields —
+  // mirrors the server's reassignment + relocation checks (admin-tier OR the
+  // target is in the viewer's own subtree). When false, both fields are
+  // read-only so we never offer a move the API would 403 (audit #2).
+  const canMoveTarget = viewerIsAdmin || subtreeUserIds.includes(user.id);
 
   const handleSave = async () => {
     if (!canChangeRoleNow) {
@@ -134,8 +135,13 @@ export function EditUserDialog({
         email: email.trim(),
         phone: phone.trim() || undefined,
         role,
-        parentId: parentId || undefined,
-        locationId: locationId || undefined,
+        // Send parent/location ONLY when the viewer may move this user AND the
+        // value actually changed — including an empty string to CLEAR it. The
+        // old `value || undefined` coalesced '' to undefined, which JSON.stringify
+        // drops, so "remove the location/parent" was a silent no-op that still
+        // showed a success toast (audit #1/#3).
+        ...(canMoveTarget && parentId !== (user.parentId ?? '') ? { parentId } : {}),
+        ...(canMoveTarget && locationId !== (user.locationId ?? '') ? { locationId } : {}),
         actorId: viewer.id,
       });
       toast.success(`Updated ${firstName}`);
@@ -202,7 +208,8 @@ export function EditUserDialog({
               id="parent"
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={!canMoveTarget}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">— no parent —</option>
               {eligibleParents.map((u) => (
@@ -211,6 +218,11 @@ export function EditUserDialog({
                 </option>
               ))}
             </select>
+            {!canMoveTarget && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Only this person&apos;s branch admins can change who they report to.
+              </p>
+            )}
           </div>
 
           <div>
@@ -219,22 +231,27 @@ export function EditUserDialog({
               id="location"
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
-              disabled={!canRelocate}
+              disabled={!canMoveTarget}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">— no home location —</option>
+              {/* Fallback so a SET location never renders blank before areas load
+                  (slow/failed getAreas) — audit #4. */}
+              {locationId && !areas.some((a) => a.id === locationId) && (
+                <option value={locationId}>Current location</option>
+              )}
               {areas.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
               ))}
             </select>
-            {!canRelocate && (
+            {!canMoveTarget && (
               <p className="mt-1 text-xs text-muted-foreground">
                 Only this person&apos;s branch admins can relocate them.
               </p>
             )}
-            {canRelocate && locationId !== (user.locationId ?? '') && (
+            {canMoveTarget && locationId !== (user.locationId ?? '') && (
               <p className="mt-1 text-xs text-muted-foreground">
                 Relocating {firstName || 'this person'} to{' '}
                 {areas.find((a) => a.id === locationId)?.name ?? 'no location'}.
