@@ -83,6 +83,9 @@ export default function GroupsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [resetSignal, setResetSignal] = useState(0);
+  // Expand-all bumps this to frame the top tiers — distinct from resetSignal,
+  // which the Reset button uses to fit the whole tree.
+  const [fitTopSignal, setFitTopSignal] = useState(0);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const currentUser = useAuthStore((s) => s.user);
@@ -185,9 +188,11 @@ export default function GroupsPage() {
 
   const handleExpandAll = useCallback(() => {
     setExpandedIds(new Set(allIds));
-    // G: auto-fit the whole (now-expanded) tree so the user isn't stranded
-    // zoomed-in on one node (was: camera never moved -> 1/182 cards on-screen).
-    setTimeout(() => setResetSignal((n) => n + 1), 80);
+    // G: frame the TOP tiers (root → branch leaders) so the user sees the org's
+    // shape and pans DOWN to drill in — NOT a full-tree fit, which on a tall org
+    // strands the camera in the middle member band with the root off-screen.
+    // 80ms lets the just-expanded layout settle so the frame reads final positions.
+    setTimeout(() => setFitTopSignal((n) => n + 1), 80);
   }, [allIds]);
 
   const handleCollapseAll = useCallback(() => {
@@ -321,6 +326,7 @@ export default function GroupsPage() {
               externalFocusId={externalFocusId}
               externalFocusMode={externalFocusMode}
               resetSignal={resetSignal}
+              fitTopSignal={fitTopSignal}
               onContactClick={setSelectedContactId}
             />
           </div>
@@ -435,7 +441,7 @@ export default function GroupsPage() {
                 size="sm"
                 onClick={() => setResetSignal((n) => n + 1)}
                 className="h-7 gap-1.5 rounded-full px-2.5 text-xs"
-                title="Fit the whole tree in view without changing expansion"
+                title={t('groups.resetDesc')}
               >
                 <Maximize2 className="h-3.5 w-3.5" />
                 <span className="hidden xl:inline">{t('groups.reset')}</span>
@@ -474,7 +480,10 @@ export default function GroupsPage() {
                     <ChevronsDownUp className="h-4 w-4" /> {t('groups.collapse')}
                   </DropdownMenuItem>
                   {viewMode === '3d' && (
-                    <DropdownMenuItem onClick={() => setResetSignal((n) => n + 1)}>
+                    <DropdownMenuItem
+                      onClick={() => setResetSignal((n) => n + 1)}
+                      title={t('groups.resetDesc')}
+                    >
                       <Maximize2 className="h-4 w-4" /> {t('groups.reset')}
                     </DropdownMenuItem>
                   )}

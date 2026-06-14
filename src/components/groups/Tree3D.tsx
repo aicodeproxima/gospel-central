@@ -23,6 +23,7 @@ import {
 } from '@/lib/utils/org-metrics';
 import { layoutTree } from '@/lib/utils/tree-layout';
 import { clampCamToDollyRange } from '@/lib/utils/camera';
+import { topLevelsBounds } from '@/lib/utils/tree-focus';
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
@@ -517,6 +518,13 @@ interface Tree3DProps {
   externalFocusMode?: 'node' | 'subtree';
   /** Incrementing this counter triggers a "fit the whole tree" camera move. */
   resetSignal?: number;
+  /**
+   * Incrementing this counter frames the TOP tiers (root → branch leaders) —
+   * used by Expand-all so the user sees the org's shape instead of being
+   * stranded in the middle member band by a full-tree fit. Distinct from
+   * resetSignal so the Reset button keeps its whole-tree fit.
+   */
+  fitTopSignal?: number;
   /** Called when a contact leaf is clicked — opens the contact detail popup. */
   onContactClick?: (contactId: string) => void;
 }
@@ -532,6 +540,7 @@ function SceneContent({
   externalFocusId,
   externalFocusMode = 'subtree',
   resetSignal,
+  fitTopSignal,
   onContactClick,
 }: Tree3DProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -866,7 +875,51 @@ function SceneContent({
     };
   }, [layout, compact, canvasSize]);
 
-  // Fit-all ONLY when resetSignal actually increments (Reset / Expand-All button),
+  // Expand-all framing: frame the root(s) + top TOP_LEVELS_DEPTH tiers so the
+  // user sees the org's leadership shape and pans DOWN to drill in — instead of
+  // computeFullTreeFocus centering the tall tree's bbox on the member band with
+  // the root off-screen above. Reuses computeSubtreeFocus's readable framing
+  // (compact + desktop) so it inherits the same dolly-range caps.
+  const computeTopLevelsFocus = useCallback(
+    (maxDepth: number): FocusTarget | null => {
+      const b = topLevelsBounds(
+        layout.nodes,
+        layout.contacts,
+        maxDepth,
+        layout.bounds.maxDepth,
+      );
+      if (!b) return null;
+      const { minX, maxX, minY, maxY } = b;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      if (compact) {
+        const vw = canvasSize.width || 1;
+        const vh = canvasSize.height || 1;
+        const aspect = vw / vh;
+        const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+        const padTop = AVATAR_WORLD_TOP + 1.5;
+        const padBottom = CARD_WORLD_DROP;
+        const boxW = maxX - minX + CARD_WORLD_WIDTH;
+        const boxH = maxY - minY + padTop + padBottom;
+        const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
+        const distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
+        return { center: [centerX, centerY + (padTop - padBottom) / 2, 0], distance };
+      }
+
+      // Desktop — identical framing math to computeSubtreeFocus (dolly-capped).
+      const paddedWidth = width + 6;
+      const paddedHeight = height + 6;
+      const size = Math.max(paddedWidth, paddedHeight, 10);
+      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
+      return { center: [centerX, centerY - 2, 0], distance };
+    },
+    [layout, compact, canvasSize],
+  );
+
+  // Fit-all ONLY when resetSignal actually increments (Reset button),
   // NOT every time computeFullTreeFocus changes identity on a layout change — else
   // expand/collapse after a reset re-fits the whole tree and clobbers the node/
   // subtree snap (this was why Collapse-All's snap-to-Michael got overridden). (H)
@@ -878,6 +931,18 @@ function SceneContent({
     const target = computeFullTreeFocus();
     if (target) setFocus(target);
   }, [resetSignal, computeFullTreeFocus]);
+
+  // Frame the top tiers ONLY when fitTopSignal actually increments (Expand-all),
+  // mirroring the resetSignal guard so a layout-driven identity change of
+  // computeTopLevelsFocus doesn't re-fire and clobber a later snap.
+  const lastFitTopRef = useRef(0);
+  useEffect(() => {
+    if (!fitTopSignal) return;
+    if (fitTopSignal === lastFitTopRef.current) return;
+    lastFitTopRef.current = fitTopSignal;
+    const target = computeTopLevelsFocus(TOP_LEVELS_DEPTH);
+    if (target) setFocus(target);
+  }, [fitTopSignal, computeTopLevelsFocus]);
 
   // H-3: build per-id stable callback maps so NodeCard / ContactLeaf3D
   // (both React.memo) don't re-render every time a sibling toggles.
@@ -1065,6 +1130,11 @@ const MAX_DIST_DESKTOP = 70;
 const RIG_RADIUS_FACTOR = Math.hypot(1, RIG_Y_OFFSET);
 const MAX_FOCUS_DIST_COMPACT = Math.floor((MAX_DIST_COMPACT / RIG_RADIUS_FACTOR) * 0.98); // 269
 const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR) * 0.98); // 67
+
+// Expand-all frames the root(s) + this many levels down (depth 0..N): Dev(0) →
+// Overseer(1) → Branch leader(2) — the org's structural "shape" rows. Readable,
+// root on-screen, user pans down to reach groups/teams/members.
+const TOP_LEVELS_DEPTH = 2;
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
