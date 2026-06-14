@@ -255,6 +255,30 @@ function viewerSubtreeUserIds(viewer: User): string[] {
 }
 
 /**
+ * Every user record in a node's subtree — the node itself plus all descendants
+ * reached via parentId. Cycle-safe (a `seen` set). Used by the cascade
+ * deactivate/restore so a whole branch can be removed without orphaning its
+ * members. Returns the root first.
+ */
+function subtreeUserRecords(rootId: string): User[] {
+  const out: User[] = [];
+  const seen = new Set<string>();
+  const queue: string[] = [rootId];
+  while (queue.length) {
+    const id = queue.shift() as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const u = usersState.find((x) => x.id === id);
+    if (!u) continue;
+    out.push(u as User);
+    for (const c of usersState) {
+      if (c.parentId === id && !seen.has(c.id)) queue.push(c.id);
+    }
+  }
+  return out;
+}
+
+/**
  * BLOCK-2 helper: returns the active blocked-slot record that the booking's
  * (areaId, startTime, endTime) tuple would overlap, or undefined.
  * Mirrors the logic in `src/lib/utils/availability.ts:findOverlappingBlockedSlot`
@@ -1709,7 +1733,7 @@ export const handlers = [
   }),
 
   http.post(`${API}/users/:id/deactivate`, async ({ request, params }) => {
-    const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    const body = (await request.json().catch(() => ({}))) as { actorId?: string; cascade?: boolean };
     const idx = usersState.findIndex((u) => u.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     // §7 SHIM (C-01): canDeactivateUser gate.
@@ -1718,25 +1742,41 @@ export const handlers = [
     if (!canDeactivateUser(viewer, usersState[idx] as User)) {
       return permissionDenied('You cannot deactivate this user');
     }
-    usersState[idx] = { ...usersState[idx], isActive: false, updatedAt: new Date().toISOString() };
-    const actor = resolveActor(body.actorId);
-    mockAuditLog.push({
-      id: 'al-' + Date.now(),
-      action: 'delete',     // closest existing action; entityType disambiguates
-      entityType: 'user',
-      entityId: usersState[idx].id,
-      userId: actor.id,
-      userName: actor.name,
-      details: `Deactivated ${usersState[idx].firstName} ${usersState[idx].lastName} (@${usersState[idx].username})`,
-      before: { isActive: true },
-      after: { isActive: false },
-      timestamp: new Date().toISOString(),
-    });
-    return HttpResponse.json(usersState[idx]);
+    const actor = resolveActor(viewer.id);
+    const now = new Date().toISOString();
+    // Phase C — orphan-gap closer: deactivating a leader leaves their reports
+    // pointing at an inactive parent. `cascade` deactivates the WHOLE subtree
+    // so a branch can be cleanly removed without dangling members. Default
+    // (no cascade) keeps the single-user behavior; buildOrgTree surfaces any
+    // orphaned subtree as a forced root so nobody silently vanishes either way.
+    const targets =
+      body.cascade === true
+        ? subtreeUserRecords(params.id as string)
+        : [usersState[idx]];
+    for (const u of targets) {
+      const i = usersState.findIndex((x) => x.id === u.id);
+      if (i === -1 || usersState[i].isActive === false) continue;
+      usersState[i] = { ...usersState[i], isActive: false, updatedAt: now };
+      mockAuditLog.push({
+        id: 'al-' + Date.now() + '-' + usersState[i].id,
+        action: 'delete', // closest existing action; entityType disambiguates
+        entityType: 'user',
+        entityId: usersState[i].id,
+        userId: actor.id,
+        userName: actor.name,
+        details:
+          `Deactivated ${usersState[i].firstName} ${usersState[i].lastName} (@${usersState[i].username})` +
+          (body.cascade && usersState[i].id !== params.id ? ' (subtree of deactivated leader)' : ''),
+        before: { isActive: true },
+        after: { isActive: false },
+        timestamp: now,
+      });
+    }
+    return HttpResponse.json({ ...usersState[idx], deactivatedCount: targets.length });
   }),
 
   http.post(`${API}/users/:id/restore`, async ({ request, params }) => {
-    const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    const body = (await request.json().catch(() => ({}))) as { actorId?: string; cascade?: boolean };
     const idx = usersState.findIndex((u) => u.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     // §7 SHIM (C-01): canDeactivateUser gates restore as well.
@@ -1745,21 +1785,30 @@ export const handlers = [
     if (!canDeactivateUser(viewer, usersState[idx] as User)) {
       return permissionDenied('You cannot restore this user');
     }
-    usersState[idx] = { ...usersState[idx], isActive: true, updatedAt: new Date().toISOString() };
-    const actor = resolveActor(body.actorId);
-    mockAuditLog.push({
-      id: 'al-' + Date.now(),
-      action: 'restore',
-      entityType: 'user',
-      entityId: usersState[idx].id,
-      userId: actor.id,
-      userName: actor.name,
-      details: `Restored ${usersState[idx].firstName} ${usersState[idx].lastName} (@${usersState[idx].username})`,
-      before: { isActive: false },
-      after: { isActive: true },
-      timestamp: new Date().toISOString(),
-    });
-    return HttpResponse.json(usersState[idx]);
+    const actor = resolveActor(viewer.id);
+    const now = new Date().toISOString();
+    const targets =
+      body.cascade === true
+        ? subtreeUserRecords(params.id as string)
+        : [usersState[idx]];
+    for (const u of targets) {
+      const i = usersState.findIndex((x) => x.id === u.id);
+      if (i === -1 || usersState[i].isActive !== false) continue;
+      usersState[i] = { ...usersState[i], isActive: true, updatedAt: now };
+      mockAuditLog.push({
+        id: 'al-' + Date.now() + '-' + usersState[i].id,
+        action: 'restore',
+        entityType: 'user',
+        entityId: usersState[i].id,
+        userId: actor.id,
+        userName: actor.name,
+        details: `Restored ${usersState[i].firstName} ${usersState[i].lastName} (@${usersState[i].username})`,
+        before: { isActive: false },
+        after: { isActive: true },
+        timestamp: now,
+      });
+    }
+    return HttpResponse.json({ ...usersState[idx], restoredCount: targets.length });
   }),
 
   // POST /users/:id/reset-password — generates a one-time temp password,

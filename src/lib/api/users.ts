@@ -51,12 +51,20 @@ export const usersApi = {
     return api.put<User>(`/users/${id}`, payload);
   },
 
-  deactivate(id: string, actorId: string) {
-    return api.post<User>(`/users/${id}/deactivate`, { actorId });
+  /** cascade=true also deactivates the user's whole subtree (their reports),
+   *  so a branch can be removed without orphaning its members. */
+  deactivate(id: string, actorId: string, cascade = false) {
+    return api.post<User & { deactivatedCount?: number }>(
+      `/users/${id}/deactivate`,
+      { actorId, cascade },
+    );
   },
 
-  restore(id: string, actorId: string) {
-    return api.post<User>(`/users/${id}/restore`, { actorId });
+  restore(id: string, actorId: string, cascade = false) {
+    return api.post<User & { restoredCount?: number }>(
+      `/users/${id}/restore`,
+      { actorId, cascade },
+    );
   },
 
   /**
