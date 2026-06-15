@@ -23,7 +23,7 @@ import {
 } from '@/lib/utils/org-metrics';
 import { layoutTree } from '@/lib/utils/tree-layout';
 import { clampCamToDollyRange } from '@/lib/utils/camera';
-import { topLevelsBounds } from '@/lib/utils/tree-focus';
+import { topBandBounds } from '@/lib/utils/tree-focus';
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
@@ -875,49 +875,44 @@ function SceneContent({
     };
   }, [layout, compact, canvasSize]);
 
-  // Expand-all framing: frame the root(s) + top TOP_LEVELS_DEPTH tiers so the
-  // user sees the org's leadership shape and pans DOWN to drill in — instead of
+  // Expand-all framing: frame the top Y-band of the tree (root + the first
+  // couple of tiers) and anchor the ROOT near the top of the view, so the user
+  // sees the org's shape and pans DOWN to drill in — instead of
   // computeFullTreeFocus centering the tall tree's bbox on the member band with
-  // the root off-screen above. Reuses computeSubtreeFocus's readable framing
-  // (compact + desktop) so it inherits the same dolly-range caps.
-  const computeTopLevelsFocus = useCallback(
-    (maxDepth: number): FocusTarget | null => {
-      const b = topLevelsBounds(
-        layout.nodes,
-        layout.contacts,
-        maxDepth,
-        layout.bounds.maxDepth,
-      );
-      if (!b) return null;
-      const { minX, maxX, minY, maxY } = b;
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const width = maxX - minX;
-      const height = maxY - minY;
+  // the root off-screen above. Distance reuses computeSubtreeFocus's readable
+  // framing (compact + desktop) so it inherits the same dolly-range caps; the
+  // look-at is biased below the topmost node so the root rises to the top.
+  const computeTopLevelsFocus = useCallback((): FocusTarget | null => {
+    const b = topBandBounds(layout.nodes, layout.contacts, TOP_BAND_HEIGHT);
+    if (!b) return null;
+    const { minX, maxX, minY, maxY } = b;
+    const centerX = (minX + maxX) / 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
 
-      if (compact) {
-        const vw = canvasSize.width || 1;
-        const vh = canvasSize.height || 1;
-        const aspect = vw / vh;
-        const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
-        const padTop = AVATAR_WORLD_TOP + 1.5;
-        const padBottom = CARD_WORLD_DROP;
-        const boxW = maxX - minX + CARD_WORLD_WIDTH;
-        const boxH = maxY - minY + padTop + padBottom;
-        const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
-        const distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
-        return { center: [centerX, centerY + (padTop - padBottom) / 2, 0], distance };
-      }
+    let distance: number;
+    if (compact) {
+      const vw = canvasSize.width || 1;
+      const vh = canvasSize.height || 1;
+      const aspect = vw / vh;
+      const tan = Math.tan((CAMERA_CONFIG.fov * Math.PI) / 180 / 2);
+      const padTop = AVATAR_WORLD_TOP + 1.5;
+      const padBottom = CARD_WORLD_DROP;
+      const boxW = width + CARD_WORLD_WIDTH;
+      const boxH = height + padTop + padBottom;
+      const fit = Math.max(boxH / 2 / tan, boxW / 2 / (tan * aspect));
+      distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
+    } else {
+      const size = Math.max(width + 6, height + 6, 10);
+      distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
+    }
 
-      // Desktop — identical framing math to computeSubtreeFocus (dolly-capped).
-      const paddedWidth = width + 6;
-      const paddedHeight = height + 6;
-      const size = Math.max(paddedWidth, paddedHeight, 10);
-      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
-      return { center: [centerX, centerY - 2, 0], distance };
-    },
-    [layout, compact, canvasSize],
-  );
+    // Anchor the root (topmost node = maxY) near the top of the viewport. The
+    // bias is distance-relative (same FOV on both breakpoints), so it holds at
+    // any zoom: a larger distance pushes the look-at further below the root.
+    const centerY = maxY - ROOT_TOP_BIAS * distance;
+    return { center: [centerX, centerY, 0], distance };
+  }, [layout, compact, canvasSize]);
 
   // Fit-all ONLY when resetSignal actually increments (Reset button),
   // NOT every time computeFullTreeFocus changes identity on a layout change — else
@@ -940,7 +935,7 @@ function SceneContent({
     if (!fitTopSignal) return;
     if (fitTopSignal === lastFitTopRef.current) return;
     lastFitTopRef.current = fitTopSignal;
-    const target = computeTopLevelsFocus(TOP_LEVELS_DEPTH);
+    const target = computeTopLevelsFocus();
     if (target) setFocus(target);
   }, [fitTopSignal, computeTopLevelsFocus]);
 
@@ -1131,10 +1126,13 @@ const RIG_RADIUS_FACTOR = Math.hypot(1, RIG_Y_OFFSET);
 const MAX_FOCUS_DIST_COMPACT = Math.floor((MAX_DIST_COMPACT / RIG_RADIUS_FACTOR) * 0.98); // 269
 const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR) * 0.98); // 67
 
-// Expand-all frames the root(s) + this many levels down (depth 0..N): Dev(0) →
-// Overseer(1) → Branch leader(2) — the org's structural "shape" rows. Readable,
-// root on-screen, user pans down to reach groups/teams/members.
-const TOP_LEVELS_DEPTH = 2;
+// Expand-all frames a Y-band from the top of the tree (NOT a depth filter —
+// row-wrapping scatters same-depth nodes vertically). TOP_BAND_HEIGHT (world
+// units below the root) ≈ root → first branch-leader row; ROOT_TOP_BIAS anchors
+// the root this fraction-of-distance below screen-center so it sits near the top
+// and the user pans DOWN to drill in. Tuned live (see groups verification).
+const TOP_BAND_HEIGHT = 20;
+const ROOT_TOP_BIAS = 0.34;
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
