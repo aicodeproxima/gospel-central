@@ -21,6 +21,7 @@ import { ContactDetailDialog } from '@/components/groups/ContactDetailDialog';
 import { usersApi } from '@/lib/api/users';
 import type { Contact, User } from '@/lib/types';
 import type { SearchEntry } from '@/lib/utils/tree-search';
+import { toggleExpanded, isolatePath } from '@/lib/utils/tree-expansion';
 
 // 3D scene is heavy — load it lazily so it doesn't bloat the initial bundle.
 const Tree3D = dynamic(() => import('@/components/groups/Tree3D').then((m) => m.Tree3D), {
@@ -172,16 +173,28 @@ export default function GroupsPage() {
   const allIds = useMemo(() => collectAllIds(orgTree, contacts), [orgTree, contacts]);
   const allExpanded = expandedIds.size === allIds.length && allIds.length > 0;
 
+  /** Walk the tree and return the node whose id matches. Memoized so
+   *  re-renders caused by unrelated state don't repeat the walk. Declared
+   *  before the handlers that depend on it (handleToggle) to avoid a TDZ. */
+  const nodeIndex = useMemo(() => {
+    const m = new Map<string, OrgNode>();
+    const walk = (n: OrgNode) => {
+      m.set(n.id, n);
+      n.children.forEach(walk);
+    };
+    orgTree.forEach(walk);
+    return m;
+  }, [orgTree]);
+
   // useCallback so Tree3D's per-id stable-callback maps don't get
   // invalidated on every parent render (audit H-3 follow-up).
   const handleToggle = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+    const node = nodeIndex.get(id);
+    if (!node) return;
+    // Ancestor-closed: collapsing a node prunes its whole subtree, so
+    // re-expanding shows only immediate children (no resume memory).
+    setExpandedIds((prev) => toggleExpanded(prev, id, node));
+  }, [nodeIndex]);
 
   const handleExpandAll = useCallback(() => {
     setExpandedIds(new Set(allIds));
@@ -244,36 +257,20 @@ export default function GroupsPage() {
     [contacts, selectedContactId],
   );
 
-  /** Walk the tree and return the node whose id matches. Memoized so
-   *  re-renders caused by unrelated state don't repeat the walk. */
-  const nodeIndex = useMemo(() => {
-    const m = new Map<string, OrgNode>();
-    const walk = (n: OrgNode) => {
-      m.set(n.id, n);
-      n.children.forEach(walk);
-    };
-    orgTree.forEach(walk);
-    return m;
-  }, [orgTree]);
-
   const handleJumpSelect = (sel: JumpSelection) => {
     if (!nodeIndex.has(sel.id)) return;
-    // Replace the expansion set with ONLY the ancestors of the target.
-    // Keeps the target itself collapsed so the snap-to-person view isn't
-    // fighting a large subtree layout.
-    setExpandedIds(new Set(sel.ancestorIds));
+    // Isolate to ONLY the target's ancestor path; target stays collapsed so the
+    // snap-to-person view isn't fighting a large subtree layout.
+    setExpandedIds(isolatePath(sel.ancestorIds));
     setFilters(new Map());
     requestFocus({ kind: 'node', id: sel.id });
   };
 
   const handleSearchSelect = (entry: SearchEntry) => {
-    // Expand every ancestor so the target is visible in the layout
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      entry.ancestorIds.forEach((id) => next.add(id));
-      next.add(entry.id);
-      return next;
-    });
+    // Isolate to ONLY the target's ancestor path — Search now matches Jump:
+    // ancestors expanded, target itself collapsed, other branches cleared.
+    setExpandedIds(isolatePath(entry.ancestorIds));
+    setFilters(new Map());
     // Center tightly on the searched PERSON (was 'subtree', which framed the
     // whole descendant box and left the person off to one side).
     requestFocus({ kind: 'node', id: entry.id });
