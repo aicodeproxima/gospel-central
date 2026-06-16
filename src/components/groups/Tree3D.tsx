@@ -191,7 +191,7 @@ function NodeCardInner({
         center
         zIndexRange={[40, 0]}
         distanceFactor={cardDistanceFactor}
-        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : DESKTOP_CARD_PX, pointerEvents: 'auto' }}
       >
         <div
           data-tree-card
@@ -339,7 +339,7 @@ function ContactLeaf3DInner({
         center
         zIndexRange={[30, 0]}
         distanceFactor={cardDistanceFactor}
-        style={{ width: compact ? 156 : 220, pointerEvents: 'auto' }}
+        style={{ width: compact ? 156 : DESKTOP_CARD_PX, pointerEvents: 'auto' }}
       >
         <button
           type="button"
@@ -708,20 +708,26 @@ function SceneContent({
         return { center: [centerX, cy, 0], distance };
       }
 
-      // Desktop (≥1280) — original framing, plus the dolly-range cap: a huge
-      // subtree (e.g. root clicked while fully expanded) used to compute a
-      // distance past maxDistance(70) and trigger the same animation lock.
+      // Desktop (≥1280): fixed-size cards collide when zoomed out, so cap the
+      // distance at the readable threshold (dolly cap also applies). If the whole
+      // subtree fits readably, frame it; otherwise anchor the EXPANDED node near
+      // the top and let its children cascade below (user pans to drill deeper) —
+      // readable cards beat a zoomed-out overlapping pile.
       const paddedWidth = width + 6; // cards are ~5 units wide
       const paddedHeight = height + 6; // cards extend ~3 units below platforms
       const size = Math.max(paddedWidth, paddedHeight, 10);
-      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
+      const fitDist = Math.max(14, size * 1.6);
+      const readableCap = Math.max(14, window.innerHeight / READABLE_CARD_DIVISOR);
+      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, fitDist, readableCap);
 
-      return {
-        // Shift the look-at point down so the cards (which sit below
-        // platforms) stay in the frame
-        center: [centerX, centerY - 2, 0],
-        distance,
-      };
+      if (distance >= fitDist) {
+        // Whole subtree fits without colliding — center it (cards sit below
+        // platforms, so look slightly down).
+        return { center: [centerX, centerY - 2, 0], distance };
+      }
+      // Too big to fit readably — frame the node + its immediate children: the
+      // expanded node sits near the top of the view, children below it.
+      return { center: [root.x, root.y - ROOT_TOP_BIAS * distance, 0], distance };
     },
     [layout, contacts, compact, canvasSize],
   );
@@ -904,7 +910,12 @@ function SceneContent({
       distance = Math.min(MAX_FOCUS_DIST_COMPACT, Math.max(fit * 1.12, 7));
     } else {
       const size = Math.max(width + 6, height + 6, 10);
-      distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
+      distance = Math.min(
+        MAX_FOCUS_DIST_DESKTOP,
+        Math.max(14, size * 1.6),
+        // readable cap: don't zoom out past where fixed-size cards collide
+        Math.max(14, window.innerHeight / READABLE_CARD_DIVISOR),
+      );
     }
 
     // Anchor the root (topmost node = maxY) near the top of the viewport. The
@@ -1133,6 +1144,21 @@ const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR)
 // and the user pans DOWN to drill in. Tuned live (see groups verification).
 const TOP_BAND_HEIGHT = 20;
 const ROOT_TOP_BIAS = 0.34;
+
+// Desktop cards are a fixed CSS px wide so they stay crisp at any zoom — but that
+// means a far zoom-out COLLIDES them (siblings sit HORIZONTAL_GAP world units
+// apart). READABLE_CARD_DIVISOR is the camera distance beyond which adjacent cards
+// would overlap, as a fraction of the CSS viewport height: at distance d a world
+// unit spans cssH/(2·d·tan(fov/2)) px, so cards keep a gap while
+// HORIZONTAL_GAP·that ≥ card px · MARGIN ⟹ d ≤ cssH / DIVISOR. Past it we stop
+// fitting the whole branch and frame the node + its immediate children instead
+// (the user chose readable cards over a zoomed-out overlapping pile, 2026-06).
+// NOTE: use window.innerHeight (CSS px) — useThree().size.height is DEVICE px
+// (× DPR), which made the cap ~DPR× too loose and let cards still overlap.
+const DESKTOP_CARD_PX = 176; // smaller than the old 220 so the expanded view reads cleaner
+const READABLE_CARD_MARGIN = 1.25; // leave a clear gap; don't let cards merely touch
+const READABLE_CARD_DIVISOR =
+  (READABLE_CARD_MARGIN * 2 * DESKTOP_CARD_PX * Math.tan((55 * Math.PI) / 180 / 2)) / 7;
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so

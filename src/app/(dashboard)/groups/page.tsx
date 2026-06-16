@@ -83,9 +83,6 @@ export default function GroupsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [resetSignal, setResetSignal] = useState(0);
-  // Expand-all bumps this to frame the top tiers — distinct from resetSignal,
-  // which the Reset button uses to fit the whole tree.
-  const [fitTopSignal, setFitTopSignal] = useState(0);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const currentUser = useAuthStore((s) => s.user);
@@ -188,12 +185,13 @@ export default function GroupsPage() {
 
   const handleExpandAll = useCallback(() => {
     setExpandedIds(new Set(allIds));
-    // G: frame the TOP tiers (root → branch leaders) so the user sees the org's
-    // shape and pans DOWN to drill in — NOT a full-tree fit, which on a tall org
-    // strands the camera in the middle member band with the root off-screen.
-    // 80ms lets the just-expanded layout settle so the frame reads final positions.
-    setTimeout(() => setFitTopSignal((n) => n + 1), 80);
-  }, [allIds]);
+    // Frame the primary root's subtree — the same readable, dolly-capped path as
+    // expanding a single branch, so it lands as root + its immediate children
+    // (anchored on the root, no overlap) and the user drills DOWN from there.
+    // (A whole-tree fit strands the camera in the member band / overlaps cards.)
+    const rootId = orgTree[0]?.id;
+    if (rootId) requestFocus({ kind: 'subtree', id: rootId });
+  }, [allIds, orgTree]);
 
   const handleCollapseAll = useCallback(() => {
     setExpandedIds(new Set());
@@ -326,7 +324,6 @@ export default function GroupsPage() {
               externalFocusId={externalFocusId}
               externalFocusMode={externalFocusMode}
               resetSignal={resetSignal}
-              fitTopSignal={fitTopSignal}
               onContactClick={setSelectedContactId}
             />
           </div>
