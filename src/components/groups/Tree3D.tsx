@@ -710,17 +710,38 @@ function SceneContent({
         return { center: [centerX, cy, 0], distance };
       }
 
-      // Desktop (≥1280): just fit the subtree. Cards world-scale (distanceFactor),
-      // so siblings can't collide at any zoom — no readability cap needed.
-      const paddedWidth = width + 6; // cards are ~5 units wide
-      const paddedHeight = height + 6; // cards extend ~3 units below platforms
-      const size = Math.max(paddedWidth, paddedHeight, 10);
-      const distance = Math.min(MAX_FOCUS_DIST_DESKTOP, Math.max(14, size * 1.6));
-      return {
-        // Look slightly down so the cards (which sit below platforms) stay framed.
-        center: [centerX, centerY - 2, 0],
-        distance,
-      };
+      // Desktop (≥1280): aspect-aware STRICT fit of the visible subtree, with the
+      // focused node anchored just below the floating toolbar (descendants cascade
+      // down). Reuses the fov math from computeFullTreeFocus (1.042 = 2·tan(fov/2));
+      // cards world-scale so they never collide, and we pad the node-center bbox by
+      // real card extents so no EDGE card clips. Fills whichever dimension binds
+      // (height for tall/narrow branches, width for wide ones) edge-to-edge for max
+      // card size. Constants are LIVE-TUNABLE against the user's screenshots.
+      const aspect = window.innerWidth / window.innerHeight;
+      const FOCUS_PAD_TOP = AVATAR_WORLD_TOP; // avatar sticks up above the node
+      const FOCUS_PAD_BOTTOM = CARD_WORLD_DROP; // card hangs below the deepest node
+      const FOCUS_PAD_SIDE = DESKTOP_CARD_RENDER_WIDTH; // one rendered card width (½ each edge)
+      const TOOLBAR_PX = 76; // floating toolbar height in CSS px — PIXEL-based so the
+      // gap under it stays constant at any zoom (a world-unit pad balloons when close).
+      const FOCUS_FIT_SAFETY = 1.06; // hair of no-clip margin
+      const FOCUS_DIST_FLOOR = 8; // a lone card shouldn't fill the whole screen
+      const toolbarFrac = Math.min(0.25, TOOLBAR_PX / window.innerHeight);
+
+      // Fit the padded subtree into the viewport MINUS the toolbar strip (vertically)
+      // and the full width; the binding dimension fills edge-to-edge.
+      const paddedWidth = width + FOCUS_PAD_SIDE;
+      const paddedHeight = height + FOCUS_PAD_TOP + FOCUS_PAD_BOTTOM;
+      const distForHeight = paddedHeight / ((1 - toolbarFrac) * 1.042);
+      const distForWidth = paddedWidth / (1.042 * aspect);
+      const distance = Math.min(
+        MAX_FOCUS_DIST_DESKTOP,
+        Math.max(FOCUS_DIST_FLOOR, Math.max(distForHeight, distForWidth) * FOCUS_FIT_SAFETY),
+      );
+      // Anchor the focused node (bbox top = maxY, since descendants only go lower) so
+      // its top sits ~TOOLBAR_PX below the viewport top — pixel-based, consistent at
+      // any zoom: nodeTop is toolbarFrac of the visible height below the frame's top edge.
+      const focusCenterY = maxY + FOCUS_PAD_TOP - distance * 1.042 * (0.5 - toolbarFrac);
+      return { center: [centerX, focusCenterY, 0], distance };
     },
     [layout, contacts, compact, canvasSize],
   );
@@ -1142,6 +1163,10 @@ const ROOT_TOP_BIAS = 0.34;
 // fought overlap by limiting zoom-out — scaling removes the problem at the root).
 const DESKTOP_CARD_PX = 176;
 const DESKTOP_CARD_WORLD_WIDTH = 5.4; // tuned live so the default card ≈ today's ~176px (still < HORIZONTAL_GAP 7 → never overlaps)
+// The card's RENDERED world width (the distanceFactor param above is 5.4, but the
+// card renders ~2.6 wu wide per live measurement). Used only to pad the focus bbox
+// so side cards don't clip when a branch fills the viewport edge-to-edge. LIVE-TUNABLE.
+const DESKTOP_CARD_RENDER_WIDTH = 2.6;
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
