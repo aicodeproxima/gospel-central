@@ -44,7 +44,7 @@ export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthV
   // Event chips truncate (single line) and we show fewer of them on phones.
   // Desktop ≥xl is byte-identical (min-h-[100px], p-1.5, h-7 circle, 3 chips).
   return (
-    <div data-calendar-surface="grid" className="rounded-lg border border-border bg-card overflow-hidden">
+    <div data-calendar-surface="grid" className="rounded-lg border border-border bg-card overflow-hidden md:overflow-auto md:overscroll-contain md:flex-1 md:min-h-[360px]">
       {/* Day headers — abbreviate to a single letter on the narrowest phones so
            the 7 labels never wrap or clip. */}
       <div className="grid grid-cols-7 border-b border-border">

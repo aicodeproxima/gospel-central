@@ -558,7 +558,7 @@ export default function CalendarPage() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:flex md:h-full md:min-h-0 md:flex-col md:gap-4 md:space-y-0">
       {/* In-page control row — ONLY <xl. The desktop toolbar (≥xl) keeps search
            + export in the Topbar; below xl that single 64px row can't hold them
            without overflow, so they stack full-width here. Stays inside the
@@ -609,7 +609,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar — swipe left/right to navigate periods */}
-      <div ref={swipeContainerRef} className="touch-pan-y">
+      <div ref={swipeContainerRef} className="touch-pan-y md:flex md:min-h-0 md:flex-1 md:flex-col">
         {loading ? (
           <div className="flex h-96 items-center justify-center">
             <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent" />
@@ -635,7 +635,7 @@ export default function CalendarPage() {
         ) : (
           <>
             {/* ≥md: the multi-room time grid (desktop unchanged ≥1280). */}
-            <div className="hidden md:block">
+            <div className="hidden md:flex md:min-h-0 md:flex-1 md:flex-col">
               {view === 'week' && (
                 <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
               )}

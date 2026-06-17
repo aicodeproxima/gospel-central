@@ -66,7 +66,7 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
   return (
     <div
       data-calendar-surface="grid"
-      className="max-w-full touch-manipulation overflow-auto overscroll-contain rounded-lg border border-border bg-card"
+      className="max-w-full touch-manipulation overflow-auto overscroll-contain rounded-lg border border-border bg-card md:flex-1 md:min-h-[360px]"
     >
       <div className="min-w-[800px] max-xl:min-w-0">
         {/* Header: Day columns. Grid template is class-driven (days.length is
