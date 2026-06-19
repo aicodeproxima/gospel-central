@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import { MSWProvider } from './MSWProvider';
@@ -32,9 +33,15 @@ function ThemeApplier() {
  */
 function BackgroundApplier() {
   const backgroundStyle = usePreferencesStore((s) => s.backgroundStyle);
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
-    applyBackgroundToDOM(backgroundStyle);
-  }, [backgroundStyle]);
+    // Honor prefers-reduced-motion: drop the animated-background DOM treatment
+    // entirely. Otherwise html[data-bg] would apply the dark-glass / transparent
+    // -body styling that expects a canvas behind it — but ThemeEffects renders
+    // no canvas in reduced-motion, leaving an empty void. Stripping data-bg
+    // reverts cleanly to the static palette.
+    applyBackgroundToDOM(reduceMotion ? 'none' : backgroundStyle);
+  }, [backgroundStyle, reduceMotion]);
   return null;
 }
 
@@ -46,6 +53,13 @@ function BackgroundApplier() {
 function ThemeEffects() {
   const colorTheme = usePreferencesStore((s) => s.colorTheme);
   const backgroundStyle = usePreferencesStore((s) => s.backgroundStyle);
+  const reduceMotion = useReducedMotion();
+
+  // prefers-reduced-motion: render NO animated/canvas layer (WebGL background,
+  // themed canvas, or cursor trail). The static palette (data-theme) still
+  // applies — only the continuous motion is dropped. This also saves the GPU/
+  // battery cost of the full-screen render loop for users who opt out.
+  if (reduceMotion) return null;
 
   // An explicitly chosen animated background takes precedence over the theme's
   // own canvas (so the two never stack) and renders on EVERY page, including
