@@ -1225,7 +1225,60 @@ const CARD_WORLD_WIDTH = 4.8;
 const AVATAR_WORLD_TOP = 2.1;
 const CARD_WORLD_DROP = 4.0;
 
+// Latches once the tree has painted at least once THIS page-load. Module-level
+// so it survives Tree3D unmount/remount on the 3D⇄List view toggle (the page
+// renders Tree3D behind a ternary, so switching views fully remounts it). This
+// lets the cold-load overlay show only on the genuine first init, not on every
+// toggle-back of an already-warmed session. Reset only by a full page reload —
+// mirrors WebGLGuard's module-level cachedWebGL probe.
+let treePaintedThisSession = false;
+
+/**
+ * Fires `onReady` once the scene has actually painted — the 2nd rendered frame,
+ * so real pixels are on screen rather than the renderer's first (often
+ * pre-content) tick. Lives inside the Canvas so it shares the r3f render loop;
+ * under frameloop="demand" it advances on the invalidate()s that SceneContent's
+ * startup effect and CameraRig already issue, so it lands right when the tree
+ * first paints. Used to drop the cold-load "Loading…" overlay.
+ */
+function FirstFrameSignal({ onReady }: { onReady: () => void }) {
+  const fired = useRef(false);
+  const frames = useRef(0);
+  useFrame(() => {
+    if (fired.current) return;
+    frames.current += 1;
+    if (frames.current >= 2) {
+      fired.current = true;
+      onReady();
+    }
+  });
+  return null;
+}
+
 export function Tree3D(props: Tree3DProps) {
+  // Cold-load polish: the heavy WebGL bundle + the two GL contexts (this tree +
+  // the animated background) can leave the canvas blank for several seconds on a
+  // cold load while everything initialises. Show a "Loading…" overlay until the
+  // scene paints its first real frame so the gap reads as loading, not broken.
+  // `sceneReady` latches true and never resets across expand/collapse (those are
+  // prop changes, not remounts).
+  const [sceneReady, setSceneReady] = useState(() => treePaintedThisSession);
+  const handleReady = useCallback(() => {
+    treePaintedThisSession = true;
+    setSceneReady(true);
+  }, []);
+
+  // Safety net: if frames somehow never arrive (a GL path that mounts the Canvas
+  // but never paints), drop the overlay anyway so it can't strand the user. The
+  // WebGL-OFF case needs no special handling here — the overlay is rendered
+  // INSIDE WebGLGuard's children, so the guard swaps in its own fallback instead
+  // of leaving a spinner stuck over an empty canvas.
+  useEffect(() => {
+    if (sceneReady) return;
+    const t = setTimeout(() => setSceneReady(true), 10000);
+    return () => clearTimeout(t);
+  }, [sceneReady]);
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       {/* WebGLGuard — iOS Lockdown Mode (and some webviews) disables WebGL,
@@ -1264,7 +1317,17 @@ export function Tree3D(props: Tree3DProps) {
           <Suspense fallback={null}>
             <SceneContent {...props} />
           </Suspense>
+          <FirstFrameSignal onReady={handleReady} />
         </Canvas>
+        {!sceneReady && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/40 backdrop-blur-sm">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-muted-foreground">Loading organization…</p>
+          </div>
+        )}
         {/* Hint overlay */}
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-3 py-1.5 text-[10px] text-white/80 backdrop-blur">
           Drag to pan • Scroll or pinch to zoom

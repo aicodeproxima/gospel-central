@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useReducedMotion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
@@ -71,6 +71,7 @@ export default function GroupsPage() {
   // two stacked canvases competing for the same GPU/CPU time.
   const colorTheme = usePreferencesStore((s) => s.colorTheme);
   const backgroundStyle = usePreferencesStore((s) => s.backgroundStyle);
+  const reduceMotion = useReducedMotion();
   const themeHasGlobalBg =
     ANIMATED_DARK_THEMES.has(colorTheme) || ANIMATED_LIGHT_THEMES.has(colorTheme);
   // Skip the page-local starfield whenever a global backdrop already paints
@@ -304,7 +305,7 @@ export default function GroupsPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" />
       </div>
     );
   }
@@ -332,7 +333,11 @@ export default function GroupsPage() {
           active because the theme already provides a global instance. */}
       {renderPageStarfield && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none bg-[#04071a]">
-          <StarfieldBackground fixed={false} />
+          {/* prefers-reduced-motion: keep the static dark backdrop but drop the
+              animated starfield (consistent with the global suppression in
+              Providers — and it spares reduced-motion users the 2nd WebGL
+              context on this page). */}
+          {!reduceMotion && <StarfieldBackground fixed={false} />}
         </div>
       )}
 
