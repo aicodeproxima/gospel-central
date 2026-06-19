@@ -733,8 +733,11 @@ function SceneContent({
       const FOCUS_PAD_TOP = AVATAR_WORLD_TOP; // avatar sticks up above the node
       const FOCUS_PAD_BOTTOM = CARD_WORLD_DROP; // card hangs below the deepest node
       const FOCUS_PAD_SIDE = DESKTOP_CARD_RENDER_WIDTH; // one rendered card width (½ each edge)
-      const TOOLBAR_PX = 76; // floating toolbar height in CSS px — PIXEL-based so the
-      // gap under it stays constant at any zoom (a world-unit pad balloons when close).
+      const TOOLBAR_PX = 140; // floating toolbar + tab-pill row height in CSS px — PIXEL-
+      // based so the gap under it stays constant at any zoom (a world-unit pad balloons
+      // when close). Raised from 76: at 76 the focused node's top (the avatar) landed
+      // behind the search field; the real top controls reach ~150px, so the node's top
+      // is now anchored just below them. Tunable.
       const FOCUS_FIT_SAFETY = 1.06; // hair of no-clip margin
       const FOCUS_DIST_FLOOR = 8; // a lone card shouldn't fill the whole screen
       const toolbarFrac = Math.min(0.25, TOOLBAR_PX / window.innerHeight);
