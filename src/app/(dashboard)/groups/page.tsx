@@ -81,6 +81,7 @@ export default function GroupsPage() {
   const [metrics, setMetrics] = useState<TeacherMetrics[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<Map<string, ContactFilter>>(new Map());
   const [viewMode, setViewMode] = useState<'3d' | 'list'>('3d');
@@ -150,11 +151,15 @@ export default function GroupsPage() {
     return () => clearTimeout(t);
   }, [externalFocusId, viewMode]);
 
-  useEffect(() => {
+  const loadTree = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
+      // Only the org tree is load-critical. Metrics/contacts/users degrade to
+      // empty so a transient failure in one of them never blanks the whole tree.
       groupsApi.getOrgTree(),
-      groupsApi.getTeacherMetrics(),
-      contactsApi.getContacts(),
+      groupsApi.getTeacherMetrics().catch(() => [] as TeacherMetrics[]),
+      contactsApi.getContacts().catch(() => [] as Contact[]),
       usersApi.getAll().catch(() => [] as User[]),
     ]).then(([tree, met, con, usr]) => {
       setOrgTree(tree);
@@ -163,6 +168,11 @@ export default function GroupsPage() {
       setUsers(usr);
       // Default: fully collapsed tree, snapped onto the top Developer (Michael).
       setExpandedIds(new Set());
+    }).catch((e) => {
+      // The org-tree fetch itself failed → show an error + Retry instead of a
+      // silent blank canvas (which reads as "the app is broken").
+      console.error('Failed to load the org tree', e);
+      setLoadError(true);
     }).finally(() => {
       setLoading(false);
       // After the scene has had a moment to lay itself out, focus Michael
@@ -173,6 +183,10 @@ export default function GroupsPage() {
       );
     });
   }, []);
+
+  useEffect(() => {
+    loadTree();
+  }, [loadTree]);
 
   const allIds = useMemo(() => collectAllIds(orgTree, contacts), [orgTree, contacts]);
   const allExpanded = expandedIds.size === allIds.length && allIds.length > 0;
@@ -291,6 +305,21 @@ export default function GroupsPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-full min-h-64 w-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load the organization tree.</p>
+        <button
+          type="button"
+          onClick={loadTree}
+          className="touch-manipulation rounded-md border border-border bg-background px-4 py-2 text-sm hover:bg-muted"
+        >
+          Retry
+        </button>
       </div>
     );
   }

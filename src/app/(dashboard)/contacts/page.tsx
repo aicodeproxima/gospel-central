@@ -86,6 +86,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const scope = useMemo(
     () => buildVisibilityScope(viewer, users),
@@ -154,15 +155,24 @@ export default function ContactsPage() {
   const pathname = usePathname();
 
   // Load data
-  useEffect(() => {
+  const loadContacts = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       contactsApi.getContacts(),
       usersApi.getAll().catch(() => [] as User[]),
     ]).then(([con, usr]) => {
       setContacts(con);
       setUsers(usr);
+    }).catch((e) => {
+      console.error('Failed to load contacts', e);
+      setLoadError(true);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
 
   // ── Deep-link query params ─────────────────────────────────────
   // Read once (after data loads so ?id/?edit can resolve): ?stage=, ?type=,
@@ -385,6 +395,15 @@ export default function ContactsPage() {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load contacts.</p>
+        <Button variant="outline" size="sm" onClick={loadContacts}>Retry</Button>
       </div>
     );
   }

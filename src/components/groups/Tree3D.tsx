@@ -578,7 +578,7 @@ function SceneContent({
   // Drawable canvas size — use THIS (not window) for aspect-aware framing: on
   // mobile the canvas is offset below the toolbar, so it's shorter/narrower
   // than the window and the camera must fit that actual area.
-  const { size: canvasSize } = useThree();
+  const { size: canvasSize, invalidate } = useThree();
   // Per-viewport distanceFactor — now BOTH breakpoints: cards world-scale like the
   // avatars (a card stays a fixed world width at every zoom, so siblings never
   // collide). Compact holds ~CARD_WORLD_WIDTH; desktop holds DESKTOP_CARD_WORLD_WIDTH.
@@ -645,6 +645,18 @@ function SceneContent({
     layout.contacts.forEach((c) => m.set(c.id, [c.x, c.y, 0]));
     return m;
   }, [layout]);
+
+  // frameloop="demand" only paints on invalidate()/controls-change. The startup
+  // focus chain can land its single kicked frame before the geometry is laid
+  // out, leaving the canvas black until the first user gesture (the cold-load
+  // "blank tree"). Kick an unconditional paint whenever the laid-out scene
+  // changes (initial data load, expand, collapse) — plus one on the next frame
+  // so late-committed drei <Html> cards/geometry are painted too.
+  useEffect(() => {
+    invalidate();
+    const r = requestAnimationFrame(() => invalidate());
+    return () => cancelAnimationFrame(r);
+  }, [layout, invalidate]);
 
   /**
    * Build a FocusTarget that frames a node and all of its descendants that
