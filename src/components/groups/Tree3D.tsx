@@ -389,63 +389,6 @@ function ContactLeaf3DInner({
 const ContactLeaf3D = memo(ContactLeaf3DInner);
 
 // ----------------------------------------------------------------------------
-// CardLODController — publishes the set of node/contact ids whose DOM card
-// should render, based on camera frustum + distance. Throttled (~8Hz) and only
-// fires when the set changes, so the heavy drei <Html> overlays mount ONLY for
-// cards that are on-screen AND close enough to read. This is what keeps a
-// fully-expanded tree smooth: zoomed out, the far cards aren't DOM-synced every
-// frame (the ~364-overlay main-thread cliff). 3D avatars/platforms/lines stay.
-// To revert: stop rendering this; showCard props default true (= render all).
-// ----------------------------------------------------------------------------
-function CardLODController({
-  positions,
-  lodDistance,
-  onChange,
-}: {
-  positions: Map<string, [number, number, number]>;
-  lodDistance: number;
-  onChange: (visible: Set<string>) => void;
-}) {
-  const { camera } = useThree();
-  const acc = useRef(0);
-  const v = useRef(new THREE.Vector3());
-  const lastKey = useRef('__init__');
-  const compute = useCallback(() => {
-    const next = new Set<string>();
-    positions.forEach((p, id) => {
-      const pt = v.current.set(p[0], p[1], p[2]);
-      if (camera.position.distanceTo(pt) > lodDistance) return; // too far → tiny → cull
-      pt.project(camera);
-      if (pt.z > 1) return; // behind camera
-      if (Math.abs(pt.x) > 1.15 || Math.abs(pt.y) > 1.15) return; // off-screen (+margin)
-      next.add(id);
-    });
-    let key = next.size + ':';
-    next.forEach((id) => {
-      key += id + ',';
-    });
-    if (key !== lastKey.current) {
-      lastKey.current = key;
-      onChange(next);
-    }
-  }, [positions, lodDistance, camera, onChange]);
-  // Recompute immediately when the layout/positions change (expand/collapse/load),
-  // even while the demand render-loop is idle.
-  useEffect(() => {
-    compute();
-  }, [compute]);
-  // And keep it fresh while anything animates (drag/drift/zoom/fly-to) — throttled
-  // so the visibility scan is cheap vs the per-frame DOM sync it saves.
-  useFrame((_, dt) => {
-    acc.current += dt;
-    if (acc.current < 0.12) return;
-    acc.current = 0;
-    compute();
-  });
-  return null;
-}
-
-// ----------------------------------------------------------------------------
 // CameraRig — smoothly flies the camera + OrbitControls target to a focus point
 // ----------------------------------------------------------------------------
 export interface FocusTarget {
@@ -614,9 +557,6 @@ function SceneContent({
 }: Tree3DProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
-  // LOD: ids of cards worth rendering as DOM right now (null = not yet computed
-  // → render all, the original behavior). Maintained by <CardLODController/>.
-  const [visibleCards, setVisibleCards] = useState<Set<string> | null>(null);
   // <1280px: compact cards + readability-capped framing so framed siblings
   // don't overlap on a phone/tablet. ≥1280 keeps full-size cards + the
   // original framing. Client-only (the Canvas is dynamically ssr:false).
@@ -1152,7 +1092,6 @@ function SceneContent({
             onFocusTight={handleFocusTightById[ln.id]}
             compact={compact}
             cardDistanceFactor={cardDistanceFactor}
-            showCard={!visibleCards || visibleCards.has(ln.id)}
           />
         );
       })}
@@ -1168,7 +1107,6 @@ function SceneContent({
           onFocus={handleContactFocusById[lc.id]}
           compact={compact}
           cardDistanceFactor={cardDistanceFactor}
-          showCard={!visibleCards || visibleCards.has(lc.id)}
         />
       ))}
 
@@ -1208,16 +1146,6 @@ function SceneContent({
 
       {/* Camera rig — animates toward any focused node */}
       <CameraRig focus={focus} controlsRef={controlsRef} />
-
-      {/* LOD — cull far/off-screen DOM cards so a fully-expanded tree stays
-          smooth. INTENDED behavior (confirmed w/ product 2026-06-18): name-cards
-          hide at overview / zoomed-out distance (pan in to read); the 3D avatars,
-          platforms and connector lines stay visible at all zooms. */}
-      <CardLODController
-        positions={nodePositions}
-        lodDistance={(compact ? MAX_DIST_COMPACT : MAX_DIST_DESKTOP) * 0.62}
-        onChange={setVisibleCards}
-      />
     </>
   );
 }
