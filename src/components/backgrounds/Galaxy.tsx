@@ -328,7 +328,7 @@ export function Galaxy({
         ctn.removeEventListener('mousemove', handleMouseMove);
         ctn.removeEventListener('mouseleave', handleMouseLeave);
       }
-      ctn.removeChild(gl.canvas);
+      if (gl.canvas.parentElement === ctn) ctn.removeChild(gl.canvas);
       (gl.getExtension('WEBGL_lose_context') as WEBGL_lose_context | null)?.loseContext();
     };
   }, [

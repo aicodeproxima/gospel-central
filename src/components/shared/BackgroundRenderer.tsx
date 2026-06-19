@@ -9,6 +9,7 @@ import {
 import type { BackgroundId } from '@/lib/background/schemas';
 import { buildBackgroundProps } from '@/lib/background/props';
 import { useThemeColors } from './useThemeColors';
+import { WebGLGuard } from './WebGLGuard';
 
 // ssr:false — these are WebGL components and must never run on the server.
 const LiquidChrome = dynamic(() => import('@/components/backgrounds/LiquidChrome'), { ssr: false });
@@ -97,9 +98,16 @@ export function BackgroundRenderer({
   const Comp = COMPONENTS[id];
   if (!Comp) return null;
 
-  // Key by style only so a palette switch flows in via the components' own prop
-  // effects (no remount flicker); each component re-tints from its color props.
-  const inner = <Comp key={id} {...props} />;
+  // Decorative layer wrapped in WebGLGuard: on WebGL-off engines (iOS Lockdown
+  // Mode / locked-down webviews) or a canvas crash, render nothing instead of
+  // throwing and taking the whole page down. Keyed by style so switching resets
+  // the boundary + remounts the component (re-tint flows via the component's own
+  // prop effects, no flicker).
+  const inner = (
+    <WebGLGuard key={id} fallback={null}>
+      <Comp {...props} />
+    </WebGLGuard>
+  );
 
   if (!fixed) return inner;
 

@@ -1209,7 +1209,10 @@ function SceneContent({
       {/* Camera rig — animates toward any focused node */}
       <CameraRig focus={focus} controlsRef={controlsRef} />
 
-      {/* LOD — cull far/off-screen DOM cards so a fully-expanded tree stays smooth. */}
+      {/* LOD — cull far/off-screen DOM cards so a fully-expanded tree stays
+          smooth. INTENDED behavior (confirmed w/ product 2026-06-18): name-cards
+          hide at overview / zoomed-out distance (pan in to read); the 3D avatars,
+          platforms and connector lines stay visible at all zooms. */}
       <CardLODController
         positions={nodePositions}
         lodDistance={(compact ? MAX_DIST_COMPACT : MAX_DIST_DESKTOP) * 0.62}

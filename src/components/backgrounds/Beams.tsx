@@ -79,7 +79,7 @@ function extendMaterial(
 }
 
 const CanvasWrapper = ({ children }: { children: ReactNode }) => (
-  <Canvas dpr={[1, 2]} frameloop="always" style={{ width: '100%', height: '100%' }}>
+  <Canvas dpr={[1, 1.5]} frameloop="always" style={{ width: '100%', height: '100%' }}>
     {children}
   </Canvas>
 );

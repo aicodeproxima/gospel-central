@@ -259,7 +259,7 @@ const PrismaticBurst = ({
     const container = containerRef.current;
     if (!container) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const renderer = new Renderer({
       dpr,
       alpha: false,
@@ -399,6 +399,11 @@ const PrismaticBurst = ({
       } catch {
         console.warn('Canvas already removed');
       }
+      // Release the GL context. Without this, repeatedly switching this
+      // background on/off (or the customizer preview remounting) accumulates
+      // orphaned contexts toward the browser cap (~16) and can evict the Groups
+      // 3D tree's context (blanking it). Mirrors the other 5 backgrounds.
+      (gl.getExtension('WEBGL_lose_context') as WEBGL_lose_context | null)?.loseContext();
       // ogl's Mesh (Transform subclass) has no `remove()` method, but the
       // original guards defensively with optional chaining. `Program` and
       // `Geometry` (Triangle) both do declare `remove()`. This precise
