@@ -26,6 +26,27 @@ export type Language = 'en' | 'es';
 export type CalendarView = 'day' | 'week' | 'month';
 export type TimeFormat = '12h' | '24h';
 
+/**
+ * Animated WebGL backgrounds (React-Bits). This is a SEPARATE axis from
+ * `colorTheme`: the palette (colorTheme) owns the accent/surfaces, while
+ * `backgroundStyle` owns which animation paints behind everything. When set,
+ * the background reads the active palette's CSS tokens at runtime so it is
+ * always tinted to the current theme. `'none'` = no animated background
+ * (the palette behaves exactly as before).
+ */
+export type BackgroundStyle =
+  | 'none'
+  | 'liquid-chrome'
+  | 'beams'
+  | 'galaxy'
+  | 'floating-lines'
+  | 'light-pillar'
+  | 'prismatic-burst';
+
+/** Per-background user overrides — only keys the user explicitly changed are
+ *  stored; everything else falls back to the theme-derived default. */
+export type BackgroundConfig = Record<string, Record<string, unknown>>;
+
 export interface NotificationPreferences {
   bookingConfirmations: boolean;
   bookingCancellations: boolean;
@@ -40,6 +61,8 @@ interface PreferencesState {
   timeFormat: TimeFormat;
   notifications: NotificationPreferences;
   profilePhotoBase64: string | null;
+  backgroundStyle: BackgroundStyle;
+  backgroundConfig: BackgroundConfig;
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -47,6 +70,11 @@ interface PreferencesState {
   setTimeFormat: (fmt: TimeFormat) => void;
   setNotification: (key: keyof NotificationPreferences, value: boolean) => void;
   setProfilePhoto: (base64: string | null) => void;
+  setBackgroundStyle: (style: BackgroundStyle) => void;
+  /** Merge a partial override map for a background; pass {} (or call
+   *  resetBackgroundConfig) to clear back to theme-derived colors. */
+  setBackgroundConfig: (style: BackgroundStyle, values: Record<string, unknown>) => void;
+  resetBackgroundConfig: (style: BackgroundStyle) => void;
 }
 
 /**
@@ -60,6 +88,23 @@ export function applyThemeToDOM(theme: ColorTheme) {
     html.removeAttribute('data-theme');
   } else {
     html.setAttribute('data-theme', theme);
+  }
+}
+
+/**
+ * Applies the animated background to the `<html>` element via a `data-bg`
+ * attribute. The `html[data-bg]` CSS in globals.css then gives the app the
+ * same dark-glass / transparent-body / content-lift treatment the animated
+ * themes use, so the fixed WebGL canvas shows through behind the UI — works
+ * on top of ANY palette. `'none'` removes the attribute (no treatment).
+ */
+export function applyBackgroundToDOM(style: BackgroundStyle) {
+  if (typeof document === 'undefined') return;
+  const html = document.documentElement;
+  if (style === 'none') {
+    html.removeAttribute('data-bg');
+  } else {
+    html.setAttribute('data-bg', style);
   }
 }
 
@@ -77,6 +122,8 @@ export const usePreferencesStore = create<PreferencesState>()(
         weeklySummary: false,
       },
       profilePhotoBase64: null,
+      backgroundStyle: 'none',
+      backgroundConfig: {},
 
       setColorTheme: (theme) => {
         applyThemeToDOM(theme);
@@ -88,10 +135,36 @@ export const usePreferencesStore = create<PreferencesState>()(
       setNotification: (key, value) =>
         set({ notifications: { ...get().notifications, [key]: value } }),
       setProfilePhoto: (base64) => set({ profilePhotoBase64: base64 }),
+      setBackgroundStyle: (style) => {
+        applyBackgroundToDOM(style);
+        set({ backgroundStyle: style });
+      },
+      setBackgroundConfig: (style, values) =>
+        set({
+          backgroundConfig: {
+            ...get().backgroundConfig,
+            [style]: { ...(get().backgroundConfig[style] ?? {}), ...values },
+          },
+        }),
+      resetBackgroundConfig: (style) => {
+        const next = { ...get().backgroundConfig };
+        delete next[style];
+        set({ backgroundConfig: next });
+      },
     }),
     {
       name: 'diamond-preferences',
-      version: 1,
+      version: 2,
+      // v1 had no background fields. Add them so existing users keep all their
+      // other prefs (theme/language/view/timeFormat/notifications/photo) and
+      // simply default to no animated background.
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<PreferencesState>;
+        if (version < 2) {
+          return { ...p, backgroundStyle: 'none', backgroundConfig: {} } as PreferencesState;
+        }
+        return p as PreferencesState;
+      },
     },
   ),
 );

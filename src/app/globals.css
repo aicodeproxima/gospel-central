@@ -697,6 +697,106 @@ html[data-theme="starfield"] .text-muted-foreground {
   color: rgb(190 180 220) !important;
 }
 
+/* ============================================================
+   ORTHOGONAL ANIMATED BACKGROUND LAYER — html[data-bg]
+   Set by applyBackgroundToDOM() when backgroundStyle !== 'none'
+   (a separate axis from the color palette). Mirrors the animated-
+   theme treatment — transparent body, app content lifted above the
+   fixed z-0 WebGL canvas, dark-glass surfaces, light text — so ANY
+   palette can wear a React-Bits background. The palette's own
+   --primary/--ring (from data-theme) are deliberately NOT touched,
+   so the background + accents stay tinted to the active theme.
+   Mode-fixed dark, exactly like the 11 animated themes.
+   ============================================================ */
+
+/* Forced-dark foundational vars. --primary/--ring/--sidebar-primary are
+   intentionally omitted so the active palette keeps tinting accents + the
+   background. (Same values as the shared animated-theme block.) */
+:root[data-bg], .dark[data-bg] {
+  --background: oklch(0.1 0.02 270);
+  --foreground: oklch(0.96 0.01 270);
+  --card: oklch(0.15 0.03 270 / 0.4);
+  --card-foreground: oklch(0.98 0.01 270);
+  --popover: oklch(0.12 0.03 270 / 0.92);
+  --popover-foreground: oklch(0.98 0.01 270);
+  --secondary: oklch(0.25 0.05 270 / 0.35);
+  --secondary-foreground: oklch(0.98 0.01 270);
+  --muted: oklch(0.2 0.03 270 / 0.3);
+  --muted-foreground: oklch(0.78 0.03 270);
+  --accent: oklch(0.4 0.1 280 / 0.35);
+  --accent-foreground: oklch(0.98 0.01 270);
+  --border: oklch(0.75 0.12 270 / 0.22);
+  --input: oklch(0.2 0.04 270 / 0.4);
+  --sidebar: oklch(0.1 0.03 270 / 0.55);
+  --sidebar-foreground: oklch(0.96 0.01 270);
+  --sidebar-border: oklch(0.75 0.12 270 / 0.2);
+  --sidebar-accent: oklch(0.35 0.08 280 / 0.35);
+  --sidebar-accent-foreground: oklch(0.98 0.01 270);
+}
+
+/* The "default" palette (no data-theme) has only a neutral grey --primary,
+   which would make a themed background monochrome. Give it a pleasant accent
+   when a background is on. The :not([data-theme]) scoping means this NEVER
+   overrides a real palette's --primary. */
+html[data-bg]:not([data-theme]) {
+  --primary: oklch(0.72 0.18 285);
+  --primary-foreground: oklch(0.98 0 0);
+  --ring: oklch(0.72 0.18 285);
+  --sidebar-primary: oklch(0.72 0.18 285);
+}
+
+html[data-bg] {
+  color: rgb(245 245 255);
+  background-color: #06040f !important; /* deep fallback before the canvas paints */
+}
+html[data-bg] body {
+  background-color: transparent !important;
+  /* The marble palette paints an opaque cream/gold background-IMAGE on body;
+     clear it (and any palette ::before texture) so the bg layer fully owns the
+     backdrop and a transparent animation doesn't reveal marble underneath. */
+  background-image: none !important;
+  color: rgb(245 245 255);
+}
+html[data-bg] body::before {
+  display: none !important;
+}
+
+/* Lift app content above the fixed z-0 canvas; exclude portal/dialog roots so
+   their z-50 overlays aren't trapped (same pattern + reasoning as the animated
+   themes above). */
+html[data-bg] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]) {
+  position: relative;
+  z-index: 1;
+}
+html[data-bg] body > [data-slot*="portal"] {
+  position: static !important;
+  z-index: auto !important;
+}
+
+/* Frosted-glass elevated surfaces so content stays readable over the animation. */
+html[data-bg] [data-slot="card"],
+html[data-bg] [data-slot="sidebar-container"],
+html[data-bg] [class*="bg-sidebar"],
+html[data-bg] [data-slot="alert"] {
+  background: rgba(12, 10, 24, 0.5) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+html[data-bg] [data-slot="dialog-content"],
+html[data-bg] [data-slot="popover-content"],
+html[data-bg] [data-slot="select-content"],
+html[data-bg] [data-slot="dropdown-menu-content"] {
+  background: rgba(10, 8, 22, 0.9) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+html[data-bg] input,
+html[data-bg] textarea,
+html[data-bg] [data-slot="select-trigger"] {
+  background: rgba(10, 8, 22, 0.5) !important;
+  color: rgb(240 240 255) !important;
+}
+
 /* Gold star trail overlay — fades out + drifts upward */
 .gold-star-trail {
   position: fixed;

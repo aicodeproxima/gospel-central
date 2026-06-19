@@ -70,9 +70,13 @@ export default function GroupsPage() {
   // fullscreen canvas globally — skip the page-local starfield to avoid
   // two stacked canvases competing for the same GPU/CPU time.
   const colorTheme = usePreferencesStore((s) => s.colorTheme);
+  const backgroundStyle = usePreferencesStore((s) => s.backgroundStyle);
   const themeHasGlobalBg =
     ANIMATED_DARK_THEMES.has(colorTheme) || ANIMATED_LIGHT_THEMES.has(colorTheme);
-  const renderPageStarfield = !themeHasGlobalBg;
+  // Skip the page-local starfield whenever a global backdrop already paints
+  // behind the tree — an animated colorTheme OR a chosen animated background
+  // (which now renders on this page too).
+  const renderPageStarfield = !themeHasGlobalBg && backgroundStyle === 'none';
   const [orgTree, setOrgTree] = useState<OrgNode[]>([]);
   const [metrics, setMetrics] = useState<TeacherMetrics[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);

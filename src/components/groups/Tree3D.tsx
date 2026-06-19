@@ -138,6 +138,9 @@ interface NodeCardProps {
   compact: boolean;
   /** Per-viewport world-scaling factor (undefined on desktop = fixed-size card). */
   cardDistanceFactor?: number;
+  /** LOD gate: when false the DOM name-card isn't rendered (off-screen / zoomed
+   *  out far) so its drei <Html> doesn't re-sync every frame. 3D mesh stays. */
+  showCard?: boolean;
 }
 
 function NodeCardInner({
@@ -155,6 +158,7 @@ function NodeCardInner({
   onFocusTight,
   compact,
   cardDistanceFactor,
+  showCard = true,
 }: NodeCardProps) {
   const { tRole, tStage } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
@@ -184,8 +188,10 @@ function NodeCardInner({
         />
       </Suspense>
       {/* HTML overlay BELOW the platform — screen-space so text stays crisp
-          at any zoom level. Drei's non-transform Html anchors at the 3D
-          point but renders as a regular DOM element. */}
+          at any zoom level. Drei's non-transform Html anchors at the 3D point
+          but renders as a regular DOM element. LOD-gated by `showCard` so
+          off-screen / zoomed-out-far cards aren't DOM-synced every frame. */}
+      {showCard && (
       <Html
         position={[0, -1.3, 0]}
         center
@@ -253,6 +259,7 @@ function NodeCardInner({
           )}
         </div>
       </Html>
+      )}
     </group>
   );
 }
@@ -302,6 +309,8 @@ interface ContactLeaf3DProps {
   onFocus: () => void;
   compact: boolean;
   cardDistanceFactor?: number;
+  /** LOD gate — see NodeCardProps.showCard. */
+  showCard?: boolean;
 }
 
 function ContactLeaf3DInner({
@@ -312,6 +321,7 @@ function ContactLeaf3DInner({
   onFocus,
   compact,
   cardDistanceFactor,
+  showCard = true,
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -334,6 +344,7 @@ function ContactLeaf3DInner({
           roughness={0.5}
         />
       </mesh>
+      {showCard && (
       <Html
         position={[0, -0.9, 0]}
         center
@@ -369,12 +380,70 @@ function ContactLeaf3DInner({
           </div>
         </button>
       </Html>
+      )}
     </group>
   );
 }
 
 /** H-3: memoized so contact leaves don't re-render on unrelated parent state changes. */
 const ContactLeaf3D = memo(ContactLeaf3DInner);
+
+// ----------------------------------------------------------------------------
+// CardLODController — publishes the set of node/contact ids whose DOM card
+// should render, based on camera frustum + distance. Throttled (~8Hz) and only
+// fires when the set changes, so the heavy drei <Html> overlays mount ONLY for
+// cards that are on-screen AND close enough to read. This is what keeps a
+// fully-expanded tree smooth: zoomed out, the far cards aren't DOM-synced every
+// frame (the ~364-overlay main-thread cliff). 3D avatars/platforms/lines stay.
+// To revert: stop rendering this; showCard props default true (= render all).
+// ----------------------------------------------------------------------------
+function CardLODController({
+  positions,
+  lodDistance,
+  onChange,
+}: {
+  positions: Map<string, [number, number, number]>;
+  lodDistance: number;
+  onChange: (visible: Set<string>) => void;
+}) {
+  const { camera } = useThree();
+  const acc = useRef(0);
+  const v = useRef(new THREE.Vector3());
+  const lastKey = useRef('__init__');
+  const compute = useCallback(() => {
+    const next = new Set<string>();
+    positions.forEach((p, id) => {
+      const pt = v.current.set(p[0], p[1], p[2]);
+      if (camera.position.distanceTo(pt) > lodDistance) return; // too far → tiny → cull
+      pt.project(camera);
+      if (pt.z > 1) return; // behind camera
+      if (Math.abs(pt.x) > 1.15 || Math.abs(pt.y) > 1.15) return; // off-screen (+margin)
+      next.add(id);
+    });
+    let key = next.size + ':';
+    next.forEach((id) => {
+      key += id + ',';
+    });
+    if (key !== lastKey.current) {
+      lastKey.current = key;
+      onChange(next);
+    }
+  }, [positions, lodDistance, camera, onChange]);
+  // Recompute immediately when the layout/positions change (expand/collapse/load),
+  // even while the demand render-loop is idle.
+  useEffect(() => {
+    compute();
+  }, [compute]);
+  // And keep it fresh while anything animates (drag/drift/zoom/fly-to) — throttled
+  // so the visibility scan is cheap vs the per-frame DOM sync it saves.
+  useFrame((_, dt) => {
+    acc.current += dt;
+    if (acc.current < 0.12) return;
+    acc.current = 0;
+    compute();
+  });
+  return null;
+}
 
 // ----------------------------------------------------------------------------
 // CameraRig — smoothly flies the camera + OrbitControls target to a focus point
@@ -545,6 +614,9 @@ function SceneContent({
 }: Tree3DProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  // LOD: ids of cards worth rendering as DOM right now (null = not yet computed
+  // → render all, the original behavior). Maintained by <CardLODController/>.
+  const [visibleCards, setVisibleCards] = useState<Set<string> | null>(null);
   // <1280px: compact cards + readability-capped framing so framed siblings
   // don't overlap on a phone/tablet. ≥1280 keeps full-size cards + the
   // original framing. Client-only (the Canvas is dynamically ssr:false).
@@ -1080,6 +1152,7 @@ function SceneContent({
             onFocusTight={handleFocusTightById[ln.id]}
             compact={compact}
             cardDistanceFactor={cardDistanceFactor}
+            showCard={!visibleCards || visibleCards.has(ln.id)}
           />
         );
       })}
@@ -1095,6 +1168,7 @@ function SceneContent({
           onFocus={handleContactFocusById[lc.id]}
           compact={compact}
           cardDistanceFactor={cardDistanceFactor}
+          showCard={!visibleCards || visibleCards.has(lc.id)}
         />
       ))}
 
@@ -1110,6 +1184,14 @@ function SceneContent({
         enableRotate={false}
         screenSpacePanning
         makeDefault
+        // Drag inertia. drei enables damping by default at dampingFactor 0.05,
+        // which keeps drifting ~1s after release. With the fully-expanded tree
+        // (~365 drei <Html> overlays re-synced on every rendered frame) that long
+        // drift keeps the frameloop="demand" loop hot the whole time → heavy
+        // re-renders that lag the page and starve the background's render loop
+        // (choppy wallpaper). 0.15 keeps a smooth glide but settles ~3× faster
+        // (~0.3s), shrinking the heavy-render window. Tune up for snappier.
+        dampingFactor={0.15}
         maxDistance={compact ? MAX_DIST_COMPACT : MAX_DIST_DESKTOP}
         minDistance={3}
         target={[0, -4, 0]}
@@ -1126,6 +1208,13 @@ function SceneContent({
 
       {/* Camera rig — animates toward any focused node */}
       <CameraRig focus={focus} controlsRef={controlsRef} />
+
+      {/* LOD — cull far/off-screen DOM cards so a fully-expanded tree stays smooth. */}
+      <CardLODController
+        positions={nodePositions}
+        lodDistance={(compact ? MAX_DIST_COMPACT : MAX_DIST_DESKTOP) * 0.62}
+        onChange={setVisibleCards}
+      />
     </>
   );
 }

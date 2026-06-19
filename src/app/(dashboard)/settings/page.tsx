@@ -44,6 +44,8 @@ import {
   LogOut,
   Monitor,
   Video,
+  Sparkles,
+  Settings2,
 } from 'lucide-react';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { settingsHelp } from '@/components/shared/pageHelp';
@@ -56,6 +58,12 @@ import {
 } from '@/components/shared/ThemedBackground';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import {
+  BACKGROUNDS,
+  BACKGROUND_ORDER,
+  type BackgroundId,
+} from '@/lib/background/schemas';
+import { BackgroundCustomizerDialog } from '@/components/shared/BackgroundCustomizerDialog';
 
 interface ThemeOption {
   id: ColorTheme;
@@ -116,6 +124,9 @@ export default function SettingsPage() {
 
   // Collapsible
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Animated-background customizer popup
+  const [bgCustomizerOpen, setBgCustomizerOpen] = useState(false);
 
   // Photo upload
   const fileRef = useRef<HTMLInputElement>(null);
@@ -361,7 +372,8 @@ export default function SettingsPage() {
             const themeIsModeFixed =
               ANIMATED_DARK_THEMES.has(prefs.colorTheme) ||
               ANIMATED_LIGHT_THEMES.has(prefs.colorTheme) ||
-              prefs.colorTheme === 'marble';
+              prefs.colorTheme === 'marble' ||
+              prefs.backgroundStyle !== 'none';
             return (
               <div className="space-y-1.5">
                 {/* mobile: allow the three mode buttons to wrap on narrow
@@ -397,8 +409,9 @@ export default function SettingsPage() {
                 </div>
                 {themeIsModeFixed && (
                   <p className="text-xs text-muted-foreground">
-                    This color theme manages its own surfaces and ignores Dark / Light / System.
-                    Pick a different color theme below to re-enable mode switching.
+                    This color theme or animated background manages its own surfaces and ignores
+                    Dark / Light / System. Pick the default palette (and no background) to re-enable
+                    mode switching.
                   </p>
                 )}
               </div>
@@ -433,6 +446,79 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Animated background — a SEPARATE axis from the palette. The chosen
+              animation reads the active theme's colors at runtime (so it stays
+              theme-tinted); "Customize…" lets the user override any value. */}
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Animated background — colors follow your theme
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => prefs.setBackgroundStyle('none')}
+                aria-label="No animated background"
+                aria-pressed={prefs.backgroundStyle === 'none'}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all touch-manipulation',
+                  prefs.backgroundStyle === 'none'
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border hover:border-primary/40',
+                )}
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 text-[8px] uppercase text-muted-foreground">
+                  Off
+                </div>
+                <span className="text-[10px] text-muted-foreground">None</span>
+                {prefs.backgroundStyle === 'none' && <Check className="h-3 w-3 text-primary" />}
+              </button>
+
+              {BACKGROUND_ORDER.map((id) => {
+                const bg = BACKGROUNDS[id];
+                const selected = prefs.backgroundStyle === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => prefs.setBackgroundStyle(id)}
+                    aria-label={`${bg.title} background`}
+                    aria-pressed={selected}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 rounded-lg border-2 p-2.5 transition-all touch-manipulation',
+                      selected
+                        ? 'border-primary ring-2 ring-primary/30'
+                        : 'border-border hover:border-primary/40',
+                    )}
+                  >
+                    <div
+                      className="h-8 w-8 rounded-full shadow-inner"
+                      style={{ background: bg.swatch }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">{bg.title}</span>
+                    {selected && <Check className="h-3 w-3 text-primary" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {prefs.backgroundStyle !== 'none' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBgCustomizerOpen(true)}
+                className="mt-3 gap-2 touch-manipulation"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Customize background…
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -755,6 +841,13 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      {prefs.backgroundStyle !== 'none' && (
+        <BackgroundCustomizerDialog
+          style={prefs.backgroundStyle as BackgroundId}
+          open={bgCustomizerOpen}
+          onClose={() => setBgCustomizerOpen(false)}
+        />
+      )}
     </motion.div>
   );
 }
