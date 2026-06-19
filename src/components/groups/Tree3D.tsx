@@ -798,11 +798,20 @@ function SceneContent({
         const distance = Math.max(fit * 1.35, 9);
         return { center: [x, y + (padTop - padBottom) / 2, 0], distance };
       }
-      return {
-        // Shift look-at slightly down so the card below the platform is framed
-        center: [x, y - 1.5, 0],
-        distance: 8,
-      };
+      // Anchor the node's TOP (the avatar sticks up AVATAR_WORLD_TOP above center)
+      // a fixed pixel distance below the viewport top so it never hides behind the
+      // floating toolbar / search field. Pixel-based — not a world-unit pad, which
+      // balloons at this close zoom — mirroring computeSubtreeFocus. The previous
+      // plain centered look-at (y - 1.5) left the root avatar behind the search
+      // field on cold load: the root focuses tight in 'node' mode (groups page
+      // requests {kind:'node'} → externalFocusMode 'node' → computeNodeFocus →
+      // here), NOT via computeSubtreeFocus, so the 320px anchor there never
+      // applied to refresh. Tunable against screenshots.
+      const distance = 8;
+      const TIGHT_TOOLBAR_PX = 120; // avatar-top sits ~120px below the frame top — just under the search field
+      const toolbarFrac = Math.min(0.34, TIGHT_TOOLBAR_PX / window.innerHeight);
+      const focusCenterY = y + AVATAR_WORLD_TOP - distance * 1.042 * (0.5 - toolbarFrac);
+      return { center: [x, focusCenterY, 0], distance };
     },
     [compact, canvasSize],
   );
