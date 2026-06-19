@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { BOOKING_TYPE_CONFIG } from '@/lib/types';
 import type { Booking } from '@/lib/types';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 interface MonthViewProps {
   date: Date;
@@ -25,6 +26,7 @@ interface MonthViewProps {
 
 export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthViewProps) {
   const today = new Date();
+  const { time } = useTimeFormat();
 
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(date);
@@ -98,7 +100,7 @@ export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthV
                         config.bgColor, config.color
                       )}
                     >
-                      {format(parseISO(booking.startTime), 'h:mm a').toLowerCase()} {booking.title}
+                      {time(booking.startTime)} {booking.title}
                     </button>
                   );
                 })}

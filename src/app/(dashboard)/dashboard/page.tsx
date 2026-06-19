@@ -46,6 +46,7 @@ import {
   compareAsc,
 } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 const container = {
   hidden: { opacity: 0 },
@@ -62,6 +63,7 @@ type StatKey = 'bookings' | 'contacts' | 'sessions' | 'baptisms';
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { t, tStage, tBookingType } = useTranslation();
+  const { withDate } = useTimeFormat();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [contacts, setContacts] = useState<ContactType[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
@@ -268,7 +270,7 @@ export default function DashboardPage() {
                         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {format(parseISO(b.startTime), 'EEE, MMM d · h:mm a').toLowerCase()}
+                            {withDate(b.startTime, 'EEE, MMM d').toLowerCase()}
                           </span>
                           {roomMap.get(b.roomId) && (
                             <>
@@ -382,7 +384,7 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <span className="font-medium truncate block">{b.title}</span>
                         <span className="text-[11px] text-muted-foreground">
-                          {format(parseISO(b.startTime), 'EEE, MMM d · h:mm a').toLowerCase()}
+                          {withDate(b.startTime, 'EEE, MMM d').toLowerCase()}
                         </span>
                       </div>
                       <Badge variant="outline" className={cn('shrink-0 text-[10px]', cfg?.color)}>

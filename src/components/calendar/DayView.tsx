@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getTimeSlots, format, isSameDay, parseISO } from '@/lib/utils/date';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
 
@@ -20,7 +21,8 @@ const END_HOUR = 23;
 const SLOT_HEIGHT = 48;
 
 export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick }: DayViewProps) {
-  const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR), []);
+  const { clock } = useTimeFormat();
+  const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR, clock), [clock]);
 
   // Original desktop column template, unchanged (literal integer count — no
   // `repeat(var())`, which isn't spec-guaranteed). Used as an inline style so

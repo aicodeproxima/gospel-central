@@ -613,6 +613,10 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Your choices are saved to your profile now. Email and push delivery turn on once the
+            notification service is connected.
+          </p>
           {([
             ['bookingConfirmations', t('settings.notifications.bookingConfirm'), t('settings.notifications.bookingConfirmDesc')],
             ['bookingCancellations', t('settings.notifications.bookingCancel'), t('settings.notifications.bookingCancelDesc')],

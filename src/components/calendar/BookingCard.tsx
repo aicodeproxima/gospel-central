@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { BOOKING_TYPE_CONFIG, ACTIVITY_CONFIG, Activity } from '@/lib/types';
 import type { Booking } from '@/lib/types';
-import { format, parseISO, formatHour12 } from '@/lib/utils/date';
+import { parseISO } from '@/lib/utils/date';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 interface BookingCardProps {
   booking: Booking;
@@ -18,6 +19,7 @@ const COMPACT_WIDTH_THRESHOLD = 60; // px — below this, show color block only
 
 export function BookingCard({ booking, onClick, absolute, style }: BookingCardProps) {
   const config = BOOKING_TYPE_CONFIG[booking.type];
+  const { time } = useTimeFormat();
   const activityLabel = booking.activity ? ACTIVITY_CONFIG[booking.activity as Activity]?.label : null;
   const ref = useRef<HTMLButtonElement>(null);
   const [compact, setCompact] = useState(false);
@@ -36,10 +38,10 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
   const isCancelled = booking.status === 'cancelled';
   const start = parseISO(booking.startTime);
   const end = parseISO(booking.endTime);
-  const startStr = format(start, 'h:mm aaa');
-  const endStr = format(end, 'h:mm aaa');
-  const startHour = formatHour12(start.getHours(), start.getMinutes());
-  const endHour = formatHour12(end.getHours(), end.getMinutes());
+  const startStr = time(start);
+  const endStr = time(end);
+  const startHour = startStr;
+  const endHour = endStr;
   const tooltip = isCancelled
     ? `CANCELLED: ${booking.title}\n${startStr} — ${endStr}\nReason: ${booking.cancelReason || 'No reason given'}`
     : `${booking.title}\n${startStr} — ${endStr}${activityLabel ? `\n${activityLabel}` : ''}`;

@@ -13,6 +13,7 @@ import {
 import { BOOKING_TYPE_CONFIG } from '@/lib/types';
 import type { Booking, Room } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,6 +33,7 @@ interface AgendaViewProps {
 
 export function AgendaView({ bookings, rooms, date, view, onBookingClick }: AgendaViewProps) {
   const { tBookingType } = useTranslation();
+  const { time } = useTimeFormat();
 
   const roomName = useMemo(() => {
     const m = new Map<string, string>();
@@ -123,8 +125,7 @@ export function AgendaView({ bookings, rooms, date, view, onBookingClick }: Agen
                           {b.title}
                         </span>
                         <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                          {format(new Date(b.startTime), 'h:mm')}–
-                          {format(new Date(b.endTime), 'h:mm a')}
+                          {time(b.startTime)}–{time(b.endTime)}
                         </span>
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">

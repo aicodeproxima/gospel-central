@@ -1,5 +1,5 @@
 import type { BlockedSlot, Booking } from '../types';
-import { formatHour12 } from './date';
+import { formatClock, type Clock } from './date';
 
 /**
  * Compute 30-minute time slots for a given day and mark which are occupied
@@ -37,6 +37,9 @@ export interface GetDaySlotsOptions {
   /** Optional list of all bookings (any room) to evaluate teacher
    *  conflicts against. Defaults to the same `bookings` arg. */
   teacherBookings?: Booking[];
+  /** Clock for the slot `label`. Defaults to 12h; the wizard passes the
+   *  user's Settings ▸ time-format preference so picker labels match. */
+  clock?: Clock;
 }
 
 /**
@@ -147,7 +150,7 @@ export function getDaySlots(
         : undefined;
 
       slots.push({
-        label: formatHour12(h, m),
+        label: formatClock(h, m, opts.clock ?? '12h'),
         hour: h,
         minute: m,
         start: slotStart,

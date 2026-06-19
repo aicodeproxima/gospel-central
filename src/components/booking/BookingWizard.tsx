@@ -19,6 +19,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { Activity, BookingType } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { getDaySlots } from '@/lib/utils/availability';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { isApiError } from '@/lib/api/client';
 import {
   buildVisibilityScope,
@@ -125,6 +126,7 @@ type Step =
 export function BookingWizard({ areas, bookings, users, contacts, blockedSlots = [], onSubmit, onDelete, onCancel, onRestore }: WizardProps) {
   const { t } = useTranslation();
   const { isBookingModalOpen, closeBookingModal, selectedBooking, bookingSlot } = useBookingStore();
+  const { clock } = useTimeFormat();
   const isEdit = !!selectedBooking;
   const { entities, add: addCustom } = useCustomEntitiesStore();
   // CAL-4 / CAL-6: pull viewer + build visibility scope so the contact
@@ -285,8 +287,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       areaId: room?.areaId,
       teacherId: leaderId || undefined,
       teacherBookings: bookings,
+      clock,
     });
-  }, [roomId, date, bookings, blockedSlots, allRooms, leaderId]);
+  }, [roomId, date, bookings, blockedSlots, allRooms, leaderId, clock]);
 
   // Total steps for progress bar
   const stepsNeeded: Step[] = useMemo(() => {

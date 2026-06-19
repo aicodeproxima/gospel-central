@@ -20,6 +20,7 @@ import { canAccessReports, canSeeAdminPage } from '@/lib/utils/permissions';
 import { Button } from '@/components/ui/button';
 import { ROLE_LABELS } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
+import { usePreferencesStore } from '@/lib/stores/preferences-store';
 
 const navItemDefs = [
   { href: '/dashboard', i18nKey: 'nav.dashboard', icon: BookOpen },
@@ -38,6 +39,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { t } = useTranslation();
+  const profilePhotoBase64 = usePreferencesStore((s) => s.profilePhotoBase64);
+
+  // Avatar for the footer — the profile photo set in Settings now propagates
+  // here (it used to live only on the Settings page). Falls back to initials.
+  const renderAvatar = () =>
+    profilePhotoBase64 ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={profilePhotoBase64} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+    ) : user ? (
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+        {user.firstName?.[0] ?? ''}{user.lastName?.[0] ?? ''}
+      </div>
+    ) : null;
 
   const navItems = navItemDefs.map((d) => ({ ...d, label: t(d.i18nKey) }));
   const items = [
@@ -114,10 +128,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Footer */}
       <div className="border-t border-border p-3">
         {user && !collapsed && (
-          <div className="mb-3 rounded-lg bg-accent/50 px-3 py-2">
-            <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
-            <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+          <div className="mb-3 flex items-center gap-2.5 rounded-lg bg-accent/50 px-3 py-2">
+            {renderAvatar()}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
+              <p className="truncate text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+            </div>
           </div>
+        )}
+        {user && collapsed && (
+          <div className="mb-3 flex justify-center">{renderAvatar()}</div>
         )}
         <div className="flex items-center gap-2">
           <Button

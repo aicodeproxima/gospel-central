@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BOOKING_TYPE_CONFIG, ROLE_LABELS } from '@/lib/types';
 import type { Booking, User, Room } from '@/lib/types';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 /**
  * Calendar-side search. Type a name → predictive dropdown listing ONLY
@@ -52,6 +53,7 @@ export function BookingSearchBar({
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { time } = useTimeFormat();
 
   // Build an index of teachers who have at least one booking in the
   // currently loaded bookings list. Keyed by userId so duplicates collapse.
@@ -287,8 +289,7 @@ export function BookingSearchBar({
                             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
                               <span className="inline-flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {format(start, 'h:mm a').toLowerCase()} –{' '}
-                                {format(end, 'h:mm a').toLowerCase()}
+                                {time(start)} – {time(end)}
                               </span>
                               {room && (
                                 <>

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getWeekDays, getTimeSlots, format, isSameDay, parseISO } from '@/lib/utils/date';
+import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
 
@@ -21,7 +22,8 @@ const SLOT_HEIGHT = 48;
 
 export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }: WeekViewProps) {
   const days = useMemo(() => getWeekDays(date), [date]);
-  const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR), []);
+  const { clock } = useTimeFormat();
+  const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR, clock), [clock]);
   const today = new Date();
 
   const getBookingsForDayRoom = (day: Date, roomId: string) =>
