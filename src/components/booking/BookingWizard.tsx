@@ -13,14 +13,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Combobox, type ComboOption } from '@/components/shared/Combobox';
+import { StepSubjectPicker } from '@/components/shared/StepSubjectPicker';
 import { useBookingStore } from '@/lib/stores/booking-store';
-import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
+import { useCustomEntitiesStore, isBackendManagedId } from '@/lib/stores/custom-entities-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { Activity, BookingType } from '@/lib/types';
+import { Activity, BookingType, ContactStatus, PipelineStage } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { getDaySlots, DEFAULT_SLOT_START_HOUR } from '@/lib/utils/availability';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { isApiError } from '@/lib/api/client';
+import { contactsApi } from '@/lib/api/contacts';
 import {
   buildVisibilityScope,
   canEditBooking,
@@ -120,6 +122,7 @@ type Step =
   | 'leader'
   | 'mode'
   | 'contact'
+  | 'subject'
   | 'time'
   | 'confirm';
 
@@ -128,7 +131,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   const { isBookingModalOpen, closeBookingModal, selectedBooking, bookingSlot } = useBookingStore();
   const { clock } = useTimeFormat();
   const isEdit = !!selectedBooking;
-  const { entities, add: addCustom } = useCustomEntitiesStore();
+  const { entities, add: addCustom, remove: removeCustom } = useCustomEntitiesStore();
   // CAL-4 / CAL-6: pull viewer + build visibility scope so the contact
   // picker can filter to viewer's subtree and the cancel/restore buttons
   // can hide when canEditBooking is false.
@@ -151,6 +154,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   const [contactBaptismType, setContactBaptismType] = useState<'unbaptized' | 'baptized_persecuted' | null>(null);
   const [startSlotIdx, setStartSlotIdx] = useState<number | null>(null);
   const [durationSlots, setDurationSlots] = useState(2); // 60 min default
+  // STUDY-1: subjects covered this session + the "not sure yet" escape hatch.
+  const [subjectsStudied, setSubjectsStudied] = useState<string[]>([]);
+  const [addSubjectLater, setAddSubjectLater] = useState(false);
   const [editReason, setEditReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -186,6 +192,10 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         setContactBaptismType(
           selectedBooking.type === BookingType.BAPTIZED_PERSECUTED ? 'baptized_persecuted' : 'unbaptized',
         );
+        // STUDY-1: prefill subjects from the booking's stored subject (edits
+        // don't re-push to the contact card — the create path owns that).
+        setSubjectsStudied(selectedBooking.subject ? [selectedBooking.subject] : []);
+        setAddSubjectLater(false);
         // C3/FINDING-2: prefill the time selection from the booking being edited.
         // The edit branch set everything EXCEPT startSlotIdx/durationSlots, so
         // handleSubmit dead-ended on startSlotIdx===null ('Select a time slot'),
@@ -232,6 +242,8 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         setMode(null);
         setContactId('');
         setContactBaptismType(null);
+        setSubjectsStudied([]);
+        setAddSubjectLater(false);
         setStep('activity');
       }
       setEditReason('');
@@ -324,7 +336,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   const stepsNeeded: Step[] = useMemo(() => {
     const base: Step[] = ['activity', 'date', 'room', 'leader'];
     if (activityGroup === 'bible_study') {
-      base.push('mode', 'contact');
+      base.push('mode', 'contact', 'subject');
     }
     base.push('time', 'confirm');
     return base;
@@ -384,6 +396,41 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     const area = areas.find((a) => a.rooms.some((r) => r.id === roomId));
     setLoading(true);
     try {
+      const finalSubjects = addSubjectLater ? [] : subjectsStudied;
+      // STUDY-1 / Request 2: a contact "Add new"-ed in the wizard is only a
+      // localStorage label (custom id) — persist it as a real contact first so
+      // the study lands on a real card + timeline. Existing (backend) contacts
+      // pass through unchanged. On failure we throw → no orphan booking.
+      let resolvedContactId = contactId || undefined;
+      if (activityGroup === 'bible_study' && contactId && !isBackendManagedId(contactId)) {
+        const customName = customContacts.find((c) => c.id === contactId)?.name.trim() || '';
+        const parts = customName.split(/\s+/).filter(Boolean);
+        const viewerName = viewer ? `${viewer.firstName} ${viewer.lastName}`.trim() : 'System';
+        const created = await contactsApi.createContact({
+          firstName: parts[0] || customName || 'New',
+          lastName: parts.slice(1).join(' '),
+          type:
+            contactBaptismType === 'baptized_persecuted'
+              ? BookingType.BAPTIZED_PERSECUTED
+              : BookingType.UNBAPTIZED_CONTACT,
+          status: ContactStatus.ACTIVE,
+          pipelineStage: PipelineStage.FIRST_STUDY,
+          assignedTeacherId: leaderId && isBackendManagedId(leaderId) ? leaderId : undefined,
+          createdBy: viewer?.id || '',
+          totalSessions: 0,
+          timeline: [
+            {
+              date: new Date().toISOString(),
+              action: 'created' as const,
+              details: 'Contact created via booking',
+              userId: viewer?.id || '',
+              userName: viewerName,
+            },
+          ],
+        });
+        resolvedContactId = created.id;
+        removeCustom(contactId);
+      }
       await onSubmit({
         type: resolveBookingType(),
         activity: resolveActivity(),
@@ -391,11 +438,15 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         roomId,
         title: buildTitle(),
         description: '',
+        subject: finalSubjects[0] || undefined,
         startTime: startSlot.start.toISOString(),
         endTime: new Date(startSlot.start.getTime() + durationSlots * 30 * 60000).toISOString(),
         teacherId: leaderId || undefined,
-        contactId: contactId || undefined,
+        contactId: resolvedContactId,
         participants: leaderId ? [leaderId] : [],
+        // STUDY-1: only study bookings carry the subjects array (consumed by
+        // the POST handler to update the contact card + timeline).
+        ...(activityGroup === 'bible_study' ? { subjectsStudied: finalSubjects } : {}),
         // M-6: trim so whitespace-only reasons don't pass the UI guard
         // and silently write a blank audit entry.
         ...(isEdit ? { editReason: editReason.trim() } : {}),
@@ -435,6 +486,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       case 'leader': return !!leaderId;
       case 'mode': return !!mode;
       case 'contact': return !!contactId && !!contactBaptismType;
+      case 'subject': return true;
       case 'time': return startSlotIdx !== null;
       case 'confirm': return true;
       default: return false;
@@ -645,6 +697,38 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               </div>
             )}
 
+            {step === 'subject' && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-semibold">Subject studied</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Pick the subject(s) for this study — they&apos;re added to{' '}
+                    {contactOptions.find((c) => c.id === contactId)?.label || 'the contact'}&apos;s
+                    card &amp; timeline. Not sure yet? Choose &ldquo;Add subject later&rdquo;.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm cursor-pointer touch-manipulation max-md:min-h-11">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0"
+                    checked={addSubjectLater}
+                    onChange={(e) => {
+                      setAddSubjectLater(e.target.checked);
+                      if (e.target.checked) setSubjectsStudied([]);
+                    }}
+                  />
+                  <span>Add subject later (not sure what they&apos;ll study yet)</span>
+                </label>
+                {addSubjectLater ? (
+                  <div className="rounded-lg bg-accent/40 p-3 text-sm text-muted-foreground">
+                    No subject recorded now — you can add it later from the contact&apos;s card.
+                  </div>
+                ) : (
+                  <StepSubjectPicker value={subjectsStudied} onChange={setSubjectsStudied} />
+                )}
+              </div>
+            )}
+
             {step === 'time' && (
               <div className="space-y-4">
                 <div>
@@ -738,6 +822,15 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                     <>
                       <Row label={t('wizard.mode')} value={mode === 'zoom' ? 'Zoom' : t('wizard.inPerson')} onClick={() => setStep('mode')} />
                       <Row label={t('wizard.contact')} value={contactOptions.find((c) => c.id === contactId)?.label || '—'} onClick={() => setStep('contact')} />
+                      <Row
+                        label="Subjects"
+                        value={
+                          addSubjectLater || subjectsStudied.length === 0
+                            ? 'Add later'
+                            : subjectsStudied.join(', ')
+                        }
+                        onClick={() => setStep('subject')}
+                      />
                     </>
                   )}
                   {startSlotIdx !== null && daySlots[startSlotIdx] && (

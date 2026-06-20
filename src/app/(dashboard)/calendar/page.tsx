@@ -222,6 +222,13 @@ export default function CalendarPage() {
     // View-aware refetch (C4) — no setLoading, so the grid doesn't flash a
     // spinner on submit; the Array.isArray guard lives inside reloadBookings.
     await reloadBookings();
+    // STUDY-1: a study booking can auto-create a contact and/or update its
+    // study fields server-side — refresh contacts so the wizard picker shows
+    // the now-real contact (and dropped custom label) on next open.
+    contactsApi
+      .getContacts()
+      .then((d) => setContacts(Array.isArray(d) ? d : []))
+      .catch(() => {});
   };
 
   const handleBookingDelete = async (id: string) => {

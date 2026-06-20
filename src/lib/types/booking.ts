@@ -135,6 +135,10 @@ export interface BookingFormData {
   contactId?: string;
   participants: string[];
   editReason?: string;
+  /** STUDY-1: subjects covered in this Bible-study session. The booking POST
+   *  handler merges these onto the contact's card + timeline. `subject` (above)
+   *  carries the primary one for the calendar label. */
+  subjectsStudied?: string[];
 }
 
 /**

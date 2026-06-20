@@ -8,6 +8,7 @@ import {
   mockTeacherMetrics,
   mockAuditLog,
 } from './data';
+import { STUDY_SUBJECTS } from './subjects';
 import {
   buildVisibilityScope,
   buildManageableScope,
@@ -994,17 +995,61 @@ export const handlers = [
     // CONT-6: when a Bible-study booking is created with a contactId,
     // bump that contact's session counters so the pipeline reflects the
     // session in real time. Mirrored on cancel below.
+    // STUDY-1: also record the subject(s) studied this session onto the
+    // contact card (subjectsStudied + currentStep/currentSubject) and append
+    // a 'session' timeline entry, so a booking made through the calendar
+    // updates the contact's card + timeline. (Mike's backend mirrors this.)
     const contactId = typeof body.contactId === 'string' ? body.contactId : undefined;
     const isStudy = typeof body.activity === 'string' && body.activity === 'bible_study';
     if (contactId && isStudy) {
       const cidx = contactsState.findIndex((c) => c.id === contactId);
       if (cidx !== -1) {
         const c = contactsState[cidx];
+        const when = typeof body.startTime === 'string' ? body.startTime : new Date().toISOString();
+        const sessionSubjects = Array.isArray(body.subjectsStudied)
+          ? (body.subjectsStudied as unknown[]).filter(
+              (s): s is string => typeof s === 'string' && s.trim() !== '',
+            )
+          : [];
+        const primary = sessionSubjects[0];
+        const primaryStep = primary
+          ? STUDY_SUBJECTS.find((s) => s.title === primary)?.step
+          : undefined;
+        const studyActor = resolveActor(
+          typeof body.teacherId === 'string'
+            ? body.teacherId
+            : typeof body.actorId === 'string'
+              ? body.actorId
+              : typeof body.userId === 'string'
+                ? (body.userId as string)
+                : undefined,
+        );
+        const sessionEntry = {
+          date: when,
+          action: 'session' as const,
+          details: sessionSubjects.length
+            ? `Bible study — ${sessionSubjects.join(', ')}`
+            : 'Bible study session (subject TBD)',
+          userId: studyActor.id,
+          userName: studyActor.name,
+        };
         contactsState[cidx] = {
           ...c,
           totalSessions: (c.totalSessions ?? 0) + 1,
-          lastSessionDate: typeof body.startTime === 'string' ? body.startTime : c.lastSessionDate,
+          lastSessionDate: when,
           currentlyStudying: true,
+          // Only touch the study fields when a subject was actually chosen
+          // (Add-subject-later leaves them as-is but still logs the session).
+          ...(primary
+            ? {
+                currentSubject: primary,
+                ...(primaryStep ? { currentStep: primaryStep } : {}),
+                subjectsStudied: Array.from(
+                  new Set([...(c.subjectsStudied ?? []), ...sessionSubjects]),
+                ),
+              }
+            : {}),
+          timeline: [...(c.timeline ?? []), sessionEntry],
           updatedAt: new Date().toISOString(),
         };
       }
