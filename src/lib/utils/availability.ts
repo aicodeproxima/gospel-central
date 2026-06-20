@@ -77,6 +77,10 @@ export function findOverlappingBlockedSlot(
   return undefined;
 }
 
+/** Default first bookable slot hour (08:00). Exported so the edit-wizard's
+ *  startTime→slot-index math (BookingWizard) can't drift from this default. */
+export const DEFAULT_SLOT_START_HOUR = 8;
+
 export function getDaySlots(
   date: Date,
   roomId: string,
@@ -93,7 +97,7 @@ export function getDaySlots(
           startHour: typeof startHourOrOptions === 'number' ? startHourOrOptions : undefined,
           endHour: legacyEndHour,
         };
-  const startHour = opts.startHour ?? 8;
+  const startHour = opts.startHour ?? DEFAULT_SLOT_START_HOUR;
   const endHour = opts.endHour ?? 24;
   const blockedSlots = opts.blockedSlots ?? [];
   const teacherBookings = opts.teacherBookings ?? bookings;

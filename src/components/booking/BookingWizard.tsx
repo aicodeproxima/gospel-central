@@ -18,7 +18,7 @@ import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { Activity, BookingType } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
-import { getDaySlots } from '@/lib/utils/availability';
+import { getDaySlots, DEFAULT_SLOT_START_HOUR } from '@/lib/utils/availability';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { isApiError } from '@/lib/api/client';
 import {
@@ -186,6 +186,23 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         setContactBaptismType(
           selectedBooking.type === BookingType.BAPTIZED_PERSECUTED ? 'baptized_persecuted' : 'unbaptized',
         );
+        // C3/FINDING-2: prefill the time selection from the booking being edited.
+        // The edit branch set everything EXCEPT startSlotIdx/durationSlots, so
+        // handleSubmit dead-ended on startSlotIdx===null ('Select a time slot'),
+        // and a stale value could carry over create→edit on the persistently-
+        // mounted wizard. Derive directly (don't read the daySlots useMemo —
+        // same-render ordering hazard); grid is 30-min from DEFAULT_SLOT_START_HOUR.
+        const editStart = new Date(selectedBooking.startTime);
+        const editEnd = new Date(selectedBooking.endTime);
+        const editIdx =
+          (editStart.getHours() * 60 + editStart.getMinutes() - DEFAULT_SLOT_START_HOUR * 60) / 30;
+        const editDur = Math.max(
+          1,
+          Math.round((editEnd.getTime() - editStart.getTime()) / (30 * 60000)),
+        );
+        // Off-grid (non-:00/:30, or before the start hour) → null = safe re-pick.
+        setStartSlotIdx(Number.isInteger(editIdx) && editIdx >= 0 ? editIdx : null);
+        setDurationSlots(editDur);
         setStep('confirm');
       } else {
         // New mode
