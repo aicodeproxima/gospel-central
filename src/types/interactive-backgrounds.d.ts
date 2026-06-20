@@ -95,24 +95,6 @@ declare module 'interactive-matrix-rain-background' {
   export default def;
 }
 
-declare module 'interactive-voronoi-background' {
-  import type { ComponentType, CSSProperties } from 'react';
-  export interface VoronoiBackgroundProps {
-    fixed?: boolean;
-    zIndex?: number;
-    className?: string;
-    style?: CSSProperties;
-    maxDpr?: number;
-    seedCount?: number;
-    gridStep?: number;
-    hueRange?: [number, number];
-    interactive?: boolean;
-  }
-  export const VoronoiBackground: ComponentType<VoronoiBackgroundProps>;
-  const def: ComponentType<VoronoiBackgroundProps>;
-  export default def;
-}
-
 declare module 'interactive-constellation-background' {
   import type { ComponentType, CSSProperties } from 'react';
   export interface ConstellationBackgroundProps {
@@ -128,24 +110,6 @@ declare module 'interactive-constellation-background' {
   }
   export const ConstellationBackground: ComponentType<ConstellationBackgroundProps>;
   const def: ComponentType<ConstellationBackgroundProps>;
-  export default def;
-}
-
-declare module 'interactive-fluid-smoke-background' {
-  import type { ComponentType, CSSProperties } from 'react';
-  export interface FluidSmokeBackgroundProps {
-    fixed?: boolean;
-    zIndex?: number;
-    className?: string;
-    style?: CSSProperties;
-    maxDpr?: number;
-    gridCols?: number;
-    gridRows?: number;
-    hueRange?: [number, number];
-    interactive?: boolean;
-  }
-  export const FluidSmokeBackground: ComponentType<FluidSmokeBackgroundProps>;
-  const def: ComponentType<FluidSmokeBackgroundProps>;
   export default def;
 }
 

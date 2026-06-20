@@ -17,9 +17,7 @@ export type ColorTheme =
   | 'jellyfish'
   | 'rain'
   | 'matrix'
-  | 'voronoi'
   | 'constellation'
-  | 'smoke'
   | 'synapse'
   | 'deepspace';
 export type Language = 'en' | 'es';
@@ -154,14 +152,27 @@ export const usePreferencesStore = create<PreferencesState>()(
     }),
     {
       name: 'diamond-preferences',
-      version: 2,
-      // v1 had no background fields. Add them so existing users keep all their
-      // other prefs (theme/language/view/timeFormat/notifications/photo) and
-      // simply default to no animated background.
+      version: 3,
+      // Migrations are cumulative — apply every step whose version the
+      // persisted blob predates, then return the upgraded object.
+      //   v1→v2: had no background fields; default to no animated background
+      //          (keep all other prefs: theme/language/view/timeFormat/…).
+      //   v2→v3: removed the 'voronoi' and 'smoke' color themes; a user who
+      //          had one selected falls back to 'default' so they aren't
+      //          stranded on a theme the picker no longer offers and that no
+      //          longer exists in the ColorTheme union.
       migrate: (persisted, version) => {
-        const p = (persisted ?? {}) as Partial<PreferencesState>;
+        const p = { ...((persisted ?? {}) as Partial<PreferencesState>) };
         if (version < 2) {
-          return { ...p, backgroundStyle: 'none', backgroundConfig: {} } as PreferencesState;
+          p.backgroundStyle = 'none';
+          p.backgroundConfig = {};
+        }
+        // 'voronoi'/'smoke' were removed from ColorTheme — cast to string to
+        // compare against the now-nonexistent literals, then fall back to the
+        // default palette so the persisted value is valid again.
+        const stored = p.colorTheme as string | undefined;
+        if (stored === 'voronoi' || stored === 'smoke') {
+          p.colorTheme = 'default';
         }
         return p as PreferencesState;
       },

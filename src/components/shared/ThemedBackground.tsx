@@ -37,20 +37,11 @@ const Matrix = dynamic(
     ),
   { ssr: false },
 );
-const Voronoi = dynamic(
-  () => import('interactive-voronoi-background').then((m) => m.VoronoiBackground ?? m.default),
-  { ssr: false },
-);
 const Constellation = dynamic(
   () =>
     import('interactive-constellation-background').then(
       (m) => m.ConstellationBackground ?? m.default,
     ),
-  { ssr: false },
-);
-const Smoke = dynamic(
-  () =>
-    import('interactive-fluid-smoke-background').then((m) => m.FluidSmokeBackground ?? m.default),
   { ssr: false },
 );
 const Synapse = dynamic(
@@ -106,14 +97,10 @@ export function ThemedBackground({ theme, fixed = true }: ThemedBackgroundProps)
       return <Rain fixed={fixed} zIndex={0} dropCount={400} mode="rain" />;
     case 'matrix':
       return <Matrix fixed={fixed} zIndex={0} fontSize={18} hue={140} />;
-    case 'voronoi':
-      return <Voronoi fixed={fixed} zIndex={0} seedCount={28} gridStep={8} />;
     case 'constellation':
       return (
         <Constellation fixed={fixed} zIndex={0} dotCount={90} linkDistance={140} hue={210} />
       );
-    case 'smoke':
-      return <Smoke fixed={fixed} zIndex={0} />;
     case 'synapse':
       return <Synapse fixed={fixed} zIndex={0} nodeCount={70} hue={195} />;
     case 'deepspace':
@@ -143,7 +130,6 @@ export const ANIMATED_DARK_THEMES: ReadonlySet<ColorTheme> = new Set<ColorTheme>
   'rain',
   'matrix',
   'constellation',
-  'smoke',
   'synapse',
   'deepspace',
 ]);
@@ -151,5 +137,4 @@ export const ANIMATED_DARK_THEMES: ReadonlySet<ColorTheme> = new Set<ColorTheme>
 /** Themes that animate but with a lighter/colored base (need different glass treatment). */
 export const ANIMATED_LIGHT_THEMES: ReadonlySet<ColorTheme> = new Set<ColorTheme>([
   'aurora',
-  'voronoi',
 ]);

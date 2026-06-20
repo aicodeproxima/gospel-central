@@ -403,13 +403,13 @@ html[data-theme="starfield"] body > div:not([aria-hidden]):not(.gold-star-trail)
    Every theme listed here renders a fullscreen canvas behind the UI.
    ─────────────────────────────────────────────────────────────── */
 html[data-theme="aurora"], html[data-theme="galaxy"], html[data-theme="jellyfish"],
-html[data-theme="rain"], html[data-theme="matrix"], html[data-theme="voronoi"],
-html[data-theme="constellation"], html[data-theme="smoke"], html[data-theme="synapse"],
+html[data-theme="rain"], html[data-theme="matrix"],
+html[data-theme="constellation"], html[data-theme="synapse"],
 html[data-theme="deepspace"] { color: rgb(245 245 255); }
 
 html[data-theme="aurora"] body, html[data-theme="galaxy"] body, html[data-theme="jellyfish"] body,
-html[data-theme="rain"] body, html[data-theme="matrix"] body, html[data-theme="voronoi"] body,
-html[data-theme="constellation"] body, html[data-theme="smoke"] body, html[data-theme="synapse"] body,
+html[data-theme="rain"] body, html[data-theme="matrix"] body,
+html[data-theme="constellation"] body, html[data-theme="synapse"] body,
 html[data-theme="deepspace"] body {
   background-color: transparent !important;
   color: rgb(245 245 255);
@@ -421,9 +421,7 @@ html[data-theme="galaxy"] body > div:not([aria-hidden]):not(.gold-star-trail):no
 html[data-theme="jellyfish"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
 html[data-theme="rain"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
 html[data-theme="matrix"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
-html[data-theme="voronoi"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
 html[data-theme="constellation"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
-html[data-theme="smoke"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
 html[data-theme="synapse"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]),
 html[data-theme="deepspace"] body > div:not([aria-hidden]):not(.gold-star-trail):not([data-slot*="portal"]):not([role="dialog"]) {
   position: relative; z-index: 1;
@@ -439,9 +437,7 @@ html[data-theme="galaxy"] body > [data-slot*="portal"],
 html[data-theme="jellyfish"] body > [data-slot*="portal"],
 html[data-theme="rain"] body > [data-slot*="portal"],
 html[data-theme="matrix"] body > [data-slot*="portal"],
-html[data-theme="voronoi"] body > [data-slot*="portal"],
 html[data-theme="constellation"] body > [data-slot*="portal"],
-html[data-theme="smoke"] body > [data-slot*="portal"],
 html[data-theme="synapse"] body > [data-slot*="portal"],
 html[data-theme="deepspace"] body > [data-slot*="portal"] {
   position: static !important;
@@ -450,13 +446,13 @@ html[data-theme="deepspace"] body > [data-slot*="portal"] {
 
 html[data-theme="aurora"] [data-slot="card"], html[data-theme="galaxy"] [data-slot="card"],
 html[data-theme="jellyfish"] [data-slot="card"], html[data-theme="rain"] [data-slot="card"],
-html[data-theme="matrix"] [data-slot="card"], html[data-theme="voronoi"] [data-slot="card"],
-html[data-theme="constellation"] [data-slot="card"], html[data-theme="smoke"] [data-slot="card"],
+html[data-theme="matrix"] [data-slot="card"],
+html[data-theme="constellation"] [data-slot="card"],
 html[data-theme="synapse"] [data-slot="card"], html[data-theme="deepspace"] [data-slot="card"],
 html[data-theme="aurora"] [data-slot="sidebar-container"], html[data-theme="galaxy"] [data-slot="sidebar-container"],
 html[data-theme="jellyfish"] [data-slot="sidebar-container"], html[data-theme="rain"] [data-slot="sidebar-container"],
-html[data-theme="matrix"] [data-slot="sidebar-container"], html[data-theme="voronoi"] [data-slot="sidebar-container"],
-html[data-theme="constellation"] [data-slot="sidebar-container"], html[data-theme="smoke"] [data-slot="sidebar-container"],
+html[data-theme="matrix"] [data-slot="sidebar-container"],
+html[data-theme="constellation"] [data-slot="sidebar-container"],
 html[data-theme="synapse"] [data-slot="sidebar-container"], html[data-theme="deepspace"] [data-slot="sidebar-container"] {
   background: rgba(12, 10, 24, 0.45) !important;
   backdrop-filter: blur(14px) saturate(140%);
@@ -465,18 +461,18 @@ html[data-theme="synapse"] [data-slot="sidebar-container"], html[data-theme="dee
 
 html[data-theme="aurora"] [data-slot="dialog-content"], html[data-theme="galaxy"] [data-slot="dialog-content"],
 html[data-theme="jellyfish"] [data-slot="dialog-content"], html[data-theme="rain"] [data-slot="dialog-content"],
-html[data-theme="matrix"] [data-slot="dialog-content"], html[data-theme="voronoi"] [data-slot="dialog-content"],
-html[data-theme="constellation"] [data-slot="dialog-content"], html[data-theme="smoke"] [data-slot="dialog-content"],
+html[data-theme="matrix"] [data-slot="dialog-content"],
+html[data-theme="constellation"] [data-slot="dialog-content"],
 html[data-theme="synapse"] [data-slot="dialog-content"], html[data-theme="deepspace"] [data-slot="dialog-content"],
 html[data-theme="aurora"] [data-slot="popover-content"], html[data-theme="galaxy"] [data-slot="popover-content"],
 html[data-theme="jellyfish"] [data-slot="popover-content"], html[data-theme="rain"] [data-slot="popover-content"],
-html[data-theme="matrix"] [data-slot="popover-content"], html[data-theme="voronoi"] [data-slot="popover-content"],
-html[data-theme="constellation"] [data-slot="popover-content"], html[data-theme="smoke"] [data-slot="popover-content"],
+html[data-theme="matrix"] [data-slot="popover-content"],
+html[data-theme="constellation"] [data-slot="popover-content"],
 html[data-theme="synapse"] [data-slot="popover-content"], html[data-theme="deepspace"] [data-slot="popover-content"],
 html[data-theme="aurora"] [data-slot="select-content"], html[data-theme="galaxy"] [data-slot="select-content"],
 html[data-theme="jellyfish"] [data-slot="select-content"], html[data-theme="rain"] [data-slot="select-content"],
-html[data-theme="matrix"] [data-slot="select-content"], html[data-theme="voronoi"] [data-slot="select-content"],
-html[data-theme="constellation"] [data-slot="select-content"], html[data-theme="smoke"] [data-slot="select-content"],
+html[data-theme="matrix"] [data-slot="select-content"],
+html[data-theme="constellation"] [data-slot="select-content"],
 html[data-theme="synapse"] [data-slot="select-content"], html[data-theme="deepspace"] [data-slot="select-content"] {
   background: rgba(10, 8, 22, 0.88) !important;
   backdrop-filter: blur(18px) saturate(150%);
@@ -484,11 +480,11 @@ html[data-theme="synapse"] [data-slot="select-content"], html[data-theme="deepsp
 }
 
 html[data-theme="aurora"] input, html[data-theme="galaxy"] input, html[data-theme="jellyfish"] input,
-html[data-theme="rain"] input, html[data-theme="matrix"] input, html[data-theme="voronoi"] input,
-html[data-theme="constellation"] input, html[data-theme="smoke"] input, html[data-theme="synapse"] input,
+html[data-theme="rain"] input, html[data-theme="matrix"] input,
+html[data-theme="constellation"] input, html[data-theme="synapse"] input,
 html[data-theme="deepspace"] input, html[data-theme="aurora"] textarea, html[data-theme="galaxy"] textarea,
 html[data-theme="jellyfish"] textarea, html[data-theme="rain"] textarea, html[data-theme="matrix"] textarea,
-html[data-theme="voronoi"] textarea, html[data-theme="constellation"] textarea, html[data-theme="smoke"] textarea,
+html[data-theme="constellation"] textarea,
 html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
   background: rgba(10, 8, 22, 0.5) !important;
   color: rgb(240 240 255) !important;
@@ -496,7 +492,7 @@ html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
 
 /* ── Animated themes — force dark foundational variables (theme audit F-1)
    ─────────────────────────────────────────────────────────────────────
-   The 10 animated themes below render with a fullscreen dark canvas.
+   The 8 animated themes below render with a fullscreen dark canvas.
    Cards / sidebar / dialogs are styled with translucent dark bg via
    the union selectors above so the canvas shows through. But the
    foundational CSS variables (--card-foreground, --foreground,
@@ -510,7 +506,7 @@ html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
    Starfield avoids this by overriding ALL foundational vars in its
    own :root[data-theme="starfield"] block (lines 350-378).
 
-   This block extends starfield's pattern to the other 10 animated
+   This block extends starfield's pattern to the other 8 animated
    themes via a shared selector. Per-theme accent palettes (--primary,
    --ring, --sidebar-primary) are kept in their own blocks below so
    each theme retains its distinctive accent color.
@@ -520,9 +516,7 @@ html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
 :root[data-theme="jellyfish"], .dark[data-theme="jellyfish"],
 :root[data-theme="rain"], .dark[data-theme="rain"],
 :root[data-theme="matrix"], .dark[data-theme="matrix"],
-:root[data-theme="voronoi"], .dark[data-theme="voronoi"],
 :root[data-theme="constellation"], .dark[data-theme="constellation"],
-:root[data-theme="smoke"], .dark[data-theme="smoke"],
 :root[data-theme="synapse"], .dark[data-theme="synapse"],
 :root[data-theme="deepspace"], .dark[data-theme="deepspace"] {
   --background: oklch(0.1 0.02 270);
@@ -553,9 +547,7 @@ html[data-theme="synapse"] textarea, html[data-theme="deepspace"] textarea {
 :root[data-theme="jellyfish"], .dark[data-theme="jellyfish"] { --primary: oklch(0.72 0.2 200); --ring: oklch(0.72 0.2 200); --sidebar-primary: oklch(0.72 0.2 200); }
 :root[data-theme="rain"], .dark[data-theme="rain"] { --primary: oklch(0.72 0.18 235); --ring: oklch(0.72 0.18 235); --sidebar-primary: oklch(0.72 0.18 235); }
 :root[data-theme="matrix"], .dark[data-theme="matrix"] { --primary: oklch(0.78 0.22 150); --ring: oklch(0.78 0.22 150); --sidebar-primary: oklch(0.78 0.22 150); --primary-foreground: oklch(0.1 0 0); }
-:root[data-theme="voronoi"], .dark[data-theme="voronoi"] { --primary: oklch(0.72 0.22 280); --ring: oklch(0.72 0.22 280); --sidebar-primary: oklch(0.72 0.22 280); }
 :root[data-theme="constellation"], .dark[data-theme="constellation"] { --primary: oklch(0.75 0.18 220); --ring: oklch(0.75 0.18 220); --sidebar-primary: oklch(0.75 0.18 220); }
-:root[data-theme="smoke"], .dark[data-theme="smoke"] { --primary: oklch(0.7 0.22 330); --ring: oklch(0.7 0.22 330); --sidebar-primary: oklch(0.7 0.22 330); }
 :root[data-theme="synapse"], .dark[data-theme="synapse"] { --primary: oklch(0.78 0.18 200); --ring: oklch(0.78 0.18 200); --sidebar-primary: oklch(0.78 0.18 200); }
 :root[data-theme="deepspace"], .dark[data-theme="deepspace"] { --primary: oklch(0.78 0.15 70); --ring: oklch(0.78 0.15 70); --sidebar-primary: oklch(0.78 0.15 70); --primary-foreground: oklch(0.15 0 0); }
 
@@ -565,9 +557,7 @@ html[data-theme="galaxy"]        { background-color: #04021a !important; }
 html[data-theme="jellyfish"]     { background-color: #04101e !important; }
 html[data-theme="rain"]          { background-color: #0a0f1a !important; }
 html[data-theme="matrix"]        { background-color: #000a08 !important; }
-html[data-theme="voronoi"]       { background-color: #0a0616 !important; }
 html[data-theme="constellation"] { background-color: #040811 !important; }
-html[data-theme="smoke"]         { background-color: #060410 !important; }
 html[data-theme="synapse"]       { background-color: #040814 !important; }
 html[data-theme="deepspace"]     { background-color: #02010a !important; }
 
@@ -819,7 +809,7 @@ html[data-bg] [data-slot="select-trigger"] {
    Calendar transparency — animated & decorative themes only
    ---------------------------------------------------------------------
    On themes that have a decorative background (marble, starfield, and
-   the 10 animated canvas themes), the calendar grid surface becomes
+   the 8 animated canvas themes), the calendar grid surface becomes
    transparent so the background shows through. Booking color blocks
    are untouched (they still render at full opacity via their own
    bgColor utilities). The plain themes keep their solid card look.
@@ -831,9 +821,7 @@ html[data-theme="galaxy"] [data-calendar-surface],
 html[data-theme="jellyfish"] [data-calendar-surface],
 html[data-theme="rain"] [data-calendar-surface],
 html[data-theme="matrix"] [data-calendar-surface],
-html[data-theme="voronoi"] [data-calendar-surface],
 html[data-theme="constellation"] [data-calendar-surface],
-html[data-theme="smoke"] [data-calendar-surface],
 html[data-theme="synapse"] [data-calendar-surface],
 html[data-theme="deepspace"] [data-calendar-surface] {
   background-color: transparent !important;
@@ -854,9 +842,7 @@ html[data-theme="galaxy"] [data-calendar-surface="grid"],
 html[data-theme="jellyfish"] [data-calendar-surface="grid"],
 html[data-theme="rain"] [data-calendar-surface="grid"],
 html[data-theme="matrix"] [data-calendar-surface="grid"],
-html[data-theme="voronoi"] [data-calendar-surface="grid"],
 html[data-theme="constellation"] [data-calendar-surface="grid"],
-html[data-theme="smoke"] [data-calendar-surface="grid"],
 html[data-theme="synapse"] [data-calendar-surface="grid"],
 html[data-theme="deepspace"] [data-calendar-surface="grid"] {
   background-color: rgba(10, 8, 24, 0.22) !important;
@@ -879,9 +865,7 @@ html[data-theme="galaxy"] [data-calendar-surface="header"],
 html[data-theme="jellyfish"] [data-calendar-surface="header"],
 html[data-theme="rain"] [data-calendar-surface="header"],
 html[data-theme="matrix"] [data-calendar-surface="header"],
-html[data-theme="voronoi"] [data-calendar-surface="header"],
 html[data-theme="constellation"] [data-calendar-surface="header"],
-html[data-theme="smoke"] [data-calendar-surface="header"],
 html[data-theme="synapse"] [data-calendar-surface="header"],
 html[data-theme="deepspace"] [data-calendar-surface="header"] {
   background-color: rgba(10, 8, 24, 0.55) !important;

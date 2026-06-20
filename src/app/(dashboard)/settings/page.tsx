@@ -72,7 +72,7 @@ interface ThemeOption {
   color: string;
 }
 
-// All themes are available to every authenticated user. The 11 decorative
+// All themes are available to every authenticated user. The 9 decorative
 // / animated themes (starfield → deepspace) used to be gated behind the
 // literal username='admin' check in the picker; that gate was lifted so
 // Stephen, Branch Leaders, Members, etc. can pick any theme too.
@@ -90,9 +90,7 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: 'jellyfish', label: 'Jellyfish', color: 'bg-gradient-to-br from-[#04101e] via-[#0891b2] to-[#a855f7]' },
   { id: 'rain', label: 'Rain', color: 'bg-gradient-to-br from-[#0a0f1a] via-[#64748b] to-[#a8c5ff]' },
   { id: 'matrix', label: 'Matrix', color: 'bg-gradient-to-br from-[#000a08] via-[#065f46] to-[#10b981]' },
-  { id: 'voronoi', label: 'Voronoi', color: 'bg-gradient-to-br from-[#0a0616] via-[#7c3aed] to-[#ec4899]' },
   { id: 'constellation', label: 'Constellation', color: 'bg-gradient-to-br from-[#040811] via-[#1e40af] to-[#60a5fa]' },
-  { id: 'smoke', label: 'Smoke', color: 'bg-gradient-to-br from-[#060410] via-[#9333ea] to-[#ec4899]' },
   { id: 'synapse', label: 'Synapse', color: 'bg-gradient-to-br from-[#040814] via-[#0891b2] to-[#38bdf8]' },
   { id: 'deepspace', label: 'Deep Space', color: 'bg-gradient-to-br from-[#02010a] via-[#1e1b4b] to-[#f59e0b]' },
 ];
@@ -378,7 +376,7 @@ export default function SettingsPage() {
               selectors and therefore ignore next-themes' light/dark
               class entirely (theme audit L-1 + STATIC-1). Toggling
               mode would otherwise produce no visible change.
-              Mode-fixed themes today: the 11 animated themes
+              Mode-fixed themes today: the 9 animated themes
               (canvas-dark) + marble (gold-on-cream texture). */}
           {(() => {
             const themeIsModeFixed =
@@ -432,7 +430,7 @@ export default function SettingsPage() {
 
           <Separator />
 
-          {/* Color themes — all 18 available to every authenticated user. */}
+          {/* Color themes — all 16 available to every authenticated user. */}
           <div>
             <p className="text-xs text-muted-foreground mb-2">{t('settings.colorAccent')}</p>
             <div className="flex flex-wrap gap-3">
