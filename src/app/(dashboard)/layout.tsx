@@ -19,6 +19,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // `collapsed` state drives the sidebar exactly as before (desktop
   // unchanged). <768 uses the bottom-nav branch instead.
   const [tabletRail, setTabletRail] = useState(false);
+  // ≥768px (md+). Gates the sidebar marginLeft on the single main column (see
+  // the consolidated standard layout below) so mobile has NO left offset. Lazy-
+  // init from matchMedia so desktop paints at the correct margin on the first
+  // post-hydration render (no 0→256 slide). SSR/hydration is covered by the
+  // `if (!hydrated)` spinner gate below, so there's no hydration mismatch.
+  const [isMdUp, setIsMdUp] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
+  );
   const { isAuthenticated, hydrated, hydrate, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -57,14 +65,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!isImmersive) setImmersiveOpen(false);
   }, [isImmersive]);
 
-  // Track the tablet band so the sidebar renders as an icon rail there.
+  // Track the tablet band (icon-rail sidebar) AND md+ (sidebar margin gate).
   // Client-only (post-hydration) so there's no SSR width mismatch.
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px) and (max-width: 1279px)');
-    const apply = () => setTabletRail(mq.matches);
+    const railMq = window.matchMedia('(min-width: 768px) and (max-width: 1279px)');
+    const mdMq = window.matchMedia('(min-width: 768px)');
+    const apply = () => {
+      setTabletRail(railMq.matches);
+      setIsMdUp(mdMq.matches);
+    };
     apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
+    railMq.addEventListener('change', apply);
+    mdMq.addEventListener('change', apply);
+    return () => {
+      railMq.removeEventListener('change', apply);
+      mdMq.removeEventListener('change', apply);
+    };
   }, []);
 
   // Block render until hydration finishes. Avoids both the flash and
@@ -145,8 +161,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <TopbarSlotProvider>
       <div className="flex h-full">
-        {/* Desktop + tablet sidebar. Tablet (768–1279) is forced to the icon
-            rail; ≥1280 keeps the user-togglable collapsed state (unchanged). */}
+        {/* Desktop + tablet sidebar (fixed, out of flow). Tablet (768–1279) is
+            forced to the icon rail; ≥1280 keeps the user-togglable collapsed
+            state (unchanged). Hidden below md — mobile uses the bottom nav. */}
         <div className="hidden md:block">
           <Sidebar
             collapsed={effectiveCollapsed}
@@ -156,39 +173,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
         </div>
 
-        {/* Main content. min-w-0 lets this flex column shrink below its
-            content's intrinsic width so the 768–1279 tablet band reflows
-            within the viewport instead of overflowing (and getting clipped
-            by the global overflow-x:clip). Inert at ≥1280 where content
-            fits — desktop unchanged. */}
+        {/* SINGLE main column — renders {children} EXACTLY ONCE. Previously the
+            layout had two CSS-gated siblings (a desktop motion.main + a mobile
+            div), both always mounted, so React mounted the page TWICE; a page
+            with component-local state (e.g. /calendar's `bookings`) had two live
+            instances and a mutation updated only one → stale UI until nav
+            (FINDING-1). Consolidated to one render:
+              - marginLeft (room for the fixed sidebar) is gated to md+ via
+                isMdUp, so there is NO sub-768 shift; at ≥md it's the exact same
+                animated 72/256 as before → desktop pixel-identical.
+              - mobile padding (p-4 + bottom-nav inset) is re-expressed as
+                responsive classes that reset to the old desktop p-6 at md+.
+              - min-w-0 keeps the tablet/mobile reflow (H-03/H-05); inert at ≥1280. */}
         <motion.main
           initial={false}
-          animate={{ marginLeft: effectiveCollapsed ? 72 : 256 }}
+          animate={{ marginLeft: isMdUp ? (effectiveCollapsed ? 72 : 256) : 0 }}
           transition={{ duration: 0.2, ease: 'easeInOut' }}
-          className="hidden min-w-0 flex-1 flex-col md:flex"
+          className="flex min-w-0 flex-1 flex-col"
         >
           {needsTopbar && <Topbar />}
-          <div className="flex-1 overflow-auto p-6">
+          <div className="min-w-0 flex-1 overflow-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6">
             <ErrorBoundary viewer={user} url={pathname}>
               {children}
             </ErrorBoundary>
           </div>
         </motion.main>
 
-        {/* Mobile layout — H-03/H-05 follow-up: min-w-0 lets the flex
-             column shrink below its content's intrinsic min-width so
-             pages like /admin?tab=blocked don't blow out the viewport
-             when an inner element (mobile pill nav, matrix table) has
-             a natural width > 430px. Without this the column inherits
-             min-width: auto from its row-flex parent and the whole
-             page horizontally scrolls. */}
-        <div className="flex min-w-0 flex-1 flex-col md:hidden">
-          {needsTopbar && <Topbar />}
-          <div className="min-w-0 flex-1 overflow-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-            <ErrorBoundary viewer={user} url={pathname}>
-              {children}
-            </ErrorBoundary>
-          </div>
+        {/* Mobile bottom nav — fixed; only below md. */}
+        <div className="md:hidden">
           <MobileNav />
         </div>
       </div>
