@@ -683,4 +683,18 @@ sink — the obvious move is a Sentry/Datadog client init at app root (the
 `ErrorBoundary` / `app/error.tsx` already leave "wire here" markers). This is a
 known open item, not a finished feature — call it out if you want it before launch.
 
+### 15.4 Mirror & deploy sync (how the frontend reaches you)
+
+`~/repos/diamond` on your box is a **READ-ONLY mirror** of `origin/main` (= what
+Vercel serves) — auto-fast-forwarded every 15 min by a **drift-guarded** cron
+(`~/.diamond-mirror-sync.sh`, log `~/.diamond-mirror-sync.log`). **Never edit it
+there:** if the cron ever finds local edits/commits it SKIPS and writes a
+`WARN ... NOT syncing` line to that log instead of silently diverging — so a `WARN`
+there means the mirror was modified and has stopped updating; revert it
+(`git -C ~/repos/diamond checkout -- . && git -C ~/repos/diamond clean -fd`) to
+resume. **Vercel is *temporary* prod;** prod later moves onto your box (serving
+model deferred — it's a stock Next app: `next build && next start`, or Docker, no
+code changes). The flow is simply: one `git push origin main` updates **both**
+Vercel and your mirror — no per-commit action needed.
+
 — frontend (2026-06-19 update)
