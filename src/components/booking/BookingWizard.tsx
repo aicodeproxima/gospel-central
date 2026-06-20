@@ -220,17 +220,33 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           const slotStart = new Date(bookingSlot.start);
           setDate(slotStart);
           setRoomId(bookingSlot.roomId);
+          const slotEnd = new Date(bookingSlot.end);
+          const dur = Math.max(
+            1,
+            Math.round((slotEnd.getTime() - slotStart.getTime()) / (30 * 60000)),
+          );
+          setDurationSlots(dur);
           // Request 1: pre-select the slot the user clicked on the calendar so
           // the time step opens with it highlighted (still fully changeable).
-          // Same 30-min grid math as the edit branch; off-grid → null = safe
-          // re-pick. Duration derived from the slot's own start→end window.
+          // Same 30-min grid math as the edit branch. GUARD: only pre-select if
+          // the whole range is actually bookable — the calendar grid can surface
+          // a blocked service time (e.g. Sabbath afternoon) as clickable, and
+          // pre-selecting it would dead-end at submit (409). Off-grid/occupied →
+          // null = the time step opens with nothing chosen (blocked slots are
+          // disabled there) so the user picks a free one.
           const slotIdx =
             (slotStart.getHours() * 60 + slotStart.getMinutes() - DEFAULT_SLOT_START_HOUR * 60) / 30;
-          setStartSlotIdx(Number.isInteger(slotIdx) && slotIdx >= 0 ? slotIdx : null);
-          const slotEnd = new Date(bookingSlot.end);
-          setDurationSlots(
-            Math.max(1, Math.round((slotEnd.getTime() - slotStart.getTime()) / (30 * 60000))),
-          );
+          const room = allRooms.find((r) => r.id === bookingSlot.roomId);
+          const probe = getDaySlots(slotStart, bookingSlot.roomId, bookings, {
+            blockedSlots,
+            areaId: room?.areaId,
+          });
+          let fits = Number.isInteger(slotIdx) && slotIdx >= 0;
+          for (let j = 0; fits && j < dur; j++) {
+            const s = probe[slotIdx + j];
+            if (!s || s.occupied) fits = false;
+          }
+          setStartSlotIdx(fits ? slotIdx : null);
         } else {
           setDate(new Date());
           setRoomId('');
@@ -393,14 +409,29 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       toast.error('Invalid time range');
       return;
     }
+    // GATE 2 guard: re-verify the WHOLE range is still free before any write. A
+    // blocked service time / occupied slot would 409 server-side at submit and,
+    // worse, orphan a just-created contact (the create runs before the booking).
+    // Bounce back to the time step so the user picks a bookable slot.
+    for (let j = 0; j < durationSlots; j++) {
+      const s = daySlots[startSlotIdx + j];
+      if (!s || s.occupied) {
+        toast.error('That time isn’t available — pick another slot');
+        setStep('time');
+        return;
+      }
+    }
     const area = areas.find((a) => a.rooms.some((r) => r.id === roomId));
     setLoading(true);
+    let createdContactId: string | null = null;
     try {
       const finalSubjects = addSubjectLater ? [] : subjectsStudied;
       // STUDY-1 / Request 2: a contact "Add new"-ed in the wizard is only a
-      // localStorage label (custom id) — persist it as a real contact first so
-      // the study lands on a real card + timeline. Existing (backend) contacts
-      // pass through unchanged. On failure we throw → no orphan booking.
+      // localStorage label (custom id) — persist it as a real contact so the
+      // study lands on a real card + timeline. Existing (backend) contacts pass
+      // through unchanged. The placeholder removal is DEFERRED to after the
+      // booking succeeds, and a failed booking rolls the contact back (catch),
+      // so a 409 can never orphan it. (Mike's backend will do this atomically.)
       let resolvedContactId = contactId || undefined;
       if (activityGroup === 'bible_study' && contactId && !isBackendManagedId(contactId)) {
         const customName = customContacts.find((c) => c.id === contactId)?.name.trim() || '';
@@ -429,7 +460,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           ],
         });
         resolvedContactId = created.id;
-        removeCustom(contactId);
+        createdContactId = created.id;
       }
       await onSubmit({
         type: resolveBookingType(),
@@ -451,9 +482,21 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         // and silently write a blank audit entry.
         ...(isEdit ? { editReason: editReason.trim() } : {}),
       });
+      // Booking succeeded — now it's safe to drop the localStorage placeholder.
+      if (createdContactId) removeCustom(contactId);
       toast.success(isEdit ? 'Booking updated' : 'Booking created');
       closeBookingModal();
     } catch (e) {
+      // Roll back a contact we created this run so a failed booking never
+      // orphans it (best-effort; the placeholder is kept so the user can retry
+      // the same name). Mike's real backend will do this in one transaction.
+      if (createdContactId) {
+        try {
+          await contactsApi.deleteContact(createdContactId);
+        } catch {
+          /* best-effort rollback */
+        }
+      }
       // Surface the specific reason (e.g. "Room is already booked: …" or
       // "Overlaps blocked window: …") instead of a generic failure, so the
       // user can actually act on it. Falls back to generic for network errors.
