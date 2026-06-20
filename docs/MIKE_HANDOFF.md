@@ -160,7 +160,7 @@ are where you'll do the real work.
 - **Frontend repo:** `https://github.com/aicodeproxima/Diamond`
 - **Active branch:** `feat/admin-system` (local-only on the frontend right now — see top of this doc)
 - **Live URL:** `https://diamond-delta-eight.vercel.app`
-- **Frontend deploy:** Vercel CLI (`npx vercel --prod --yes`) — uploads working dir directly, no git push required. The frontend has been deployed at `feat/admin-system` HEAD without ever pushing the branch.
+- **Frontend deploy:** **SUPERSEDED — see §15.4.** Deploy is now `git push origin main` (the Vercel project is git-connected → auto-builds + repoints the alias), which also fast-forwards the read-only box mirror within ≤15 min. The old `npx vercel --prod --yes` CLI-upload method is no longer used.
 - **Frontend local dir:** `C:\Users\aicod\Diamond` (Windows). Bash uses `/c/Users/aicod/Diamond`.
 
 The backend is your Go codebase, separate from this repo. The frontend reaches you via:
@@ -691,8 +691,12 @@ Vercel serves) — auto-fast-forwarded every 15 min by a **drift-guarded** cron
 there:** if the cron ever finds local edits/commits it SKIPS and writes a
 `WARN ... NOT syncing` line to that log instead of silently diverging — so a `WARN`
 there means the mirror was modified and has stopped updating; revert it
-(`git -C ~/repos/diamond checkout -- . && git -C ~/repos/diamond clean -fd`) to
-resume. **Vercel is *temporary* prod;** prod later moves onto your box (serving
+(`git -C ~/repos/diamond checkout -- .`) to resume. The sync script is
+version-controlled at `scripts/box/diamond-mirror-sync.sh` (drift-guarded,
+single-flight via `flock`, fails loudly on a non-fast-forward, and POSTs
+WARN/ERROR to an optional `~/.diamond-mirror-sync.ntfy` webhook) — install with
+`cp ~/repos/diamond/scripts/box/diamond-mirror-sync.sh ~/.diamond-mirror-sync.sh`.
+**Vercel is *temporary* prod;** prod later moves onto your box (serving
 model deferred — it's a stock Next app: `next build && next start`, or Docker, no
 code changes). The flow is simply: one `git push origin main` updates **both**
 Vercel and your mirror — no per-commit action needed.
