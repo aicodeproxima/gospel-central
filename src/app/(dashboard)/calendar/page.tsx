@@ -92,21 +92,30 @@ export default function CalendarPage() {
       .catch(() => setBlockedSlots([]));
   }, [selectedAreaId, setAreaId]);
 
-  // Load bookings
-  useEffect(() => {
+  // Shared view-aware bookings reload — computes the SAME range the load effect
+  // uses, so a post-mutation refetch (handleBookingSubmit) can't diverge from the
+  // active view. (C4: the old submit-refetch hardcoded a WEEK window regardless of
+  // view, hiding out-of-week creates in Day/Month against a range-honoring backend.)
+  const reloadBookings = useCallback(async () => {
     if (!selectedAreaId) return;
-    setLoading(true);
     let start: Date, end: Date;
     if (view === 'day') { start = startOfDay(selectedDate); end = endOfDay(selectedDate); }
     else if (view === 'week') { start = startOfWeek(selectedDate, { weekStartsOn: 1 }); end = endOfWeek(selectedDate, { weekStartsOn: 1 }); }
     else { start = startOfMonth(selectedDate); end = endOfMonth(selectedDate); }
-
-    bookingsApi
-      .getBookings({ start: start.toISOString(), end: end.toISOString(), areaId: selectedAreaId })
-      .then((data) => setBookings(Array.isArray(data) ? data : []))
-      .catch(() => setBookings([]))
-      .finally(() => setLoading(false));
+    try {
+      const data = await bookingsApi.getBookings({ start: start.toISOString(), end: end.toISOString(), areaId: selectedAreaId });
+      setBookings(Array.isArray(data) ? data : []);
+    } catch {
+      setBookings([]);
+    }
   }, [selectedDate, view, selectedAreaId]);
+
+  // Load bookings (shows the page spinner; the submit-path refetch skips it).
+  useEffect(() => {
+    if (!selectedAreaId) return;
+    setLoading(true);
+    reloadBookings().finally(() => setLoading(false));
+  }, [reloadBookings, selectedAreaId]);
 
   const selectedArea = areas.find((a) => a.id === selectedAreaId);
   const rooms = selectedArea?.rooms || [];
@@ -210,11 +219,9 @@ export default function CalendarPage() {
     } else {
       await bookingsApi.createBooking(data);
     }
-    // Refresh
-    const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
-    const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
-    const fresh = await bookingsApi.getBookings({ start: start.toISOString(), end: end.toISOString(), areaId: selectedAreaId || '' });
-    setBookings(fresh);
+    // View-aware refetch (C4) — no setLoading, so the grid doesn't flash a
+    // spinner on submit; the Array.isArray guard lives inside reloadBookings.
+    await reloadBookings();
   };
 
   const handleBookingDelete = async (id: string) => {
