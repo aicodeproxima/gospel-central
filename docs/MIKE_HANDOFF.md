@@ -628,3 +628,59 @@ Test count went from 108 → **222 passing** during the campaign. Build remains 
 - Cutover sequencing in §10 still stands. The new §14 musts are additive — they are things your backend must do correctly on day one, not new endpoints to build.
 
 — frontend (2026-05-11 update)
+
+---
+
+## 15. Frontend status update — 2026-06-19
+
+This supersedes the stale branch / test-count framing above (§2 + §13 were written
+while `feat/admin-system` was still held locally). **Current reality:**
+
+- **Branch:** `feat/mobile-opt-main` **== `main`** — pushed and **live on prod**
+  (`https://diamond-delta-eight.vercel.app`). The Vercel project is git-connected,
+  so a push to `main` auto-builds and repoints the alias. The old "branch held,
+  don't fetch yet" note is obsolete — `main` is the truth.
+- **Canonical checkout:** `C:\Users\aicod\Projects\_src\diamond-live` (the
+  `C:\Users\aicod\Diamond` path in §2 is an older worktree).
+- **Tests:** `npm test` → **302 passing** (14 files); `npm run build` clean.
+- **`.env.example` is now committed** at the repo root — the canonical mock↔real
+  contract (the two flags + the cutover/rollback note). §2 + §10 still hold; this
+  just encodes them as a file you can copy.
+
+### 15.1 The mock is PERMANENT — it stays for your testing
+
+The MSW mock (`src/mocks/`) is **not** demo scaffolding to be deleted at cutover.
+It is your **API contract + test oracle**: keep `NEXT_PUBLIC_MOCK_API=true` to run
+the frontend standalone against it for integration testing, demos, and as the
+behavioral reference while you build endpoints. Cutover is the **two-flag flip**
+(§10.5); rollback is flipping `MOCK_API=true` again (§10.7). The mock code is
+never removed. Everything in §0 + §14 about what NOT to copy from the mock (the
+permissive-by-design gaps) still applies — those are your server-side to-dos, not
+mock bugs to "fix."
+
+### 15.2 Frontend-only changes since the last update (NO backend-contract impact)
+
+All client-side UX / perf / a11y — none of these change an endpoint, payload,
+type, or permission rule, so nothing here needs backend work:
+
+- **3D org tree (`/groups`):** cold-load "Loading organization…" overlay (masks
+  the WebGL init gap), root-framing fixes, and a `NODE_SCALE` node enlargement
+  (cards + avatars ~1.5×, with the no-overlap invariant unit-tested).
+- **Settings:** a working 12h/24h time-format preference, profile-photo → sidebar
+  avatar (downscaled, localStorage-only), and honest "saved on this device" copy.
+- **Resilience:** explicit loading + error/Retry states on `/dashboard`, `/groups`,
+  `/contacts` (guarded `Promise.all`) — a transient GET failure no longer blanks
+  the page (it shows a Retry instead).
+- **A11y:** `prefers-reduced-motion` suppresses the animated backgrounds.
+- **Hygiene:** logout now also clears the local profile photo (shared-device).
+
+### 15.3 Observability — still mock-only (flagged, NOT done)
+
+`ErrorBoundary` + `WebGLGuard` POST structured reports to `/api/error-log`, but
+that sink is the **MSW in-memory buffer only** (cleared each session, no FE
+reader). There is **no production error reporting** until it's wired to a real
+sink — the obvious move is a Sentry/Datadog client init at app root (the
+`ErrorBoundary` / `app/error.tsx` already leave "wire here" markers). This is a
+known open item, not a finished feature — call it out if you want it before launch.
+
+— frontend (2026-06-19 update)

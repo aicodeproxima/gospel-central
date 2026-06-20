@@ -194,8 +194,36 @@ export default function SettingsPage() {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      prefs.setProfilePhoto(reader.result as string);
-      toast.success('Profile photo updated');
+      const dataUrl = reader.result as string;
+      // Downscale to a small thumbnail before persisting: the photo is only ever
+      // rendered at ~16–64px (sidebar + settings avatar), and it lives in the
+      // shared `diamond-preferences` localStorage blob — storing a full-res
+      // data-URL there risks the ~5MB quota and would silently fail the persist
+      // of ALL prefs. Falls back to the raw data-URL if canvas isn't available.
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const MAX = 128;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('no 2d context');
+          ctx.drawImage(img, 0, 0, w, h);
+          prefs.setProfilePhoto(canvas.toDataURL('image/jpeg', 0.85));
+        } catch {
+          prefs.setProfilePhoto(dataUrl);
+        }
+        toast.success('Profile photo updated');
+      };
+      img.onerror = () => {
+        prefs.setProfilePhoto(dataUrl);
+        toast.success('Profile photo updated');
+      };
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   };
