@@ -87,7 +87,7 @@ export const contactsHelp: PageHelp = {
       heading: 'Adding a contact',
       body: [
         'Click "Add Contact" in the top-right.',
-        'Fill in Name, Phone, Group, Status (pipeline stage), up to 3 Preaching Partners, and the Initial Subject Preached.',
+        'Fill in Name, Phone, Group, Status (pipeline stage), up to 3 Branches, and the Initial Subject Preached.',
         'Every text field has predictive autocomplete from everything already in the system.',
         'For Initial Subject, tap any Step 1\u20135 tab to see the 10 subjects in that step, or type a custom title.',
       ],

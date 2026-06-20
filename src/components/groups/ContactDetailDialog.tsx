@@ -323,7 +323,7 @@ function ViewMode({
         />
         <Row
           icon={UsersIcon}
-          label="Preaching Partners"
+          label="Branches"
           value={
             partners.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -815,13 +815,14 @@ function EditMode({
         </Select>
       </div>
 
-      {/* Preaching Partners */}
+      {/* Branches (formerly "Preaching Partners" — label-only rename; the
+          underlying preachingPartnerIds field is unchanged) */}
       <div className="space-y-2">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-          Preaching Partners
+          Branches
         </Label>
         <p className="text-[11px] text-muted-foreground">
-          Up to 3 brothers/sisters who preached with this contact
+          Up to 3 branches linked to this contact
         </p>
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (

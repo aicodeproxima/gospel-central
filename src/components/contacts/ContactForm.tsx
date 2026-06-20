@@ -288,13 +288,13 @@ export function ContactForm({
             </Select>
           </div>
 
-          {/* Preaching Partners — 3 fields */}
+          {/* Branches (formerly "Preaching Partners" — label-only rename) */}
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-              Preaching Partners
+              Branches
             </Label>
             <p className="text-[11px] text-muted-foreground">
-              Up to 3 brothers/sisters (from any branch) who preached with this contact
+              Up to 3 branches linked to this contact
             </p>
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
