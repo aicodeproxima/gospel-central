@@ -886,22 +886,22 @@ html[data-theme="deepspace"] [data-calendar-surface="header"] {
 }
 
 /* ── UI density (user request 2026-06-20) ─────────────────────────────────
-   Default to the ~90% "fitment" the user prefers (more content fits, denser).
-   A rem-based ROOT font-scale: shrinks every rem Tailwind utility (text /
-   padding / gap / rem widths) + the body-portaled dialogs uniformly, WITHOUT
-   touching — the px sidebar (its animated width + the content marginLeft are
-   matching px literals 72/256, so they can't desync), the WebGL / 3D canvases
-   (sized from useThree().size in px → immune to font-size, unlike `zoom`), or
-   any fixed/sticky bar. Chosen over `zoom: 0.9` (non-standard; distorts the
-   Tree3D raycast + drei <Html> overlays and re-anchors fixed offsets).
+   Default to the ~90% "fitment" the user prefers — i.e. exactly the look of
+   the browser at 90% zoom (MORE content fits, incl. all calendar columns).
+   `zoom: 0.9` is used (not `font-size`) BECAUSE the user's reference IS browser
+   zoom: it scales EVERYTHING uniformly — text, padding, AND the px-sized things
+   font-size can't touch (calendar column widths, the sidebar) — and enlarges the
+   effective layout so more columns fit. (font-size:90% only shrank text and left
+   the px columns full-width, so it did NOT replicate the reference.)
+   Applied at the root so it covers every page + body-portaled dialogs.
    Gated ≥1280 (the project's compact↔desktop line) so phones AND the 768–1279
-   touch tablet-rail band stay at native scale — the 44px `max-md` tap-target
-   floor is never shrunk. NOTE: this INTENTIONALLY changes the ≥1280 desktop
-   render the Mobile-foundation block below still calls "frozen" — that freeze
-   is superseded here by the user's explicit request. */
+   touch tablet-rail band stay native — the 44px `max-md` tap floor is untouched.
+   VERIFIED on prod that the /groups react-three-fiber canvas + node-click
+   raycasting still work under this zoom (the investigation's flagged risk).
+   Supersedes the "desktop ≥1280 frozen" note in the block below (user request). */
 @media (min-width: 1280px) {
   :root {
-    font-size: 90%;
+    zoom: 0.9;
   }
 }
 
