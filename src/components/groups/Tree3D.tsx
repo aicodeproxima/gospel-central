@@ -147,9 +147,6 @@ interface NodeCardProps {
   compact: boolean;
   /** Per-viewport world-scaling factor (undefined on desktop = fixed-size card). */
   cardDistanceFactor?: number;
-  /** LOD gate: when false the DOM name-card isn't rendered (off-screen / zoomed
-   *  out far) so its drei <Html> doesn't re-sync every frame. 3D mesh stays. */
-  showCard?: boolean;
 }
 
 function NodeCardInner({
@@ -167,7 +164,6 @@ function NodeCardInner({
   onFocusTight,
   compact,
   cardDistanceFactor,
-  showCard = true,
 }: NodeCardProps) {
   const { tRole, tStage } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
@@ -198,9 +194,7 @@ function NodeCardInner({
       </Suspense>
       {/* HTML overlay BELOW the platform — screen-space so text stays crisp
           at any zoom level. Drei's non-transform Html anchors at the 3D point
-          but renders as a regular DOM element. LOD-gated by `showCard` so
-          off-screen / zoomed-out-far cards aren't DOM-synced every frame. */}
-      {showCard && (
+          but renders as a regular DOM element. */}
       <Html
         position={[0, -1.3, 0]}
         center
@@ -268,7 +262,6 @@ function NodeCardInner({
           )}
         </div>
       </Html>
-      )}
     </group>
   );
 }
@@ -318,8 +311,6 @@ interface ContactLeaf3DProps {
   onFocus: () => void;
   compact: boolean;
   cardDistanceFactor?: number;
-  /** LOD gate — see NodeCardProps.showCard. */
-  showCard?: boolean;
 }
 
 function ContactLeaf3DInner({
@@ -330,7 +321,6 @@ function ContactLeaf3DInner({
   onFocus,
   compact,
   cardDistanceFactor,
-  showCard = true,
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -353,7 +343,6 @@ function ContactLeaf3DInner({
           roughness={0.5}
         />
       </mesh>
-      {showCard && (
       <Html
         position={[0, -0.9, 0]}
         center
@@ -389,7 +378,6 @@ function ContactLeaf3DInner({
           </div>
         </button>
       </Html>
-      )}
     </group>
   );
 }
