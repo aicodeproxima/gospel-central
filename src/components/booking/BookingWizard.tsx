@@ -207,19 +207,31 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       } else {
         // New mode
         if (bookingSlot) {
-          setDate(new Date(bookingSlot.start));
+          const slotStart = new Date(bookingSlot.start);
+          setDate(slotStart);
           setRoomId(bookingSlot.roomId);
+          // Request 1: pre-select the slot the user clicked on the calendar so
+          // the time step opens with it highlighted (still fully changeable).
+          // Same 30-min grid math as the edit branch; off-grid → null = safe
+          // re-pick. Duration derived from the slot's own start→end window.
+          const slotIdx =
+            (slotStart.getHours() * 60 + slotStart.getMinutes() - DEFAULT_SLOT_START_HOUR * 60) / 30;
+          setStartSlotIdx(Number.isInteger(slotIdx) && slotIdx >= 0 ? slotIdx : null);
+          const slotEnd = new Date(bookingSlot.end);
+          setDurationSlots(
+            Math.max(1, Math.round((slotEnd.getTime() - slotStart.getTime()) / (30 * 60000))),
+          );
         } else {
           setDate(new Date());
           setRoomId('');
+          setStartSlotIdx(null);
+          setDurationSlots(2);
         }
         setActivityGroup(null);
         setLeaderId('');
         setMode(null);
         setContactId('');
         setContactBaptismType(null);
-        setStartSlotIdx(null);
-        setDurationSlots(2);
         setStep('activity');
       }
       setEditReason('');
