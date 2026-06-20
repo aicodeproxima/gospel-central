@@ -167,8 +167,15 @@ export default function GroupsPage() {
       setMetrics(met);
       setContacts(con);
       setUsers(usr);
-      // Default: fully collapsed tree, snapped onto the top Developer (Michael).
+      // Default: fully collapsed tree, snapped onto the ROOT node in tight
+      // 'node' mode so it's centered at startup. Derive the root id from the
+      // loaded tree — was hardcoded 'u-michael', which silently no-ops against
+      // a backend whose root node has a different id.
       setExpandedIds(new Set());
+      const rootId = tree[0]?.id;
+      if (rootId) {
+        setTimeout(() => setFocusRequest({ kind: 'node', id: rootId }), 80);
+      }
     }).catch((e) => {
       // The org-tree fetch itself failed → show an error + Retry instead of a
       // silent blank canvas (which reads as "the app is broken").
@@ -176,12 +183,6 @@ export default function GroupsPage() {
       setLoadError(true);
     }).finally(() => {
       setLoading(false);
-      // After the scene has had a moment to lay itself out, focus Michael
-      // in tight 'node' mode so he's centered in the viewport at startup.
-      setTimeout(
-        () => setFocusRequest({ kind: 'node', id: 'u-michael' }),
-        80,
-      );
     });
   }, []);
 

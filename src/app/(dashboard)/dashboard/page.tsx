@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/i18n';
@@ -68,20 +68,40 @@ export default function DashboardPage() {
   const [contacts, setContacts] = useState<ContactType[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [openStat, setOpenStat] = useState<StatKey | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     const now = new Date();
-    // Fetch last 30 days + next 30 days (not the entire year)
-    bookingsApi
-      .getBookings({
+    // Bookings + contacts are the dashboard's data; areas only feed roomMap, so
+    // it degrades to empty. A real failure of the first two now surfaces an
+    // error + Retry instead of silently rendering blank zero-cards (which read
+    // as "the app is broken") — matching the Groups/Contacts pages.
+    Promise.all([
+      bookingsApi.getBookings({
         start: new Date(now.getTime() - 30 * 86400000).toISOString(),
         end: new Date(now.getTime() + 30 * 86400000).toISOString(),
+      }),
+      contactsApi.getContacts(),
+      bookingsApi.getAreas().catch(() => [] as Area[]),
+    ])
+      .then(([bk, con, ar]) => {
+        setBookings(bk);
+        setContacts(con);
+        setAreas(ar);
       })
-      .then(setBookings)
-      .catch(() => {});
-    contactsApi.getContacts().then(setContacts).catch(() => {});
-    bookingsApi.getAreas().then(setAreas).catch(() => {});
+      .catch((e) => {
+        console.error('Failed to load the dashboard', e);
+        setLoadError(true);
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   const roomMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -175,6 +195,23 @@ export default function DashboardPage() {
   ];
   if (user && canAccessReports(user.role)) {
     quickLinks.push({ href: '/reports', label: t('nav.reports'), icon: BarChart3, desc: t('dash.viewLogs'), color: 'from-red-500/20 to-red-600/10' });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your dashboard.</p>
+        <Button variant="outline" size="sm" onClick={loadDashboard}>Retry</Button>
+      </div>
+    );
   }
 
   return (

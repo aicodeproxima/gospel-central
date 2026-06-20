@@ -21,7 +21,7 @@ import {
   filterRecentlyStudying,
   getContactsForSubtree,
 } from '@/lib/utils/org-metrics';
-import { layoutTree } from '@/lib/utils/tree-layout';
+import { layoutTree, NODE_SCALE } from '@/lib/utils/tree-layout';
 import { clampCamToDollyRange } from '@/lib/utils/camera';
 import { topBandBounds } from '@/lib/utils/tree-focus';
 import { pickAvatarForUser } from '@/lib/avatars';
@@ -55,14 +55,10 @@ const METRIC_ROLES = new Set<UserRole>([
   UserRole.BRANCH_LEADER,
 ]);
 
-// EXPERIMENT (2026-06-19, user request) — enlarge the whole node by this factor:
-// the card (+ its text/icons, via the drei <Html> distanceFactor → card world
-// width), the avatar mesh, and the platform. The framing pads + the layout gaps
-// (tree-layout.ts HORIZONTAL/LEVEL/ROW/CONTACT) are scaled to match so the bigger
-// cards still never overlap (card world stays < HORIZONTAL_GAP) and the
-// collapsed/tight views fit. Set to 1 (and revert the tree-layout gaps) to undo —
-// or just `git revert` the commit.
-const NODE_SCALE = 1.5;
+// NODE_SCALE (the enlarged-node factor, 2026-06-19) is imported from
+// tree-layout.ts so the layout gaps and these node sizes share ONE constant and
+// can never drift out of sync. It scales the card (via the <Html> distanceFactor
+// → card world width), the avatar mesh, the platform, and the framing pads below.
 
 // ----------------------------------------------------------------------------
 // Glowing platform under each node

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { usersApi } from '@/lib/api/users';
 import {
   usePreferencesStore,
   type ColorTheme,
@@ -149,10 +150,21 @@ export default function SettingsPage() {
       phone !== (user.phone || '') ||
       avatarUrl !== user.avatarUrl);
 
-  const handleSave = () => {
-    if (user) {
-      setUser({ ...user, firstName, lastName, email, phone, avatarUrl });
+  const handleSave = async () => {
+    if (!user) return;
+    const prev = user;
+    // Optimistic local update, then persist the editable profile fields to the
+    // backend so they survive a reload once a real backend is wired (the mock
+    // stores them in-memory). avatarUrl is a frontend-only 3D-avatar choice and
+    // stays local. Revert the optimistic update if the save fails.
+    setUser({ ...user, firstName, lastName, email, phone, avatarUrl });
+    try {
+      await usersApi.update(user.id, { firstName, lastName, email, phone, actorId: user.id });
       toast.success(t('btn.save'));
+    } catch (e) {
+      console.error('Failed to save profile', e);
+      setUser(prev);
+      toast.error('Could not save your profile — please try again');
     }
   };
 
@@ -614,7 +626,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Your choices are saved to your profile now. Email and push delivery turn on once the
+            Your choices are saved on this device. Email and push delivery turn on once the
             notification service is connected.
           </p>
           {([

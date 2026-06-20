@@ -77,6 +77,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       import('@/lib/stores/custom-entities-store')
         .then((m) => m.useCustomEntitiesStore.getState().clearAll())
         .catch(() => {});
+      // Clear the profile PHOTO on logout so a different user on a shared device
+      // doesn't inherit the previous user's face. Theme/language/time-format are
+      // device-level prefs and intentionally persist.
+      import('@/lib/stores/preferences-store')
+        .then((m) => m.usePreferencesStore.getState().setProfilePhoto(null))
+        .catch(() => {});
     }
     set({ token: null, user: null, isAuthenticated: false, hydrated: true });
   },
