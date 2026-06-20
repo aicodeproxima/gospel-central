@@ -38,12 +38,15 @@ export interface TreeLayout {
   bounds: { minX: number; maxX: number; maxDepth: number };
 }
 
-// Tight gaps — original known-good values.
-const HORIZONTAL_GAP = 7;
-const LEVEL_GAP = 8; // vertical gap between tree levels
-const CONTACT_GAP = 3.5;
+// Tight gaps — original known-good values, scaled ×1.5 for the NODE_SCALE=1.5
+// experiment (2026-06-19) so the enlarged cards/avatars in Tree3D still never
+// overlap (card world widths 7.2/8.1 stay < HORIZONTAL_GAP 10.5). Revert the
+// commit (or drop the * 1.5) to undo. Keep in sync with Tree3D's NODE_SCALE.
+const HORIZONTAL_GAP = 7 * 1.5;
+const LEVEL_GAP = 8 * 1.5; // vertical gap between tree levels
+const CONTACT_GAP = 3.5 * 1.5;
 const MAX_COLS_PER_ROW = 3; // wrap children onto new rows beyond this count
-const ROW_GAP = 5; // extra vertical gap between wrapped rows of siblings
+const ROW_GAP = 5 * 1.5; // extra vertical gap between wrapped rows of siblings
 
 /**
  * Pre-compute the width + height of a subtree assuming row wrapping.

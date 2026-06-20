@@ -55,6 +55,15 @@ const METRIC_ROLES = new Set<UserRole>([
   UserRole.BRANCH_LEADER,
 ]);
 
+// EXPERIMENT (2026-06-19, user request) — enlarge the whole node by this factor:
+// the card (+ its text/icons, via the drei <Html> distanceFactor → card world
+// width), the avatar mesh, and the platform. The framing pads + the layout gaps
+// (tree-layout.ts HORIZONTAL/LEVEL/ROW/CONTACT) are scaled to match so the bigger
+// cards still never overlap (card world stays < HORIZONTAL_GAP) and the
+// collapsed/tight views fit. Set to 1 (and revert the tree-layout gaps) to undo —
+// or just `git revert` the commit.
+const NODE_SCALE = 1.5;
+
 // ----------------------------------------------------------------------------
 // Glowing platform under each node
 // ----------------------------------------------------------------------------
@@ -107,7 +116,7 @@ function AvatarFigure({ url, scale = 2.3 }: { url: string; scale?: number }) {
     t.needsUpdate = true;
   }
   return (
-    <Billboard position={[0, 1.3, 0]} follow lockX={false} lockY={false} lockZ={false}>
+    <Billboard position={[0, 0.15 + scale / 2, 0]} follow lockX={false} lockY={false} lockZ={false}>
       <mesh>
         <planeGeometry args={[scale, scale]} />
         <meshBasicMaterial map={texture} transparent toneMapped={false} />
@@ -178,13 +187,13 @@ function NodeCardInner({
         onFocus();
       }}
     >
-      <Platform color={color} />
+      <Platform color={color} size={2.6 * NODE_SCALE} />
       {/* 3D avatar figure centered on the platform (billboarded to camera).
           Smaller on compact (<1280) so it doesn't dwarf the card on a phone. */}
       <Suspense fallback={null}>
         <AvatarFigure
           url={node.avatarUrl || pickAvatarForUser(node.role, node.id)}
-          scale={compact ? 1.6 : 2.3}
+          scale={(compact ? 1.6 : 2.3) * NODE_SCALE}
         />
       </Suspense>
       {/* HTML overlay BELOW the platform — screen-space so text stays crisp
@@ -1197,7 +1206,7 @@ const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR)
 // units below the root) ≈ root → first branch-leader row; ROOT_TOP_BIAS anchors
 // the root this fraction-of-distance below screen-center so it sits near the top
 // and the user pans DOWN to drill in. Tuned live (see groups verification).
-const TOP_BAND_HEIGHT = 20;
+const TOP_BAND_HEIGHT = 20 * NODE_SCALE;
 const ROOT_TOP_BIAS = 0.34;
 
 // Desktop card sizing. The card world-scales (drei <Html distanceFactor>), so it
@@ -1208,11 +1217,11 @@ const ROOT_TOP_BIAS = 0.34;
 // like today's card. This replaces the old fixed-px + zoom-cap approach (which
 // fought overlap by limiting zoom-out — scaling removes the problem at the root).
 const DESKTOP_CARD_PX = 176;
-const DESKTOP_CARD_WORLD_WIDTH = 5.4; // tuned live so the default card ≈ today's ~176px (still < HORIZONTAL_GAP 7 → never overlaps)
+const DESKTOP_CARD_WORLD_WIDTH = 5.4 * NODE_SCALE; // base 5.4; ×NODE_SCALE stays < the scaled HORIZONTAL_GAP (10.5) → never overlaps
 // The card's RENDERED world width (the distanceFactor param above is 5.4, but the
 // card renders ~2.6 wu wide per live measurement). Used only to pad the focus bbox
 // so side cards don't clip when a branch fills the viewport edge-to-edge. LIVE-TUNABLE.
-const DESKTOP_CARD_RENDER_WIDTH = 2.6;
+const DESKTOP_CARD_RENDER_WIDTH = 2.6 * NODE_SCALE;
 
 // --- Compact (<1280) world-scaled card tuning ------------------------------
 // On phones/tablets the node + contact cards use drei <Html distanceFactor>, so
@@ -1230,9 +1239,9 @@ const DESKTOP_CARD_RENDER_WIDTH = 2.6;
 // canvasSize.height in SceneContent to hold cardWorldWidth ≈ CARD_WORLD_WIDTH at
 // every viewport/DPR. 4.8 < HORIZONTAL_GAP(7) ⇒ siblings never overlap anywhere.
 const CARD_BASE_PX = 156;
-const CARD_WORLD_WIDTH = 4.8;
-const AVATAR_WORLD_TOP = 2.1;
-const CARD_WORLD_DROP = 4.0;
+const CARD_WORLD_WIDTH = 4.8 * NODE_SCALE;
+const AVATAR_WORLD_TOP = 2.1 * NODE_SCALE;
+const CARD_WORLD_DROP = 4.0 * NODE_SCALE;
 
 // Latches once the tree has painted at least once THIS page-load. Module-level
 // so it survives Tree3D unmount/remount on the 3D⇄List view toggle (the page
