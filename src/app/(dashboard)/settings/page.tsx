@@ -272,7 +272,7 @@ export default function SettingsPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-3xl space-y-6 pb-12"
+      className="w-full max-w-3xl space-y-6 pb-12 xl:mx-auto xl:max-w-[1500px]"
     >
       <div>
         <div className="flex items-center gap-2">
@@ -282,6 +282,12 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">{t('page.settings.subtitle')}</p>
       </div>
 
+      {/* Cards: single column on phone/tablet (unchanged); 2-up masonry on
+          desktop (≥xl — where the full sidebar shows and the page used to
+          strand ~40% empty on the right). break-inside-avoid keeps each card
+          whole across the column gap; the per-item mb replaces space-y, which
+          can't bridge the column break. */}
+      <div className="space-y-6 xl:columns-2 xl:gap-6 xl:space-y-0 xl:[&>*]:mb-6 [&>*]:break-inside-avoid">
       {/* 1. Profile */}
       <Card>
         <CardHeader>
@@ -883,6 +889,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
+
       {prefs.backgroundStyle !== 'none' && (
         <BackgroundCustomizerDialog
           style={prefs.backgroundStyle as BackgroundId}
