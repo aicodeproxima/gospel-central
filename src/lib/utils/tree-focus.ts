@@ -124,6 +124,13 @@ export interface FitBboxOptions {
   /** No-clip safety margin on the fit distance. Default 1.06. */
   safety?: number;
   /**
+   * Extra downward bias on the CENTERED look-at, as a fraction of the visible
+   * world height: raises the look-at so the tree drops lower in frame. Corrects
+   * the camera rig's downward tilt, which otherwise makes a multi-node bbox
+   * appear high. Default 0. (Not applied to the top-anchored/clamped case.)
+   */
+  liftFrac?: number;
+  /**
    * What to do when the bbox is too big to fully fit at `maxDist`:
    *  - 'top'    → anchor the bbox TOP just under the top overlay and let the
    *               rest run off the bottom (user pans down). Default.
@@ -186,6 +193,6 @@ export function fitBboxIntoBand(
   // center by (topFrac - bottomFrac)/2 of the height (the top overlay is taller
   // than the bottom one), so bias the look-at up by that same fraction of visH.
   const bandBiasFrac = (band.topFrac - band.bottomFrac) / 2;
-  const lookY = bboxCenterY + bandBiasFrac * visH;
+  const lookY = bboxCenterY + (bandBiasFrac + (opts.liftFrac ?? 0)) * visH;
   return { center: [centerX, lookY, 0], distance, clamped };
 }

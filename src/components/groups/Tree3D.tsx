@@ -738,11 +738,12 @@ function SceneContent({
         readFrameBand(gl.domElement),
         {
           padTop: AVATAR_WORLD_TOP,
-          padBottom: CARD_WORLD_DROP,
+          padBottom: fitTune().padBottom,
           padSide: DESKTOP_CARD_RENDER_WIDTH,
           worldPerDist: WORLD_PER_DIST,
           minDist: 8,
           maxDist: MAX_FOCUS_DIST_DESKTOP,
+          liftFrac: fitTune().liftFrac,
         },
       );
       return { center: fit.center, distance: fit.distance };
@@ -1180,6 +1181,23 @@ function readFrameBand(canvasEl: HTMLElement): FrameBand {
     topFrac: Math.min(0.55, topPx / H),
     bottomFrac: Math.min(0.25, botPx / H),
   };
+}
+
+/**
+ * Desktop fit tuning, overridable LIVE via `window.__fitTune = { padBottom, liftFrac }`
+ * for screenshot-loop calibration without a redeploy. `padBottom` = the real world
+ * extent the card hangs below the node center; the conservative CARD_WORLD_DROP=6
+ * used for compact over-reserves on desktop (tree floats high), since the card is
+ * anchored at node_y−1.3. `liftFrac` drops the centered tree to cancel the rig's
+ * downward tilt (which lifts a multi-node bbox's apparent center).
+ */
+const FIT_TUNE_DEFAULT = { padBottom: 4, liftFrac: 0.045 };
+function fitTune(): { padBottom: number; liftFrac: number } {
+  if (typeof window !== 'undefined') {
+    const o = (window as unknown as { __fitTune?: Partial<typeof FIT_TUNE_DEFAULT> }).__fitTune;
+    if (o) return { ...FIT_TUNE_DEFAULT, ...o };
+  }
+  return FIT_TUNE_DEFAULT;
 }
 
 // Expand-all frames a Y-band from the top of the tree (NOT a depth filter —
