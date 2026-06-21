@@ -1097,8 +1097,12 @@ studyingContacts.forEach((contact, i) => {
 
   for (let s = 0; s < sessionsThisWeek; s++) {
     let placed = false;
-    for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
-      const day = dayOf((i + s * 3 + dayOffset) % 6);
+    // Spread studies across ALL 7 days of the current week (Mon=0 … Sun=6) so
+    // whatever day "today" is, the calendar isn't empty on open. (Meetings stay
+    // on weekdays; studies legitimately happen any day. `tryAddBooking` still
+    // skips blocked Sabbath slots + room double-books, so nothing breaks.)
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const day = dayOf((i + s * 3 + dayOffset) % 7);
       for (const room of studyRooms) {
         const slot = findFreeTime(areaId, room, day, 2, 9, 18);
         if (slot) {
