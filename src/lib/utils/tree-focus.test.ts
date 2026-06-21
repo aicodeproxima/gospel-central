@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { topBandBounds, type FocusableNode, type FocusableContact } from './tree-focus';
+import {
+  topBandBounds,
+  fitBboxIntoBand,
+  type FocusableNode,
+  type FocusableContact,
+  type Bounds,
+  type FrameBand,
+} from './tree-focus';
 
 // Synthetic tree (mirrors the real org shape: root at the TOP = highest y,
 // members/contacts at the BOTTOM = lowest y). This is exactly the geometry that
@@ -51,5 +58,68 @@ describe('topBandBounds', () => {
 
   it('returns null when there are no nodes', () => {
     expect(topBandBounds([], [], 16)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fitBboxIntoBand — the camera-framing math. The invariant that actually
+// matters is NO-CLIP: at the returned distance, the bbox's visual top stays
+// below the search bar and its visual bottom above the pan hint.
+// ---------------------------------------------------------------------------
+const WPD = 1.0412; // 2·tan(55°/2), the scene's worldPerDist
+const BAND: FrameBand = { viewportW: 1280, viewportH: 800, topFrac: 0.18, bottomFrac: 0.06 };
+const OPTS = { padTop: 3, padBottom: 6, padSide: 4, worldPerDist: WPD, minDist: 8, maxDist: 67 };
+
+/** Screen fraction-from-top where a world Y lands for a given look-at + distance. */
+function screenFrac(worldY: number, lookY: number, distance: number): number {
+  const visH = distance * WPD; // top of screen (frac 0) = lookY + visH/2
+  return 0.5 - (worldY - lookY) / visH;
+}
+
+describe('fitBboxIntoBand', () => {
+  const small: Bounds = { minX: -10, maxX: 10, minY: -8, maxY: 8 };
+
+  it('no-clip: a fitting bbox sits below the search bar and above the pan hint', () => {
+    const r = fitBboxIntoBand(small, BAND, OPTS);
+    expect(r.clamped).toBe(false);
+    const topF = screenFrac(small.maxY + OPTS.padTop, r.center[1], r.distance);
+    const botF = screenFrac(small.minY - OPTS.padBottom, r.center[1], r.distance);
+    expect(topF).toBeGreaterThanOrEqual(BAND.topFrac - 1e-3);
+    expect(botF).toBeLessThanOrEqual(1 - BAND.bottomFrac + 1e-3);
+  });
+
+  it('centers in the band: equal margin to each overlay edge', () => {
+    const r = fitBboxIntoBand(small, BAND, OPTS);
+    const topF = screenFrac(small.maxY + OPTS.padTop, r.center[1], r.distance);
+    const botF = screenFrac(small.minY - OPTS.padBottom, r.center[1], r.distance);
+    const gapTop = topF - BAND.topFrac;
+    const gapBot = 1 - BAND.bottomFrac - botF;
+    expect(Math.abs(gapTop - gapBot)).toBeLessThan(0.01);
+  });
+
+  it('zoom/aspect invariant: scaling both viewport dims leaves distance unchanged', () => {
+    const a = fitBboxIntoBand(small, BAND, OPTS);
+    const zoomed: FrameBand = { ...BAND, viewportW: BAND.viewportW * 0.9, viewportH: BAND.viewportH * 0.9 };
+    expect(fitBboxIntoBand(small, zoomed, OPTS).distance).toBeCloseTo(a.distance, 6);
+  });
+
+  it('monotonic: a taller bbox never yields a smaller distance', () => {
+    const shortD = fitBboxIntoBand({ minX: -10, maxX: 10, minY: -4, maxY: 4 }, BAND, OPTS).distance;
+    const tallD = fitBboxIntoBand({ minX: -10, maxX: 10, minY: -30, maxY: 4 }, BAND, OPTS).distance;
+    expect(tallD).toBeGreaterThanOrEqual(shortD);
+  });
+
+  it('clamps a too-big tree and TOP-ANCHORS it (root pinned under the search bar)', () => {
+    const huge: Bounds = { minX: -60, maxX: 60, minY: -400, maxY: 8 };
+    const r = fitBboxIntoBand(huge, BAND, OPTS);
+    expect(r.clamped).toBe(true);
+    expect(r.distance).toBe(OPTS.maxDist);
+    expect(screenFrac(huge.maxY + OPTS.padTop, r.center[1], r.distance)).toBeCloseTo(BAND.topFrac, 2);
+  });
+
+  it('distance never escapes [minDist, maxDist]', () => {
+    const tiny = fitBboxIntoBand({ minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }, BAND, OPTS);
+    expect(tiny.distance).toBeGreaterThanOrEqual(OPTS.minDist);
+    expect(tiny.distance).toBeLessThanOrEqual(OPTS.maxDist);
   });
 });

@@ -397,8 +397,11 @@ export default function GroupsPage() {
       </TabsContent>
 
       {/* Floating top-right toolbar — search + tabs + buttons hover over the scene.
-          z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50). */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20">
+          z-[45] sits above the 3D HTML card overlays (40) but below dialogs (50).
+          data-tree-frame-top: its bottom edge is the TOP frame the camera-fit math
+          centers the tree below (measured live, so it tracks the real toolbar height
+          at any zoom). */}
+      <div data-tree-frame-top className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20">
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <div className="hidden xl:flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">

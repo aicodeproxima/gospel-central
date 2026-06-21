@@ -23,7 +23,7 @@ import {
 } from '@/lib/utils/org-metrics';
 import { layoutTree, NODE_SCALE } from '@/lib/utils/tree-layout';
 import { clampCamToDollyRange } from '@/lib/utils/camera';
-import { topBandBounds } from '@/lib/utils/tree-focus';
+import { topBandBounds, fitBboxIntoBand, type FrameBand } from '@/lib/utils/tree-focus';
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
@@ -571,7 +571,7 @@ function SceneContent({
   // Drawable canvas size — use THIS (not window) for aspect-aware framing: on
   // mobile the canvas is offset below the toolbar, so it's shorter/narrower
   // than the window and the camera must fit that actual area.
-  const { size: canvasSize, invalidate } = useThree();
+  const { size: canvasSize, invalidate, gl } = useThree();
   // Per-viewport distanceFactor — now BOTH breakpoints: cards world-scale like the
   // avatars (a card stays a fixed world width at every zoom, so siblings never
   // collide). Compact holds ~CARD_WORLD_WIDTH; desktop holds DESKTOP_CARD_WORLD_WIDTH.
@@ -696,8 +696,6 @@ function SceneContent({
 
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
-      const width = maxX - minX;
-      const height = maxY - minY;
 
       // Compact (<1280): aspect-aware fit with a readability CAP so the
       // ~156px cards never zoom out into an unreadable, overlapping pile on
@@ -727,45 +725,29 @@ function SceneContent({
         return { center: [centerX, cy, 0], distance };
       }
 
-      // Desktop (≥1280): aspect-aware STRICT fit of the visible subtree, with the
-      // focused node anchored just below the floating toolbar (descendants cascade
-      // down). Reuses the fov math from computeFullTreeFocus (1.042 = 2·tan(fov/2));
-      // cards world-scale so they never collide, and we pad the node-center bbox by
-      // real card extents so no EDGE card clips. Fills whichever dimension binds
-      // (height for tall/narrow branches, width for wide ones) edge-to-edge for max
-      // card size. Constants are LIVE-TUNABLE against the user's screenshots.
-      const aspect = window.innerWidth / window.innerHeight;
-      const FOCUS_PAD_TOP = AVATAR_WORLD_TOP; // avatar sticks up above the node
-      const FOCUS_PAD_BOTTOM = CARD_WORLD_DROP; // card hangs below the deepest node
-      const FOCUS_PAD_SIDE = DESKTOP_CARD_RENDER_WIDTH; // one rendered card width (½ each edge)
-      const TOOLBAR_PX = 320; // floating toolbar + tab-pill row height in CSS px — PIXEL-
-      // based so the gap under it stays constant at any zoom (a world-unit pad balloons
-      // when close). Raised 76 -> 140 -> 320: 140 still left the root avatar partly
-      // behind the toolbar / tab-pill row on larger screens; the stacked controls reach
-      // ~290px, so anchor the focused node's top below ~320px. Tunable.
-      const FOCUS_FIT_SAFETY = 1.06; // hair of no-clip margin
-      const FOCUS_DIST_FLOOR = 8; // a lone card shouldn't fill the whole screen
-      // Cap raised 0.25 -> 0.34 so TOOLBAR_PX isn't clamped on ~1080-1280px screens
-      // (at 0.25 the 320px anchor was capped back to ~270px → still under the bar).
-      const toolbarFrac = Math.min(0.34, TOOLBAR_PX / window.innerHeight);
-
-      // Fit the padded subtree into the viewport MINUS the toolbar strip (vertically)
-      // and the full width; the binding dimension fills edge-to-edge.
-      const paddedWidth = width + FOCUS_PAD_SIDE;
-      const paddedHeight = height + FOCUS_PAD_TOP + FOCUS_PAD_BOTTOM;
-      const distForHeight = paddedHeight / ((1 - toolbarFrac) * 1.042);
-      const distForWidth = paddedWidth / (1.042 * aspect);
-      const distance = Math.min(
-        MAX_FOCUS_DIST_DESKTOP,
-        Math.max(FOCUS_DIST_FLOOR, Math.max(distForHeight, distForWidth) * FOCUS_FIT_SAFETY),
+      // Desktop (≥1280): fit the focused subtree's padded bbox into the band
+      // between the search bar (top) and the pan hint (bottom), CENTERED
+      // vertically, using the full vertical real estate. The band is measured
+      // LIVE from the real overlays (zoom-correct), and the math is the shared,
+      // unit-tested `fitBboxIntoBand`. If the subtree is too big to fit at the
+      // dolly cap — only a fully-expanded whole org hits this — the helper
+      // TOP-ANCHORS it (root under the search bar, user pans down), per the rule
+      // "every normal expand fits; a full expand needn't."
+      const fit = fitBboxIntoBand(
+        { minX, maxX, minY, maxY },
+        readFrameBand(gl.domElement),
+        {
+          padTop: AVATAR_WORLD_TOP,
+          padBottom: CARD_WORLD_DROP,
+          padSide: DESKTOP_CARD_RENDER_WIDTH,
+          worldPerDist: WORLD_PER_DIST,
+          minDist: 8,
+          maxDist: MAX_FOCUS_DIST_DESKTOP,
+        },
       );
-      // Anchor the focused node (bbox top = maxY, since descendants only go lower) so
-      // its top sits ~TOOLBAR_PX below the viewport top — pixel-based, consistent at
-      // any zoom: nodeTop is toolbarFrac of the visible height below the frame's top edge.
-      const focusCenterY = maxY + FOCUS_PAD_TOP - distance * 1.042 * (0.5 - toolbarFrac);
-      return { center: [centerX, focusCenterY, 0], distance };
+      return { center: fit.center, distance: fit.distance };
     },
-    [layout, contacts, compact, canvasSize],
+    [layout, contacts, compact, canvasSize, gl],
   );
 
   /** Tight single-card framing at an arbitrary layout position — shared by
@@ -894,37 +876,25 @@ function SceneContent({
         distance,
       };
     }
-    // Account for the viewport aspect ratio so horizontal trees don't leave
-    // huge empty vertical gutters. Canvas is dynamically imported with
-    // ssr:false so `window` is always defined here — the old guard was
-    // dead code (audit L-4).
-    const aspect =
-      window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 1.6;
-    // Extra top padding so the floating toolbar doesn't overlap Michael/roots
-    const TOOLBAR_PAD_TOP = 6;
-    const paddedWidth = maxX - minX + 4;
-    const paddedHeight = maxY - minY + 4 + TOOLBAR_PAD_TOP;
-    const distForHeight = paddedHeight / 1.042;
-    const distForWidth = paddedWidth / (1.042 * aspect);
-    // Tighter reset scale — zoom in closer so cards are readable even if the
-    // full tree doesn't fit (tree can still be panned). ~2× closer than a
-    // strict fit-all. Clamped to a sane max so very large trees don't land
-    // the camera inside a node.
-    const distance = Math.min(
-      32,
-      Math.max(8, Math.max(distForHeight, distForWidth) * 0.55),
+    // Desktop Reset ("fit the whole tree"): fit the WHOLE-tree bbox into the
+    // band between the search bar and pan hint, centered — the SAME shared
+    // helper as the subtree path. A small org fits-centered; a huge fully-
+    // expanded org (the old `*0.55` strand bug — 3/182 cards, root off-screen)
+    // TOP-ANCHORS with the ROOT in frame so the user can pan/drill down.
+    const fit = fitBboxIntoBand(
+      { minX, maxX, minY, maxY },
+      readFrameBand(gl.domElement),
+      {
+        padTop: AVATAR_WORLD_TOP,
+        padBottom: CARD_WORLD_DROP,
+        padSide: DESKTOP_CARD_RENDER_WIDTH,
+        worldPerDist: WORLD_PER_DIST,
+        minDist: 8,
+        maxDist: MAX_FOCUS_DIST_DESKTOP,
+      },
     );
-    return {
-      // Shift camera lookAt UP so tree content drops lower in the frame,
-      // leaving space at the top for the floating toolbar.
-      center: [
-        (minX + maxX) / 2,
-        (minY + maxY) / 2 + TOOLBAR_PAD_TOP / 2,
-        0,
-      ],
-      distance,
-    };
-  }, [layout, compact, canvasSize]);
+    return { center: fit.center, distance: fit.distance };
+  }, [layout, compact, canvasSize, gl]);
 
   // Expand-all framing: frame the top Y-band of the tree (root + the first
   // couple of tiers) and anchor the ROOT near the top of the view, so the user
@@ -1185,6 +1155,33 @@ const RIG_RADIUS_FACTOR = Math.hypot(1, RIG_Y_OFFSET);
 const MAX_FOCUS_DIST_COMPACT = Math.floor((MAX_DIST_COMPACT / RIG_RADIUS_FACTOR) * 0.98); // 269
 const MAX_FOCUS_DIST_DESKTOP = Math.floor((MAX_DIST_DESKTOP / RIG_RADIUS_FACTOR) * 0.98); // 67
 
+/** Visible world-height per unit camera distance at the look-plane = 2·tan(fov/2). */
+const WORLD_PER_DIST = 2 * Math.tan((CAMERA_CONFIG.fov * Math.PI) / 360);
+
+/**
+ * Measure the on-screen frame band for the camera-fit math: the canvas drawing
+ * surface, plus the fraction of its height covered by the floating toolbar (top,
+ * `[data-tree-frame-top]`) and the pan hint (bottom, `[data-tree-frame-bottom]`).
+ * Every read is getBoundingClientRect in the SAME (post-`zoom:0.9`) coordinate
+ * space, so the returned FRACTIONS are zoom-invariant. Falls back to safe values
+ * if an overlay isn't in the DOM yet. Replaces the old hardcoded `TOOLBAR_PX=320`.
+ */
+function readFrameBand(canvasEl: HTMLElement): FrameBand {
+  const cr = canvasEl.getBoundingClientRect();
+  const H = cr.height || 1;
+  const topEl = typeof document !== 'undefined' ? document.querySelector('[data-tree-frame-top]') : null;
+  const botEl = typeof document !== 'undefined' ? document.querySelector('[data-tree-frame-bottom]') : null;
+  const topPx = topEl ? Math.max(0, topEl.getBoundingClientRect().bottom - cr.top) : 0;
+  const botPx = botEl ? Math.max(0, cr.bottom - botEl.getBoundingClientRect().top) : 0;
+  return {
+    viewportW: cr.width || 1,
+    viewportH: H,
+    // Clamp to sane maxima so a mis-measure can't blow up the fit.
+    topFrac: Math.min(0.55, topPx / H),
+    bottomFrac: Math.min(0.25, botPx / H),
+  };
+}
+
 // Expand-all frames a Y-band from the top of the tree (NOT a depth filter —
 // row-wrapping scatters same-depth nodes vertically). TOP_BAND_HEIGHT (world
 // units below the root) ≈ root → first branch-leader row; ROOT_TOP_BIAS anchors
@@ -1330,8 +1327,9 @@ export function Tree3D(props: Tree3DProps) {
             <p className="text-sm text-muted-foreground">Loading organization…</p>
           </div>
         )}
-        {/* Hint overlay */}
-        <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-3 py-1.5 text-[10px] text-white/80 backdrop-blur">
+        {/* Hint overlay — also the BOTTOM frame edge the camera-fit math centers
+            the tree above (measured via data-tree-frame-bottom). */}
+        <div data-tree-frame-bottom className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/60 px-3 py-1.5 text-[10px] text-white/80 backdrop-blur">
           Drag to pan • Scroll or pinch to zoom
         </div>
       </WebGLGuard>
