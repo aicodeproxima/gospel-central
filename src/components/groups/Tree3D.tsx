@@ -1191,7 +1191,7 @@ function readFrameBand(canvasEl: HTMLElement): FrameBand {
  * anchored at node_y−1.3. `liftFrac` drops the centered tree to cancel the rig's
  * downward tilt (which lifts a multi-node bbox's apparent center).
  */
-const FIT_TUNE_DEFAULT = { padBottom: 4, liftFrac: 0.045 };
+const FIT_TUNE_DEFAULT = { padBottom: 4, liftFrac: 0.02 };
 function fitTune(): { padBottom: number; liftFrac: number } {
   if (typeof window !== 'undefined') {
     const o = (window as unknown as { __fitTune?: Partial<typeof FIT_TUNE_DEFAULT> }).__fitTune;
