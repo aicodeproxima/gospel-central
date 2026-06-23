@@ -124,12 +124,29 @@ export interface FitBboxOptions {
   /** No-clip safety margin on the fit distance. Default 1.06. */
   safety?: number;
   /**
+   * Per-axis no-clip safety. `safetyV` (vertical / height) may be relaxed toward
+   * ~1.0 to fill the band edge-to-edge on expand; `safetyH` (horizontal / width)
+   * must stay ≥1.06 so a wide (e.g. 3-up) row never clips left/right. Each falls
+   * back to `safety`, then 1.06.
+   */
+  safetyV?: number;
+  safetyH?: number;
+  /**
    * Extra downward bias on the CENTERED look-at, as a fraction of the visible
    * world height: raises the look-at so the tree drops lower in frame. Corrects
    * the camera rig's downward tilt, which otherwise makes a multi-node bbox
    * appear high. Default 0. (Not applied to the top-anchored/clamped case.)
    */
   liftFrac?: number;
+  /**
+   * Where to place the bbox when it DOES fully fit (not clamped):
+   *  - 'center' → center it in the usable band (default; what Reset uses).
+   *  - 'top'    → pin the bbox TOP just under the top overlay (parent under the
+   *               search bar) and let the fitted distance fill the band downward
+   *               so the deepest descendant lands just above the bottom overlay.
+   *               Used by the node-EXPAND path. `liftFrac` is ignored in this mode.
+   */
+  anchor?: 'top' | 'center';
   /**
    * What to do when the bbox is too big to fully fit at `maxDist`:
    *  - 'top'    → anchor the bbox TOP just under the top overlay and let the
@@ -144,6 +161,15 @@ export interface FitResult {
   distance: number;
   /** True when the padded bbox could NOT fully fit within the band at maxDist. */
   clamped: boolean;
+  /** Diagnostic detail for the dev `window.__fitDebug` log; ignored by callers. */
+  debug?: {
+    worldW: number;
+    worldH: number;
+    usableFrac: number;
+    distForHeight: number;
+    distForWidth: number;
+    bound: 'height' | 'width';
+  };
 }
 
 /**
@@ -174,19 +200,37 @@ export function fitBboxIntoBand(
   // width into the full canvas width. The binding dimension fills edge-to-edge.
   const distForHeight = worldH / (usableFrac * opts.worldPerDist);
   const distForWidth = worldW / (opts.worldPerDist * aspect);
-  const safety = opts.safety ?? 1.06;
-  const rawDist = Math.max(distForHeight, distForWidth) * safety;
+  // Per-axis safety: relax the vertical fit (fill the band) without ever removing
+  // the horizontal cushion that keeps wide rows off the L/R edge.
+  const safetyV = opts.safetyV ?? opts.safety ?? 1.06;
+  const safetyH = opts.safetyH ?? opts.safety ?? 1.06;
+  const dH = distForHeight * safetyV;
+  const dW = distForWidth * safetyH;
+  const rawDist = Math.max(dH, dW);
   const distance = Math.min(opts.maxDist, Math.max(opts.minDist, rawDist));
   const clamped = rawDist > opts.maxDist + 1e-6;
 
   const visH = distance * opts.worldPerDist; // visible world height at this distance
+  const debug = {
+    worldW,
+    worldH,
+    usableFrac,
+    distForHeight,
+    distForWidth,
+    bound: (dH >= dW ? 'height' : 'width') as 'height' | 'width',
+  };
 
-  if (clamped && (opts.anchorWhenClamped ?? 'top') === 'top') {
-    // Too big to fit — pin the bbox TOP just under the top overlay; the rest
-    // runs off the bottom and the user pans down. A screen point at fraction
-    // `topFrac` from the top maps to world Y = lookY + (0.5 - topFrac)·visH.
+  // TOP-ANCHOR when either (a) the bbox is too big to fit and clamps (default), or
+  // (b) it fits but the caller asked for anchor:'top' (the node-expand path). Pin
+  // the bbox TOP just under the top overlay; with `distance` sized to fill the
+  // band, the bottom lands just above the bottom overlay. A screen point at
+  // fraction `topFrac` from the top maps to world Y = lookY + (0.5 − topFrac)·visH.
+  const wantTopAnchor =
+    (clamped && (opts.anchorWhenClamped ?? 'top') === 'top') ||
+    (!clamped && (opts.anchor ?? 'center') === 'top');
+  if (wantTopAnchor) {
     const lookY = visTop - (0.5 - band.topFrac) * visH;
-    return { center: [centerX, lookY, 0], distance, clamped };
+    return { center: [centerX, lookY, 0], distance, clamped, debug };
   }
 
   // Center the bbox in the usable band. The band's center sits below the screen
@@ -194,5 +238,5 @@ export function fitBboxIntoBand(
   // than the bottom one), so bias the look-at up by that same fraction of visH.
   const bandBiasFrac = (band.topFrac - band.bottomFrac) / 2;
   const lookY = bboxCenterY + (bandBiasFrac + (opts.liftFrac ?? 0)) * visH;
-  return { center: [centerX, lookY, 0], distance, clamped };
+  return { center: [centerX, lookY, 0], distance, clamped, debug };
 }

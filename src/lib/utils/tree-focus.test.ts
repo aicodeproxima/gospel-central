@@ -76,6 +76,12 @@ function screenFrac(worldY: number, lookY: number, distance: number): number {
   return 0.5 - (worldY - lookY) / visH;
 }
 
+/** Screen fraction-from-left where a world X lands (0 = left edge, 1 = right edge). */
+function screenFracX(worldX: number, centerX: number, distance: number, aspect: number): number {
+  const visW = distance * WPD * aspect;
+  return 0.5 + (worldX - centerX) / visW;
+}
+
 describe('fitBboxIntoBand', () => {
   const small: Bounds = { minX: -10, maxX: 10, minY: -8, maxY: 8 };
 
@@ -121,5 +127,52 @@ describe('fitBboxIntoBand', () => {
     const tiny = fitBboxIntoBand({ minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }, BAND, OPTS);
     expect(tiny.distance).toBeGreaterThanOrEqual(OPTS.minDist);
     expect(tiny.distance).toBeLessThanOrEqual(OPTS.maxDist);
+  });
+
+  // --- anchor:'top' (the node-EXPAND path) ---------------------------------
+  it("anchor:'top' fills the band edge-to-edge — top under the search bar, bottom at the pan hint", () => {
+    // Narrow + tall ⇒ height-bound. safetyV:1 ⇒ fill the usable band exactly.
+    const tall: Bounds = { minX: -5, maxX: 5, minY: -20, maxY: 8 };
+    const r = fitBboxIntoBand(tall, BAND, { ...OPTS, anchor: 'top', safetyV: 1, safetyH: 1.08 });
+    expect(r.clamped).toBe(false);
+    const topF = screenFrac(tall.maxY + OPTS.padTop, r.center[1], r.distance);
+    const botF = screenFrac(tall.minY - OPTS.padBottom, r.center[1], r.distance);
+    expect(topF).toBeCloseTo(BAND.topFrac, 2); // parent top pinned just under the search bar
+    expect(botF).toBeCloseTo(1 - BAND.bottomFrac, 2); // deepest card lands at the pan hint (fills band)
+  });
+
+  it("anchor:'top' still NEVER clips top or bottom even with safetyV slack", () => {
+    const tall: Bounds = { minX: -5, maxX: 5, minY: -20, maxY: 8 };
+    const r = fitBboxIntoBand(tall, BAND, { ...OPTS, anchor: 'top', safetyV: 1.04, safetyH: 1.08 });
+    const topF = screenFrac(tall.maxY + OPTS.padTop, r.center[1], r.distance);
+    const botF = screenFrac(tall.minY - OPTS.padBottom, r.center[1], r.distance);
+    expect(topF).toBeGreaterThanOrEqual(BAND.topFrac - 1e-3);
+    expect(botF).toBeLessThanOrEqual(1 - BAND.bottomFrac + 1e-3);
+  });
+
+  // --- width-bound side-clip guard (a wide 3-up row) -----------------------
+  it('width-bound: a wide row keeps the edge card fully inside the frame (no L/R clip)', () => {
+    const halfCard = 4;
+    const wide: Bounds = { minX: -15, maxX: 15, minY: -2, maxY: 2 };
+    // padSide = a FULL card width ⇒ a half-card of margin on each side.
+    const r = fitBboxIntoBand(wide, BAND, { ...OPTS, padSide: 2 * halfCard, safetyH: 1.08 });
+    const aspect = BAND.viewportW / BAND.viewportH;
+    const edgeX = screenFracX(wide.maxX + halfCard, r.center[0], r.distance, aspect);
+    expect(edgeX).toBeGreaterThan(0.5); // it's on the right half
+    expect(edgeX).toBeLessThanOrEqual(1 + 1e-3); // edge card's outer edge stays in frame
+  });
+
+  // --- max-zoom-in floor + back-compat ------------------------------------
+  it('minDist is the max-zoom-in floor: a tiny subtree is held OUT to minDist (no microscope)', () => {
+    const tiny: Bounds = { minX: -0.2, maxX: 0.2, minY: -0.2, maxY: 0.2 };
+    const r = fitBboxIntoBand(tiny, BAND, { ...OPTS, minDist: 14, anchor: 'top' });
+    expect(r.distance).toBe(14);
+  });
+
+  it('per-axis safety defaults to the single `safety` (Reset path unchanged)', () => {
+    const a = fitBboxIntoBand(small, BAND, { ...OPTS, safety: 1.06 }); // explicit single safety
+    const b = fitBboxIntoBand(small, BAND, OPTS); // no safety/anchor → defaults (center, 1.06)
+    expect(a.distance).toBeCloseTo(b.distance, 9);
+    expect(a.center[1]).toBeCloseTo(b.center[1], 9);
   });
 });

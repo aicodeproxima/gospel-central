@@ -733,19 +733,40 @@ function SceneContent({
       // dolly cap — only a fully-expanded whole org hits this — the helper
       // TOP-ANCHORS it (root under the search bar, user pans down), per the rule
       // "every normal expand fits; a full expand needn't."
+      const tune = fitTune();
+      const band = readFrameBand(gl.domElement);
       const fit = fitBboxIntoBand(
         { minX, maxX, minY, maxY },
-        readFrameBand(gl.domElement),
+        band,
         {
-          padTop: AVATAR_WORLD_TOP,
-          padBottom: fitTune().padBottom,
-          padSide: DESKTOP_CARD_RENDER_WIDTH,
+          padTop: tune.padTop,
+          padBottom: tune.padBottom,
+          padSide: tune.padSide,
           worldPerDist: WORLD_PER_DIST,
-          minDist: 8,
+          minDist: tune.minDist,
           maxDist: MAX_FOCUS_DIST_DESKTOP,
-          liftFrac: fitTune().liftFrac,
+          safetyV: tune.safetyV,
+          safetyH: tune.safetyH,
+          // TOP-ANCHOR the expand: parent card sits just under the search bar,
+          // the fitted distance fills the band so the deepest descendant lands
+          // just above the pan hint (matches the user's "after" framing).
+          anchor: 'top',
+          liftFrac: tune.liftFrac,
         },
       );
+      // Dev calibration log — set `window.__fitDebug = true` to diagnose framing
+      // (bbox, measured band, chosen distance, which axis bound, clamp state).
+      if (typeof window !== 'undefined' && (window as unknown as { __fitDebug?: boolean }).__fitDebug) {
+        // eslint-disable-next-line no-console
+        console.log('[fit] subtree', nodeId, {
+          bbox: { minX, maxX, minY, maxY },
+          band,
+          tune,
+          distance: fit.distance,
+          clamped: fit.clamped,
+          ...fit.debug,
+        });
+      }
       return { center: fit.center, distance: fit.distance };
     },
     [layout, contacts, compact, canvasSize, gl],
@@ -1100,9 +1121,11 @@ function SceneContent({
         />
       ))}
 
-      {/* Compact pushes the fog far plane out so the zoomed-out expand-all / fit
-          view isn't swallowed by fog; desktop keeps the original close 75. */}
-      <fog attach="fog" args={['#05091f', 22, compact ? 280 : 75]} />
+      {/* Compact pushes the fog FAR plane out so the zoomed-out expand-all / fit
+          view isn't swallowed by fog. Desktop's fog NEAR is pulled out to
+          fitTune().fogNear (from the old 22) so the tightened, closer focused
+          subtree cards aren't desaturated by fog onset; the far plane stays 75. */}
+      <fog attach="fog" args={['#05091f', compact ? 22 : fitTune().fogNear, compact ? 280 : 75]} />
 
       {/* Orbit controls */}
       <OrbitControls
@@ -1183,22 +1206,8 @@ function readFrameBand(canvasEl: HTMLElement): FrameBand {
   };
 }
 
-/**
- * Desktop fit tuning, overridable LIVE via `window.__fitTune = { padBottom, liftFrac }`
- * for screenshot-loop calibration without a redeploy. `padBottom` = the real world
- * extent the card hangs below the node center; the conservative CARD_WORLD_DROP=6
- * used for compact over-reserves on desktop (tree floats high), since the card is
- * anchored at node_y−1.3. `liftFrac` drops the centered tree to cancel the rig's
- * downward tilt (which lifts a multi-node bbox's apparent center).
- */
-const FIT_TUNE_DEFAULT = { padBottom: 4, liftFrac: 0.02 };
-function fitTune(): { padBottom: number; liftFrac: number } {
-  if (typeof window !== 'undefined') {
-    const o = (window as unknown as { __fitTune?: Partial<typeof FIT_TUNE_DEFAULT> }).__fitTune;
-    if (o) return { ...FIT_TUNE_DEFAULT, ...o };
-  }
-  return FIT_TUNE_DEFAULT;
-}
+// FIT_TUNE_DEFAULT / fitTune() are defined below, after the card-extent
+// constants they reference (AVATAR_WORLD_TOP / DESKTOP_CARD_RENDER_WIDTH).
 
 // Expand-all frames a Y-band from the top of the tree (NOT a depth filter —
 // row-wrapping scatters same-depth nodes vertically). TOP_BAND_HEIGHT (world
@@ -1241,6 +1250,53 @@ const CARD_BASE_PX = 156;
 const CARD_WORLD_WIDTH = 4.8 * NODE_SCALE;
 const AVATAR_WORLD_TOP = 2.1 * NODE_SCALE;
 const CARD_WORLD_DROP = 4.0 * NODE_SCALE;
+
+/**
+ * Desktop node-EXPAND fit tuning, overridable LIVE via
+ * `window.__fitTune = { padTop, padBottom, padSide, safetyV, safetyH, minDist, fogNear, liftFrac }`
+ * for screenshot-loop calibration WITHOUT a redeploy (set it, then re-trigger an
+ * expand — never reload /groups, which exhausts the WebGL context pool). The
+ * expand path TOP-ANCHORS (parent under the search bar) and fills the band, so:
+ *  - `padTop`/`padBottom` = the card's TRUE world extents above (avatar) / below
+ *    (hanging card) the node center — so the parent's top sits just under the
+ *    search bar and the deepest card clears the pan hint (no top/bottom clip).
+ *  - `padSide` = a full card render width so a 3-up row keeps a half-card of
+ *    margin on EACH side (no L/R clip).
+ *  - `safetyV` ~1.0 fills the band vertically; `safetyH` ≥1.06 keeps the width
+ *    cushion (per-axis so tightening the fit never clips wide rows).
+ *  - `minDist` = max-zoom-in floor so a degenerate 1-child subtree can't blow up.
+ *  - `fogNear` = desktop fog onset; pushed out from the old 22 so the tightened,
+ *    closer focused cards aren't desaturated by fog.
+ *  - `liftFrac` retained for the (now non-default) centered path.
+ * Defaults below are the BAKED, prod-calibrated values.
+ */
+type FitTune = {
+  padTop: number;
+  padBottom: number;
+  padSide: number;
+  safetyV: number;
+  safetyH: number;
+  minDist: number;
+  fogNear: number;
+  liftFrac: number;
+};
+const FIT_TUNE_DEFAULT: FitTune = {
+  padTop: AVATAR_WORLD_TOP,
+  padBottom: 5,
+  padSide: DESKTOP_CARD_RENDER_WIDTH,
+  safetyV: 1.03,
+  safetyH: 1.08,
+  minDist: 14,
+  fogNear: 30,
+  liftFrac: 0.02,
+};
+function fitTune(): FitTune {
+  if (typeof window !== 'undefined') {
+    const o = (window as unknown as { __fitTune?: Partial<FitTune> }).__fitTune;
+    if (o) return { ...FIT_TUNE_DEFAULT, ...o };
+  }
+  return FIT_TUNE_DEFAULT;
+}
 
 // Latches once the tree has painted at least once THIS page-load. Module-level
 // so it survives Tree3D unmount/remount on the 3D⇄List view toggle (the page
