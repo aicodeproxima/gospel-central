@@ -1262,8 +1262,12 @@ const CARD_WORLD_DROP = 4.0 * NODE_SCALE;
  *    search bar and the deepest card clears the pan hint (no top/bottom clip).
  *  - `padSide` = a full card render width so a 3-up row keeps a half-card of
  *    margin on EACH side (no L/R clip).
- *  - `safetyV` ~1.0 fills the band vertically; `safetyH` ≥1.06 keeps the width
- *    cushion (per-axis so tightening the fit never clips wide rows).
+ *  - `safetyV` < 1 fills the band vertically AND compensates the measured
+ *    rig-tilt/zoom foreshortening (a fit sized for the band renders ~0.84× of it,
+ *    so 0.84 lands a 2–3 level subtree edge-to-edge — calibrated live on prod);
+ *    `safetyH` ≥1.06 keeps the width cushion (per-axis so the vertical fill never
+ *    clips wide rows — though with max 3 cols on a wide desktop, fits are
+ *    height-bound and width rarely binds anyway).
  *  - `minDist` = max-zoom-in floor so a degenerate 1-child subtree can't blow up.
  *  - `fogNear` = desktop fog onset; pushed out from the old 22 so the tightened,
  *    closer focused cards aren't desaturated by fog.
@@ -1284,7 +1288,7 @@ const FIT_TUNE_DEFAULT: FitTune = {
   padTop: AVATAR_WORLD_TOP,
   padBottom: 5,
   padSide: DESKTOP_CARD_RENDER_WIDTH,
-  safetyV: 1.03,
+  safetyV: 0.84, // < 1: fills the band + compensates rig-tilt/zoom foreshortening (prod-calibrated)
   safetyH: 1.08,
   minDist: 14,
   fogNear: 30,
