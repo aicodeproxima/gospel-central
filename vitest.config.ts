@@ -2,24 +2,40 @@ import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Vitest config (TEST-2).
- *
- * Today the suite is pure-function permission tests, so the default node
- * environment is fine. Adding the `@` alias matches `tsconfig.json`'s
- * `paths` entry so component tests can `import { ... } from '@/...'`
- * without restructuring.
- *
- * To add component tests later: `npm install -D happy-dom @testing-library/react`
- * and set `test.environment: 'happy-dom'`.
+ * Two projects:
+ *  - `unit`: the existing pure-function tests in the default `node` env, on the
+ *    REAL clock (unchanged — 317 tests).
+ *  - `integration`: `*.itest.ts(x)` in `happy-dom`, with a PINNED mock clock and
+ *    an msw/node server so flows/handlers/components are exercised deterministically.
+ *    `vitest.pin-clock.ts` MUST stay first in setupFiles (it pins the seed clock
+ *    before the seed module is imported).
  */
+const alias = { '@': path.resolve(__dirname, './src') };
+
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
+  resolve: { alias },
   test: {
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    globals: false,
+    projects: [
+      {
+        resolve: { alias },
+        test: {
+          name: 'unit',
+          environment: 'node',
+          include: ['src/**/*.{test,spec}.{ts,tsx}'],
+          exclude: ['**/*.itest.*', '**/node_modules/**'],
+          globals: false,
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          name: 'integration',
+          environment: 'happy-dom',
+          include: ['src/**/*.itest.{ts,tsx}'],
+          setupFiles: ['./vitest.pin-clock.ts', './vitest.integration.setup.ts'],
+          globals: true,
+        },
+      },
+    ],
   },
 });

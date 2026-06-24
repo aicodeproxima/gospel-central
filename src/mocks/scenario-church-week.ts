@@ -72,6 +72,7 @@ import type {
 import type { TeacherMetrics } from '@/lib/types/user';
 import { pickAvatarForUser, isFemaleFirstName } from '@/lib/avatars';
 import { STUDY_SUBJECTS } from './subjects';
+import { now as mockNow, nowMs as mockNowMs } from './mock-clock';
 
 // ---------------------------------------------------------------------------
 // Deterministic PRNG so mock data stays stable between renders
@@ -359,7 +360,7 @@ export const scenarioAreas: Area[] = [
 // Users — hierarchy under Gabriel (Overseer) → 5 Branch Leaders → ...
 // ---------------------------------------------------------------------------
 
-const today = () => new Date().toISOString();
+const today = () => mockNow().toISOString();
 
 interface UserSeed {
   id: string;
@@ -756,7 +757,7 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
   const sessions = historicalBaseline(stage);
   const sessionSpread = Math.min(sessions, 8);
   for (let s = 0; s < sessionSpread; s++) {
-    const sessionDate = new Date(Date.now() - (sessionSpread - s) * 7 * DAY + Math.floor(rand() * 3 * DAY));
+    const sessionDate = new Date(mockNowMs() - (sessionSpread - s) * 7 * DAY + Math.floor(rand() * 3 * DAY));
     timeline.push({
       date: sessionDate.toISOString(),
       action: 'session',
@@ -789,7 +790,7 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     assignedTeacherId: member.id,
     preachingPartnerIds: [partner1, partner2, partner3],
     totalSessions: historicalBaseline(stage),
-    lastSessionDate: new Date(Date.now() - Math.floor(rand() * 10) * DAY).toISOString(),
+    lastSessionDate: new Date(mockNowMs() - Math.floor(rand() * 10) * DAY).toISOString(),
     currentlyStudying: isStudying,
     currentStep: isStudying ? subject.step : undefined,
     currentSubject: isStudying ? subject.title : undefined,
@@ -810,7 +811,7 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
 // ---------------------------------------------------------------------------
 
 function weekStart(): Date {
-  const d = new Date();
+  const d = mockNow();
   const day = d.getDay();
   const offset = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + offset);
@@ -1145,7 +1146,7 @@ for (let i = 0; i < Math.min(3, bookings.length); i++) {
     bookings[idx] = {
       ...bookings[idx],
       status: BookingStatus.CANCELLED,
-      cancelledAt: new Date(Date.now() - (3 - i) * 86400000).toISOString(),
+      cancelledAt: new Date(mockNowMs() - (3 - i) * 86400000).toISOString(),
       cancelReason: cancelReasons[i],
       cancelledBy: uMichael.id,
     } as Booking;
@@ -1189,7 +1190,7 @@ export const scenarioTeacherMetrics: TeacherMetrics[] = metricUsers.map((u) => {
 function generateAuditLog(): AuditLogEntry[] {
   const entries: AuditLogEntry[] = [];
   let id = 1;
-  const now = Date.now();
+  const now = mockNowMs();
   const DAY = 86400000;
 
   const actors = [
