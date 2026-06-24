@@ -29,7 +29,7 @@ import {
   ROLE_LABELS,
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
-import { canConvertContact, assignableRoles } from '@/lib/utils/permissions';
+import { canConvertContact, canReassignContact, assignableRoles } from '@/lib/utils/permissions';
 import type { ConvertContactPayload } from '@/lib/api/contacts';
 import {
   Pencil,
@@ -173,6 +173,8 @@ export function ContactDetailDialog({
                 contact={contact}
                 users={users}
                 allContacts={allContacts}
+                viewer={viewer}
+                subtreeUserIds={subtreeUserIds}
                 onCancel={() => setMode('view')}
                 onSave={async (data) => {
                   await onSave(contact.id, data);
@@ -587,6 +589,8 @@ function EditMode({
   contact,
   users,
   allContacts,
+  viewer,
+  subtreeUserIds = [],
   onCancel,
   onSave,
   onDelete,
@@ -594,6 +598,8 @@ function EditMode({
   contact: Contact;
   users: User[];
   allContacts: Contact[];
+  viewer?: User;
+  subtreeUserIds?: string[];
   onCancel: () => void;
   onSave: (data: Partial<Contact>) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
@@ -604,6 +610,37 @@ function EditMode({
   const [phone, setPhone] = useState(contact.phone || '');
   const [groupName, setGroupName] = useState(contact.groupName || '');
   const [status, setStatus] = useState<PipelineStage>(contact.pipelineStage);
+  // F1: assigned-teacher (owner) reassignment — gated by canReassignContact.
+  const [assignedTeacherId, setAssignedTeacherId] = useState(contact.assignedTeacherId || '');
+
+  // Candidate owners the viewer may reassign this contact to: active users that
+  // pass canReassignContact (which requires can-edit-this-contact AND
+  // can-create-for-that-owner, i.e. self / admin-tier / leader-with-owner-in-
+  // subtree). The control is hidden entirely when there are none (e.g. a plain
+  // Member). The current owner is always included so the select shows its value.
+  const reassignOptions = useMemo(() => {
+    if (!viewer) return [];
+    const opts = users
+      .filter(
+        (u) =>
+          u.isActive !== false &&
+          canReassignContact(viewer, contact, u.id, subtreeUserIds),
+      )
+      .map((u) => ({
+        id: u.id,
+        label: `${u.firstName} ${u.lastName}`.trim() + ` · ${ROLE_LABELS[u.role]}`,
+      }));
+    if (contact.assignedTeacherId && !opts.some((o) => o.id === contact.assignedTeacherId)) {
+      const cur = users.find((u) => u.id === contact.assignedTeacherId);
+      if (cur)
+        opts.unshift({
+          id: cur.id,
+          label: `${cur.firstName} ${cur.lastName}`.trim() + ` · ${ROLE_LABELS[cur.role]} (current)`,
+        });
+    }
+    return opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [viewer, users, contact, subtreeUserIds]);
+  const canReassign = reassignOptions.length > 0;
 
   // Partner name resolution accepts the caller's current `users` +
   // `entities` snapshot so the effect below can re-run whenever either
@@ -713,6 +750,11 @@ function EditMode({
         notes: notes || undefined,
         type: contact.type,
         status: contact.status || ContactStatus.ACTIVE,
+        // F1: only send a new owner when an authorized viewer actually changed it
+        // (avoids clearing the owner or re-stamping an unchanged value).
+        ...(canReassign && assignedTeacherId && assignedTeacherId !== contact.assignedTeacherId
+          ? { assignedTeacherId }
+          : {}),
       });
       toast.success('Contact updated');
     } catch {
@@ -797,6 +839,30 @@ function EditMode({
           </div>
         )}
       </div>
+
+      {/* F1: Assigned Teacher (owner) — reassignment, gated by canReassignContact.
+          Hidden when the viewer has no valid reassign targets (e.g. a Member). */}
+      {canReassign && (
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <GraduationCap className="h-3 w-3" /> Assigned Teacher
+          </Label>
+          <Select value={assignedTeacherId} onValueChange={(v) => v && setAssignedTeacherId(v)}>
+            <SelectTrigger>
+              <span>
+                {reassignOptions.find((o) => o.id === assignedTeacherId)?.label || 'Unassigned'}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              {reassignOptions.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Status */}
       <div className="space-y-2">

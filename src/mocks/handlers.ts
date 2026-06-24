@@ -1281,6 +1281,30 @@ export const handlers = [
       after: { pipelineStage: updated.pipelineStage, status: updated.status },
       timestamp: updated.updatedAt,
     });
+    // F1: distinct `reassign` audit row when the owner (assignedTeacherId) changed,
+    // so reports/audit can trace contact hand-offs (was previously folded into a
+    // generic `update`). The real backend should do the same.
+    if (
+      typeof body.assignedTeacherId === 'string' &&
+      body.assignedTeacherId !== before.assignedTeacherId
+    ) {
+      const nameOf = (uid?: string) => {
+        const u = usersState.find((x) => x.id === uid);
+        return u ? `${u.firstName} ${u.lastName}` : uid || 'Unassigned';
+      };
+      mockAuditLog.push({
+        id: 'al-' + Date.now() + '-cr',
+        action: 'reassign',
+        entityType: 'contact',
+        entityId: updated.id,
+        userId: actor.id,
+        userName: actor.name,
+        details: `Reassigned ${updated.firstName} ${updated.lastName} from ${nameOf(before.assignedTeacherId)} to ${nameOf(updated.assignedTeacherId)}`,
+        before: { assignedTeacherId: before.assignedTeacherId },
+        after: { assignedTeacherId: updated.assignedTeacherId },
+        timestamp: updated.updatedAt,
+      });
+    }
     return HttpResponse.json(updated);
   }),
 

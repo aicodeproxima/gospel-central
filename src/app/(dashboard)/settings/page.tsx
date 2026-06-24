@@ -658,8 +658,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Your choices are saved on this device. Email and push delivery turn on once the
-            notification service is connected.
+            {t('settings.notifications.deviceNote')}
           </p>
           {([
             ['bookingConfirmations', t('settings.notifications.bookingConfirm'), t('settings.notifications.bookingConfirmDesc')],
@@ -858,7 +857,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t('settings.danger.signOutAll')}</p>
-              <p className="text-xs text-muted-foreground">{t('settings.danger.signOutAllDesc')}</p>
+              <p className="text-xs text-muted-foreground">{t('settings.danger.signOutDesc')}</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => { logout(); toast.success('Signed out'); }} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <LogOut className="h-3.5 w-3.5" />
@@ -869,7 +868,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t('settings.danger.exportData')}</p>
-              <p className="text-xs text-muted-foreground">{t('settings.danger.exportDataDesc')}</p>
+              <p className="text-xs text-muted-foreground">{t('settings.danger.exportDesc')}</p>
             </div>
             <Button variant="outline" size="sm" onClick={handleExportData} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <Download className="h-3.5 w-3.5" />
@@ -880,7 +879,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between gap-3 max-[400px]:flex-col max-[400px]:items-start">
             <div className="min-w-0">
               <p className="text-sm font-medium text-destructive">{t('settings.danger.deleteAccount')}</p>
-              <p className="text-xs text-muted-foreground">{t('settings.danger.deleteAccountDesc')}</p>
+              <p className="text-xs text-muted-foreground">{t('settings.danger.deleteDesc')}</p>
             </div>
             <Button variant="destructive" size="sm" onClick={handleDeleteAccount} className="gap-1.5 touch-manipulation shrink-0 max-[400px]:w-full">
               <Trash2 className="h-3.5 w-3.5" />

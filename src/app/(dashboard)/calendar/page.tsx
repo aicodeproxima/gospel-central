@@ -67,14 +67,18 @@ export default function CalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load areas, users, contacts once
+  // Load areas, users, contacts, blocked slots ONCE on mount. (Previously this
+  // had `selectedAreaId` in its deps, so it re-ran — re-fetching all four lists —
+  // on every area switch; the bookings effect below handles per-area reloads.)
   useEffect(() => {
     bookingsApi
       .getAreas()
       .then((data) => {
         const safe = Array.isArray(data) ? data : [];
         setAreas(safe);
-        if (safe.length > 0 && !selectedAreaId) setAreaId(safe[0].id);
+        // Pick an initial area only if none is selected yet (read the live store
+        // value, not a stale closure, since this effect runs once on mount).
+        if (safe.length > 0 && !useBookingStore.getState().selectedAreaId) setAreaId(safe[0].id);
         // Empty-state: nothing for the bookings effect to load — flip the
         // page out of "loading" so we render the empty CTA instead of an
         // infinite spinner. (Bug observed against an empty real backend.)
@@ -90,7 +94,8 @@ export default function CalendarPage() {
       .getBlockedSlots()
       .then((d) => setBlockedSlots(Array.isArray(d) ? d : []))
       .catch(() => setBlockedSlots([]));
-  }, [selectedAreaId, setAreaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Shared view-aware bookings reload — computes the SAME range the load effect
   // uses, so a post-mutation refetch (handleBookingSubmit) can't diverge from the
@@ -219,8 +224,18 @@ export default function CalendarPage() {
     } else {
       await bookingsApi.createBooking(data);
     }
+    // F2: make the just-saved booking VISIBLE. A booking can target a room in a
+    // different Zion (or a different day) than the one currently in view, so a
+    // reload on the old area/range would hide it. Jump the calendar to the
+    // booking's area + day so the user sees what they just created/edited.
+    if (data.areaId && data.areaId !== useBookingStore.getState().selectedAreaId) {
+      setAreaId(data.areaId);
+    }
+    if (data.startTime) setDate(new Date(data.startTime));
     // View-aware refetch (C4) — no setLoading, so the grid doesn't flash a
     // spinner on submit; the Array.isArray guard lives inside reloadBookings.
+    // (When the area/day above changed, the load-bookings effect also refires
+    // for the new area; this immediate reload covers the same-area case.)
     await reloadBookings();
     // STUDY-1: a study booking can auto-create a contact and/or update its
     // study fields server-side — refresh contacts so the wizard picker shows

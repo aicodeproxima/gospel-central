@@ -888,6 +888,23 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                 <p className="text-xs text-muted-foreground">
                   {t('wizard.clickToJump')}
                 </p>
+
+                {/* F3: capture an optional edit reason when changing an active
+                    booking (mirrors the cancel-reason field; written to the
+                    booking's editReason + the audit log on Save). */}
+                {isEdit && canEditCurrent && selectedBooking?.status !== 'cancelled' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{t('wizard.editReason')}</Label>
+                    <textarea
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      placeholder={t('wizard.editReasonPlaceholder')}
+                      maxLength={500}
+                      rows={2}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
