@@ -46,3 +46,20 @@ Never reintroduce a bare `new Date()` / `Date.now()` in the seed — route it th
   — `toHaveScreenshot` baselines for login/dashboard/contacts/settings (chromium, **skipped in CI** since baselines are
   platform-specific; regenerate with `npm run e2e:update`). Project scoping: desktop specs `testIgnore` mobile; mobile
   projects `testMatch` only `mobile.spec`.
+
+## Run 2 (List B) — generated coverage report
+`docs/qa/RUN2.md` is **machine-generated** from the JSON reporters by `scripts/render-run2.mjs` — it never asserts a
+status by hand (audit-anti-drift G1/G13). It reconciles all 50 List-B cells (`DiamondQA/WORKFLOWS.md`) against the
+reporters by B-token, derives an environment fingerprint (git SHA, pinned `MOCK_DATE`, tool versions, reporter counts),
+and **exits non-zero on any orphan or FAIL** — so a green render is itself an integrity check.
+
+```
+npm run qa:run2        # regenerate both reporters + render RUN2.md (+ integrity gate)
+node scripts/render-run2.mjs   # render only, from existing docs/qa/run2-{int,e2e}.json
+```
+
+Lanes: **INT** (handler authz — `src/mocks/listb.itest.ts`), **E2E** (`e2e/{booking,contacts,groups,reports,coverage}.spec.ts`
++ `mobile`/`visual` variants), **GAP** (`it.todo` backend-acceptance — the UI enforces it but the mock handler doesn't;
+these are acceptance criteria for the real Go backend, see `docs/qa/out-of-scope-findings.md`), **DEFERRED** (enumerated
+honestly with a reason — not faked). The two cells the plan earmarked MANUAL (B19 CSV import, B50 cover-a-teammate) were
+automatable after all (`setInputFiles` + the unit-proven `canEditBooking` subtree rule), so there is no manual lane.

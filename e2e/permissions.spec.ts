@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import { loginAs } from './helpers/loginAs';
 
 test.describe('permission boundaries — UI affordances', () => {
-  test('Export on /contacts is gated to Branch Leader+', async ({ page }) => {
+  test('B20 Export on /contacts is gated to Branch Leader+', async ({ page }) => {
     await loginAs(page, 'member3');
     await page.goto('/contacts');
     await expect(page.getByRole('button', { name: /add contact/i }).first()).toBeVisible(); // loaded
@@ -26,7 +26,7 @@ test.describe('permission boundaries — UI affordances', () => {
     await expect(page.getByRole('button', { name: /add user/i }).first()).toBeVisible();
   });
 
-  test('a non-owner opens a booking READ-ONLY (outside your scope)', async ({ page }) => {
+  test('B11 a non-owner opens a booking READ-ONLY (outside your scope)', async ({ page }) => {
     await loginAs(page, 'member3'); // Ananias owns only a few bookings; most are others'
     await page.goto('/calendar');
     await page.waitForLoadState('networkidle');

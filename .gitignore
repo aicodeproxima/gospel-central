@@ -20,6 +20,11 @@
 /.playwright/
 .last-run.json
 
+# Run-2 reporter intermediates (regenerable via `npm run qa:run2`; RUN2.md IS tracked)
+/docs/qa/run2-int.json
+/docs/qa/run2-e2e.json
+/docs/qa/run2-manual.jsonl
+
 # next.js
 /.next/
 /out/

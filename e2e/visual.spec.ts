@@ -42,7 +42,7 @@ test.describe('visual regression', () => {
   // B9 — the calendar with its color legend open. The legend is the data-key the
   // DOM test (booking.spec B9) asserts presence of; the baseline guards its
   // layout/contrast. Pinned seed = deterministic week.
-  test('calendar + legend (member)', async ({ page }) => {
+  test('B9 calendar + legend (member)', async ({ page }) => {
     await loginAs(page, 'member3');
     await page.goto('/calendar');
     await page.waitForLoadState('networkidle');
@@ -54,7 +54,7 @@ test.describe('visual regression', () => {
 
   // B48 — the reports dashboard (stats + Top Contributors). Deterministic with
   // the pinned seed; catches chart/layout regressions the DOM text assertions miss.
-  test('reports dashboard (branch leader)', async ({ page }) => {
+  test('B48 reports dashboard (branch leader)', async ({ page }) => {
     await loginAs(page, 'branch1');
     await page.goto('/reports');
     await page.waitForLoadState('networkidle');

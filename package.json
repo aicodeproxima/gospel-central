@@ -12,7 +12,8 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "e2e:update": "playwright test --update-snapshots"
+    "e2e:update": "playwright test --update-snapshots",
+    "qa:run2": "node scripts/render-run2.mjs --run"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
