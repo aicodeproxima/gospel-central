@@ -37,7 +37,9 @@ Never reintroduce a bare `new Date()` / `Date.now()` in the seed — route it th
 - ✅ Unit: permissions matrix, availability, tree layout/focus, theme, fit math, seed invariants (317).
 - ✅ Integration foundation: pinned clock + msw/node login (+401) + deterministic seed week.
 - ✅ E2E smoke + permission boundaries: member login; Member redirected from `/admin` `/reports`; Branch Leader allowed.
-- ⏳ Phase 3 (adversarial): per-role gating, role-grant ceilings, non-owner can't edit/cancel, owner-scoping, handler-level
-  rejection of unauthorized mutations (+ `it.todo` backend-acceptance for the known mock-permissive contacts gaps).
+- ✅ Phase 3 (adversarial): handler-level §7-SHIM gates (`adversarial.itest.ts` — area-create Overseer+, member can't edit
+  others/self-elevate, grant ceiling, reparent-cycle, 401-not-403) + E2E boundaries (`permissions.spec.ts` — Export gated
+  to Branch Leader+, Add-User to Team Leader+, a non-owner opens a booking read-only) + 3 `it.todo` backend-acceptance
+  markers for the known mock-permissive contacts/cancel gaps.
 - ⏳ Phase 4 (mobile + visual): S24 Ultra journeys (no horizontal pan, ≥44px tap targets, Agenda at phone width) + visual
   baselines for calendar / groups tree / contacts / wizard / settings.

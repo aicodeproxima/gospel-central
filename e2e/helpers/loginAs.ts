@@ -3,21 +3,24 @@ import { expect } from '@playwright/test';
 
 /**
  * Physical login: signs out if already authed (logout resets the mock to seed),
- * then types the username + the mock password into the real /login form. Mirrors
- * the manual QA flow. Seeded accounts (all password `admin`): admin (Dev),
- * overseer1, branch1, group1, team1, member3 (Member + teacher tag).
+ * then types the username + the mock password into the real /login form and
+ * submits via Enter. Enter (form submit) is used instead of clicking the Sign In
+ * button because the login page's entry animation re-mounts the button mid-click
+ * (the same flake the manual QA run hit). Seeded accounts (all password `admin`):
+ * admin (Dev), overseer1, branch1, group1, team1, member3 (Member + teacher tag).
  */
 export async function loginAs(page: Page, username: string, password = 'admin') {
   await page.goto('/login');
   if (page.url().includes('/dashboard')) {
     // already signed in as someone — sign out via the Settings danger zone
     await page.goto('/settings');
-    await page.getByRole('button', { name: /sign out/i }).first().click();
+    await page.getByRole('button', { name: /sign out/i }).first().click({ force: true });
     await page.waitForURL('**/login');
   }
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForLoadState('domcontentloaded');
+  await page.locator('#username').fill(username);
+  await page.locator('#password').fill(password);
+  await page.locator('#password').press('Enter');
   await page.waitForURL('**/dashboard');
   await expect
     .poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}').username))
