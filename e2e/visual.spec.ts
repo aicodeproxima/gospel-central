@@ -38,4 +38,27 @@ test.describe('visual regression', () => {
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveScreenshot('settings.png', shot);
   });
+
+  // B9 — the calendar with its color legend open. The legend is the data-key the
+  // DOM test (booking.spec B9) asserts presence of; the baseline guards its
+  // layout/contrast. Pinned seed = deterministic week.
+  test('calendar + legend (member)', async ({ page }) => {
+    await loginAs(page, 'member3');
+    await page.goto('/calendar');
+    await page.waitForLoadState('networkidle');
+    const legendBtn = page.getByRole('button', { name: /legend/i });
+    if (await legendBtn.count()) await legendBtn.first().click();
+    await expect(page.getByText(/unbaptized/i).first()).toBeVisible();
+    await expect(page).toHaveScreenshot('calendar-legend.png', shot);
+  });
+
+  // B48 — the reports dashboard (stats + Top Contributors). Deterministic with
+  // the pinned seed; catches chart/layout regressions the DOM text assertions miss.
+  test('reports dashboard (branch leader)', async ({ page }) => {
+    await loginAs(page, 'branch1');
+    await page.goto('/reports');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/top contributors/i).first()).toBeVisible();
+    await expect(page).toHaveScreenshot('reports-dashboard.png', shot);
+  });
 });
