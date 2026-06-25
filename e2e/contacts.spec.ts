@@ -37,6 +37,24 @@ test.describe('List B — contacts', () => {
     expect(before).not.toBeNull();
   });
 
+  test('bulk Delete shows left of Clear when SOME selected, and is HIDDEN when ALL selected', async ({ page }) => {
+    await page.getByRole('button', { name: /^select$/i }).first().click(); // enter select mode
+    await page.locator('input[type="checkbox"]').first().check(); // select ONE contact
+    await expect(page.getByText(/\d+ selected/i).first()).toBeVisible();
+    const del = page.getByRole('button', { name: /^delete$/i });
+    await expect(del).toBeVisible(); // some (not all) selected ⇒ Delete available to everyone
+    await page.getByRole('button', { name: /^select all$/i }).click(); // now ALL selected
+    await expect(del).toHaveCount(0); // the guard: never when all are selected
+  });
+
+  test('bulk Delete actually removes the selected contacts (everyone)', async ({ page }) => {
+    await page.getByRole('button', { name: /^select$/i }).first().click();
+    await page.locator('input[type="checkbox"]').first().check();
+    page.once('dialog', (d) => d.accept()); // window.confirm("Delete N selected contacts?")
+    await page.getByRole('button', { name: /^delete$/i }).click();
+    await expect(page.getByText(/deleted/i).first()).toBeVisible(); // success toast
+  });
+
   test('B13 sort by Sessions keeps the list rendered', async ({ page }) => {
     // open the sort control and pick Sessions (base-ui select → click trigger then option)
     const sortTrigger = page.getByRole('combobox').filter({ hasText: /sort|name|session|stage|updated/i }).first();

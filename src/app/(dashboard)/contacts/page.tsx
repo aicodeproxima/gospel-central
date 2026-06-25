@@ -17,6 +17,7 @@ import {
   Square,
   ArrowUpDown,
   MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -372,6 +373,19 @@ export default function ContactsPage() {
     doExport(selected);
   };
 
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected contact${ids.length > 1 ? 's' : ''}?`)) return;
+    await Promise.all(ids.map((id) => contactsApi.deleteContact(id)));
+    // Optimistic local removal — GET /contacts still returns soft-deleted
+    // (status:'inactive') rows, so a refetch would resurrect them; mirror the
+    // single-delete pattern (handleFormDelete / handleDetailDelete).
+    setContacts((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+    toast.success(`${ids.length} contact${ids.length > 1 ? 's' : ''} deleted`);
+    setSelectedIds(new Set());
+  };
+
   // ── CSV Export ─────────────────────────────────────────────────
   const doExport = (list: Contact[]) => {
     const headers = ['Name', 'Phone', 'Email', 'Group', 'Stage', 'Currently Studying', 'Current Subject', 'Sessions', 'Last Session', 'Notes'];
@@ -583,6 +597,19 @@ export default function ContactsPage() {
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={selectAll} className="h-8 text-xs">{t('btn.selectAll')}</Button>
+          {/* Delete is available to EVERYONE, but NEVER when all (filtered)
+              contacts are selected — a guard against an accidental delete-all.
+              Sits immediately left of Clear. */}
+          {filtered.length > 0 && !filtered.every((c) => selectedIds.has(c.id)) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkDelete}
+              className="gap-1 h-8 text-xs text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" /> {t('btn.delete')}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8 text-xs">{t('btn.clear')}</Button>
         </motion.div>
       )}
