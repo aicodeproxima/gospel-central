@@ -32,13 +32,14 @@ export default defineConfig({
     env: { NEXT_PUBLIC_MOCK_API: 'true', NEXT_PUBLIC_MOCK_DATE: MOCK_DATE },
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'mobile-pixel5', use: { ...devices['Pixel 5'] } },
-    // Galaxy S24 Ultra: the user's primary device. 412×915 is the standard
-    // display width; the project also tests the 275×596 display-size-zoom width.
+    // Desktop: smoke + permission boundaries (chromium also owns the visual baselines).
+    { name: 'chromium', testIgnore: /mobile\.spec/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'webkit', testIgnore: /(mobile|visual)\.spec/, use: { ...devices['Desktop Safari'] } },
+    // Mobile: fitment specs only. Galaxy S24 Ultra is the user's primary device.
+    { name: 'mobile-pixel5', testMatch: /mobile\.spec/, use: { ...devices['Pixel 5'] } },
     {
       name: 'mobile-s24',
+      testMatch: /mobile\.spec/,
       use: { ...devices['Pixel 7'], viewport: { width: 412, height: 915 }, deviceScaleFactor: 3.5 },
     },
   ],

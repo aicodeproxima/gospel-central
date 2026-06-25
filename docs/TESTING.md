@@ -41,5 +41,8 @@ Never reintroduce a bare `new Date()` / `Date.now()` in the seed — route it th
   others/self-elevate, grant ceiling, reparent-cycle, 401-not-403) + E2E boundaries (`permissions.spec.ts` — Export gated
   to Branch Leader+, Add-User to Team Leader+, a non-owner opens a booking read-only) + 3 `it.todo` backend-acceptance
   markers for the known mock-permissive contacts/cancel gaps.
-- ⏳ Phase 4 (mobile + visual): S24 Ultra journeys (no horizontal pan, ≥44px tap targets, Agenda at phone width) + visual
-  baselines for calendar / groups tree / contacts / wizard / settings.
+- ✅ Phase 4 (mobile + visual): `mobile.spec.ts` (mobile-pixel5 + mobile-s24 projects) — **no horizontal page pan** on
+  dashboard/contacts/settings/calendar, Agenda renders at phone width, the booking wizard fits the viewport; `visual.spec.ts`
+  — `toHaveScreenshot` baselines for login/dashboard/contacts/settings (chromium, **skipped in CI** since baselines are
+  platform-specific; regenerate with `npm run e2e:update`). Project scoping: desktop specs `testIgnore` mobile; mobile
+  projects `testMatch` only `mobile.spec`.
