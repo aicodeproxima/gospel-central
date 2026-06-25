@@ -610,7 +610,7 @@ export default function ContactsPage() {
               <Trash2 className="h-3 w-3" /> {t('btn.delete')}
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8 text-xs">{t('btn.clear')}</Button>
+          <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8 text-xs">{t('btn.clearSelected')}</Button>
         </motion.div>
       )}
 
