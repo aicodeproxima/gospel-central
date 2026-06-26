@@ -39,3 +39,38 @@ not) reads as an **incomplete hardening pass**, not a design choice — so the f
 ## Handoff
 Fold these into `docs/MIKE_HANDOFF.md` / `docs/BACKEND_GAPS.md` as the backend authz acceptance checklist. When
 the Go backend gates each, flip the corresponding `it.todo` → `it` in the integration suite and assert the 403.
+
+---
+
+## Propagation audit (2026-06-25) — new findings beyond the catalog
+
+From the code-grounded propagation audit (`PROPAGATION.md`, `propagation-graph.md`) + the ultracode
+completeness-critic (full list: `propagation-graph-gaps.md`). These are real surface findings, NOT covered by
+the executed cells:
+
+- **Reports "Top Contributors" leaderboard MIS-ATTRIBUTES all booking cancels/updates to Michael.** The cancel
+  handler hardcodes `userId:'u-michael'` / `cancelledBy:'u-michael'` (handlers.ts ~1157), so the
+  Top-Contributors aggregation (reports/page.tsx ~330-340, grouped by `userId`) credits every cancel to one
+  user regardless of the real actor. This extends the already-known `cancelledBy` gap to the **leaderboard
+  surface**. Classification: KNOWN backend-gap (the mock hardcode — do NOT patch the mock; the real backend
+  must attribute to the JWT actor).
+- **Groups "Bearing Fruit" — count is STATIC but the drill-down LIST is LIVE** (internal inconsistency).
+  `bearingFruit` *count* derives from static `teacherMetrics.baptizedSinceStudying` (org-metrics.ts:66), while
+  the fruit-filter contact *list* is computed live from `pipelineStage==='baptized'` (OrgNode.tsx:97,
+  Tree3D.tsx:615). Editing a contact to `baptized` changes what the fruit popup shows while the badge number
+  stays frozen — the graph marks the badge wholly STATIC, which is only half true. Classification: STATIC-by-
+  design partial / candidate FRONTEND inconsistency for the follow-up.
+
+### Graph completeness gaps (missed-consumer = false-PASS risk) — see `propagation-graph-gaps.md`
+A1 `contacts.currentlyStudying` → Dashboard "Active Contacts" (dashboard/page.tsx:125-133, not just stage);
+A2 `contacts.{totalSessions,currentStep,currentSubject,groupName}` → Dashboard stat dialogs (370-380,462-472);
+A3 `pipelineStage===PROGRESSING` → Dashboard trend (149-151);
+A4 `contacts.{assignedTeacherId,lastSessionDate,totalSessions}` → Groups tree-node live metrics (a reassign
+silently moves metrics between nodes — org-metrics.ts:34-63); A6 the whole `/admin` family was uncited.
+These edges should enter the graph before claiming full coverage.
+
+### Cells DEFERRED (harness limit, not app defects)
+C2/C2b (contact reassign + member scope) — opening ContactDetailDialog crashes the Playwright renderer
+(page-close) reproducibly. Behavior verified by workflow source-trace + the F1 feature (prod-verified) + Run-2
+specs. C2b correction: a Member is NOT denied the reassign *field* — for their own contact the Select renders
+with exactly one option (self), a no-op; the gate holds by offering no other target.

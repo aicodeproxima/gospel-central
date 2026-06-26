@@ -39,3 +39,12 @@ for genuinely viewport-divergent surfaces); **STATIC** = seed-only by design (do
 
 ## KNOWN backend-gap (UNGATED — classify KNOWN-gap, never a propagation leak; do NOT patch mock)
 username rename, GET /audit-log (unscoped), PUT /contacts reassign, PUT/cancel bookings, convert priv-esc, cancelledBy=`u-michael` hardcoded. Source: `docs/qa/out-of-scope-findings.md`, `docs/BACKEND_GAPS.md`.
+
+## Completeness + batch-2 (ultracode workflow, 2026-06-25)
+- **Missing edges found by the completeness critic** → `propagation-graph-gaps.md` (A1-A6: dashboard
+  currentlyStudying/stat-dialogs, tree-node live metrics moved by reassign, /admin family). Fold into the graph
+  before claiming full coverage.
+- **Ready-to-execute batch-2 catalog** (tags/rooms/areas/role/deactivate/blocked-slots, code-cited recipes,
+  ranked by automatability) → `propagation-catalog.md`.
+- **New findings** (Top-Contributors mis-attribution; Bearing-Fruit count-static/list-live inconsistency) →
+  `out-of-scope-findings.md`.
