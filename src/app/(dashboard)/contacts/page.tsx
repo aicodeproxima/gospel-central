@@ -684,7 +684,7 @@ export default function ContactsPage() {
             type="button"
             onClick={() => changeView('grid')}
             className={cn(
-              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
+              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5 max-md:min-h-11 max-md:min-w-11 max-md:inline-flex max-md:items-center max-md:justify-center',
               effectiveView === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.gridView')}
@@ -695,7 +695,7 @@ export default function ContactsPage() {
             type="button"
             onClick={() => changeView('kanban')}
             className={cn(
-              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5',
+              'rounded px-2 py-1 transition-colors touch-manipulation max-xl:px-3 max-xl:py-2.5 max-md:min-h-11 max-md:min-w-11 max-md:inline-flex max-md:items-center max-md:justify-center',
               effectiveView === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             aria-label={t('contacts.kanbanView')}

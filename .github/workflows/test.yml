@@ -78,6 +78,13 @@ jobs:
         run: npx playwright test --project=chromium
         env:
           CI: 'true'
+      - name: Run mobile S24 fitment + tap-targets (mobile-s24)
+        # mobile-s24 is a chromium-engine device (Pixel-7 base) — no extra browser
+        # install. Gates the no-horizontal-pan + ≥44px tap-target guards on every PR
+        # (closes the "CI only gated chromium" gap).
+        run: npx playwright test --project=mobile-s24
+        env:
+          CI: 'true'
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}

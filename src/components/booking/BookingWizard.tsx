@@ -816,7 +816,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                         onClick={() => setStartSlotIdx(i)}
                         title={slot.occupied ? `Occupied by: ${slot.occupiedBy}` : undefined}
                         className={cn(
-                          'rounded-md border px-2 py-2 text-xs font-medium transition-all touch-manipulation max-md:py-3',
+                          'rounded-md border px-2 py-2 text-xs font-medium transition-all touch-manipulation max-md:py-3 max-md:min-h-11',
                           !canFit && 'opacity-30 cursor-not-allowed bg-muted',
                           canFit && !selected && !withinSelection && 'border-border hover:bg-accent',
                           selected && 'bg-primary text-primary-foreground border-primary',

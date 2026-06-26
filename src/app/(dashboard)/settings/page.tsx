@@ -314,7 +314,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-1 -right-1 rounded-full bg-card border border-border p-1 hover:bg-accent transition-colors"
+                className="absolute -bottom-1 -right-1 rounded-full bg-card border border-border p-1 hover:bg-accent transition-colors max-md:h-11 max-md:w-11 max-md:flex max-md:items-center max-md:justify-center"
                 aria-label="Upload photo"
               >
                 <Camera className="h-3.5 w-3.5" />

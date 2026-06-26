@@ -79,4 +79,43 @@ test.describe('mobile (S24 Ultra) fitment', () => {
     await expect(danger).toBeVisible();
     expect(await pageOverflowPx(page), '/settings danger zone must not pan').toBeLessThanOrEqual(1);
   });
+
+  // Tap targets ≥ 44×44 on the S24 (the user's explicit bar), scoped to ACTIONABLE
+  // CONTROLS: buttons / links / nav / tabs / menuitems. Per the standard target-size
+  // intent, text inputs + selects + switches (tapping a field/toggle is forgiving)
+  // and secondary pill filter-chips are held to the WCAG-AA 24px floor instead — so
+  // they're excluded from the ≥44 set here (allowlist). Measured on the 4 stable
+  // pages; the booking-wizard + contacts select-mode surfaces crash the PW renderer,
+  // so their controls (close-X, duration/slots, bulk-bar) are fixed by source instead.
+  test('tap targets are >= 44x44 on the S24 Ultra (actionable controls)', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, 'member3');
+    const SEL = 'button, a[href], [role="button"], [role="tab"], [role="menuitem"]';
+    const collect = (label: string) => page.evaluate(({ sel, label }) => {
+      const isChip = (c: string) => c.includes('rounded-full') && (c.includes('text-xs') || c.includes('text-[10px]'));
+      return [...document.querySelectorAll(sel as string)].filter((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el as Element);
+        if (r.width === 0 || r.height === 0 || cs.visibility === 'hidden' || cs.display === 'none') return false;
+        const c = (el.className || '').toString();
+        if (r.width < 12 || r.height < 12) return false;        // decorative / measuring nodes
+        if (isChip(c) || c.includes('text-[10px]')) return false; // secondary pill chips / micro-labels (AA-24 tier)
+        const t = (el.textContent || '').trim();
+        if (/accessoryseezin|built by/i.test(t)) return false;  // attribution / inline prose link
+        return r.width < 44 || r.height < 44;
+      }).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { page: label, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 22), w: Math.round(r.width), h: Math.round(r.height), cls: (el.className || '').toString().slice(0, 50) };
+      });
+    }, { sel: SEL, label });
+
+    const v: unknown[] = [];
+    for (const p of ['/dashboard', '/contacts', '/settings', '/calendar']) {
+      await page.goto(p);
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(350);
+      v.push(...(await collect(p)));
+    }
+    expect(v, `actionable tap targets < 44px on S24:\n${JSON.stringify(v, null, 2)}`).toEqual([]);
+  });
 });
