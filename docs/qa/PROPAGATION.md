@@ -7,17 +7,17 @@
 ## Environment fingerprint
 | field | START | END | ok |
 |---|---|---|---|
-| git SHA | `2a71e47` | `fac2f8b` | ✅ |
+| git SHA | `2a71e47` | `515368d` | ✅ |
 | branch | `feat/mobile-opt-main` | | |
 | MOCK_DATE | `2026-06-22T12:00:00` | | |
 | node / playwright | v24.13.1 / 1.61.1 | | |
 | seed counts | users:132 · contacts:50 · bookings:104 · areas:5 · blockedSlots:4 · auditLog:83 | | |
 | Z0 | PASS (contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)) | | |
 
-## Summary (10 cells logged)
+## Summary (12 cells logged)
 | verdict | count |
 |---|---|
-| PASS | 8 |
+| PASS | 10 |
 | DEFERRED | 2 |
 | **confirmed LEAK/OVER** | **0** |
 
@@ -36,6 +36,8 @@ _Superseded (corrected instrument re-run, last-wins): E1._
 | C2 | cascade | reassign contact owner (branch1) | branch1 | 1 | DEFERRED | verified-by-source (harness-deferred) |
 | C2b | cascade | reassign scope (member3 self-only) | member3 | 1 | DEFERRED | verified-by-source (harness-deferred) |
 | E1 | users | tag grant/revoke | admin | 2 | PASS | — |
+| E2 | rooms | room create | admin | 2 | PASS | — |
+| E3 | areas | area create | admin | 2 | PASS | — |
 
 ## LEAK / OVER findings (ranked by blast radius)
 _None this run._
@@ -44,7 +46,9 @@ _None this run._
 - **cascade**: 4 cells — sites: contacts.chip.baptized, calendar.card.cancelled, reports.audit.reassign, contacts.dialog.reassign-self-only
 - **settings**: 5 cells — sites: sidebar.avatar, settings.avatar, sidebar.nav, html.data-theme, html.data-bg, calendar.bookingcard.time
 - **users**: 1 cells — sites: usersTab.row.tags, audit.tag_grant.data
+- **rooms**: 1 cells — sites: roomsTab.area.roomCount, audit.room.create.data
+- **areas**: 1 cells — sites: roomsTab.areaCard.new, audit.area.create.data
 
 ## Notes
-- This is an INCREMENTAL render. Batches landed so far: cascade, settings, users.
+- This is an INCREMENTAL render. Batches landed so far: cascade, settings, users, rooms, areas.
 - Integrity gate: START==END fingerprint OK; parse errors 0.

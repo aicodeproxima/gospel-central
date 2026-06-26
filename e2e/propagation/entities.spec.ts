@@ -100,3 +100,123 @@ test('E1 tag toggle (admin) → row Tags badge + reports tag_grant/revoke row', 
   });
   expect(['PASS', 'LEAK', 'OVER', 'INCONCLUSIVE']).toContain(verdict);
 });
+
+// data helpers (same-page, no cross-page nav → no re-seed)
+function auditTotal(page: import('@playwright/test').Page) {
+  return page.evaluate(async () => {
+    const t = localStorage.getItem('token');
+    const r = await fetch('/api/audit-log?limit=1', { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const j = await r.json(); return (j && typeof j.total === 'number') ? j.total : 0;
+  });
+}
+function areaCount(page: import('@playwright/test').Page) {
+  return page.evaluate(async () => {
+    const t = localStorage.getItem('token');
+    const r = await fetch('/api/areas', { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const j = await r.json(); return Array.isArray(j) ? j.length : 0;
+  });
+}
+function roomCountSum() {
+  let s = 0;
+  document.querySelectorAll('*').forEach((e) => {
+    if (e.children.length === 0) { const m = (e.textContent || '').trim().match(/^(\d+)\s+rooms?$/); if (m) s += Number(m[1]); }
+  });
+  return s;
+}
+
+// ── E2: room create (admin) → AreaCard room-count badge +1 (same-page) + RoomRow +
+//        audit row. must-NOT-change: area count (no phantom area). ──
+test('E2 room create (admin) → area room-count badge + RoomRow + audit row', async ({ page }) => {
+  test.setTimeout(90_000);
+  await loginAs(page, 'admin');
+  await page.goto('/admin?tab=rooms');
+  await page.waitForLoadState('networkidle');
+  const ca = await assertClockActor(page, 'dev'); expect(ca.clock).toBe(MOCK_DATE);
+
+  let verdict = 'INCONCLUSIVE'; let err: string | null = null;
+  let roomSeen = false; let auditDelta = 0; let roomSumBefore = 0; let roomSumAfter = 0; let areaBefore = 0; let areaAfter = 0;
+  const roomName = '_AUDIT_Room_NN';
+  try {
+    const beforeTotal = await auditTotal(page);
+    areaBefore = await areaCount(page);
+    roomSumBefore = await page.evaluate(roomCountSum);
+
+    await page.getByRole('button', { name: /add room/i }).first().click();
+    const dlg = page.getByRole('dialog');
+    await dlg.locator('#room-name').fill(roomName);
+    await dlg.locator('#room-capacity').fill('12').catch(() => {});
+    await dlg.getByRole('button', { name: /create room/i }).click();
+    await expect(page.getByText(/room created/i).first()).toBeVisible({ timeout: 8000 });
+    await page.waitForTimeout(700); // onSaved → reload
+
+    roomSumAfter = await page.evaluate(roomCountSum);
+    roomSeen = await page.getByText(roomName).first().isVisible().catch(() => false);
+    auditDelta = (await auditTotal(page)) - beforeTotal;
+    areaAfter = await areaCount(page);
+
+    const expectedOk = roomSumAfter === roomSumBefore + 1 && auditDelta >= 1;
+    const mustNotOk = areaBefore === areaAfter;
+    verdict = expectedOk ? (mustNotOk ? 'PASS' : 'OVER') : 'LEAK';
+  } catch (e) { err = String(e).slice(0, 200); }
+
+  await assertClockActor(page, 'dev').catch(() => ({}));
+  appendJsonl('propagation.jsonl', {
+    id: 'E2', domain: 'rooms', mutation: 'room create', actor_role: 'admin', trigger_surface: '/admin?tab=rooms → Add Room',
+    expected_reflections: [
+      { site_id: 'roomsTab.area.roomCount', site: 'AreaCard "{n} rooms" badge', instance: 'desktop', observe_how: 'DOM badge sum', expected_delta: '+1', source_citation: 'RoomsTab.tsx:318' },
+      { site_id: 'audit.room.create.data', site: 'audit-log room.create (data)', instance: 'n/a', observe_how: 'fetch total delta', expected_delta: '+1', source_citation: 'handlers.ts:672-683' },
+    ],
+    expected_site_count: 2, must_NOT_change: ['area count (no phantom area)'], verdict,
+    leak_sites: verdict === 'LEAK' ? ['roomsTab.area.roomCount'] : verdict === 'OVER' ? ['area.count'] : [],
+    classification: verdict === 'LEAK' || verdict === 'OVER' ? 'FRONTEND' : null,
+    evidence: { roomName, roomSumBefore, roomSumAfter, roomSeen, auditDelta, areaBefore, areaAfter, err },
+    dedup_vs_prior: 'new (batch-2 rooms)', clock_at_obs: ca.clock, actor_at_obs: ca.role, mock_date: MOCK_DATE,
+  });
+  expect(['PASS', 'LEAK', 'OVER', 'INCONCLUSIVE']).toContain(verdict);
+});
+
+// ── E3: area create (admin, Overseer+ gate) → new AreaCard (same-page) + audit row. ──
+test('E3 area create (admin) → new AreaCard + audit row', async ({ page }) => {
+  test.setTimeout(90_000);
+  await loginAs(page, 'admin');
+  await page.goto('/admin?tab=rooms');
+  await page.waitForLoadState('networkidle');
+  const ca = await assertClockActor(page, 'dev'); expect(ca.clock).toBe(MOCK_DATE);
+
+  let verdict = 'INCONCLUSIVE'; let err: string | null = null;
+  let areaSeen = false; let auditDelta = 0; let areaBefore = 0; let areaAfter = 0;
+  const areaName = '_AUDIT_Area_NN';
+  try {
+    const beforeTotal = await auditTotal(page);
+    areaBefore = await areaCount(page);
+
+    await page.getByRole('button', { name: /add area/i }).first().click();
+    const dlg = page.getByRole('dialog');
+    await dlg.locator('#area-name, input').first().fill(areaName);
+    await dlg.getByRole('button', { name: /create area/i }).click();
+    await expect(page.getByText(/area created/i).first()).toBeVisible({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(700);
+
+    areaAfter = await areaCount(page);
+    areaSeen = await page.getByText(areaName).first().isVisible().catch(() => false);
+    auditDelta = (await auditTotal(page)) - beforeTotal;
+
+    const expectedOk = areaAfter === areaBefore + 1 && areaSeen && auditDelta >= 1;
+    verdict = expectedOk ? 'PASS' : 'LEAK';
+  } catch (e) { err = String(e).slice(0, 200); }
+
+  await assertClockActor(page, 'dev').catch(() => ({}));
+  appendJsonl('propagation.jsonl', {
+    id: 'E3', domain: 'areas', mutation: 'area create', actor_role: 'admin', trigger_surface: '/admin?tab=rooms → Add Area',
+    expected_reflections: [
+      { site_id: 'roomsTab.areaCard.new', site: 'new AreaCard renders', instance: 'desktop', observe_how: 'DOM area name + areas count', expected_delta: '+1 area', source_citation: 'RoomsTab.tsx:151 Add Area; handlers.ts areas POST' },
+      { site_id: 'audit.area.create.data', site: 'audit-log area.create (data)', instance: 'n/a', observe_how: 'fetch total delta', expected_delta: '+1', source_citation: 'handlers.ts:541-551' },
+    ],
+    expected_site_count: 2, must_NOT_change: [], verdict,
+    leak_sites: verdict === 'LEAK' ? ['roomsTab.areaCard.new'] : [],
+    classification: verdict === 'LEAK' ? 'FRONTEND' : null,
+    evidence: { areaName, areaBefore, areaAfter, areaSeen, auditDelta, err },
+    dedup_vs_prior: 'new (batch-2 areas)', clock_at_obs: ca.clock, actor_at_obs: ca.role, mock_date: MOCK_DATE,
+  });
+  expect(['PASS', 'LEAK', 'INCONCLUSIVE']).toContain(verdict);
+});
