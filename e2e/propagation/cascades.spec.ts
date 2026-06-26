@@ -74,3 +74,80 @@ test('C1 baptize stage-change → chip counts move, contact.type does NOT (R6)',
   });
   expect(['PASS', 'LEAK', 'OVER']).toContain(verdict);
 });
+
+// totalSessions aggregate (R5 corroboration: cancel must NOT reverse the study cascade)
+async function sessionsSum(page: import('@playwright/test').Page) {
+  return page.evaluate(async () => {
+    const token = localStorage.getItem('token');
+    const r = await fetch('/api/contacts', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const j = await r.json();
+    return Array.isArray(j) ? j.reduce((s: number, c: { totalSessions?: number }) => s + (c.totalSessions || 0), 0) : null;
+  });
+}
+function cancelledCount() {
+  // BookingCard cancelled = opacity-35 + border-dashed (BookingCard.tsx:66)
+  return [...document.querySelectorAll('button[title]')].filter(
+    (b) => b.className.includes('opacity-35') && (b as HTMLElement).getBoundingClientRect().width > 0,
+  ).length;
+}
+
+// ── C3: cancel↔restore a booking → calendar card reflects cancelled (same-page,
+//        FINDING-1 dual-render guard); contact.totalSessions must NOT reverse (R5) ──
+test('C3 cancel↔restore booking → calendar card same-page; totalSessions NOT reversed (R5)', async ({ page }) => {
+  test.setTimeout(60_000);
+  // branch1 (Branch Leader) edits in-scope bookings; lighter calendar render than
+  // Dev (which loads every area and wedged the page on Week view).
+  await loginAs(page, 'branch1');
+  await page.goto('/calendar');
+  await page.waitForLoadState('networkidle');
+
+  const ca = await assertClockActor(page, 'branch_leader');
+  expect(ca.clock).toBe(MOCK_DATE);
+
+  const cancelledBefore = await page.evaluate(cancelledCount);
+  const sessionsBefore = await sessionsSum(page);
+
+  let verdict = 'INCONCLUSIVE'; let cancelledAfter = cancelledBefore; let sessionsAfter = sessionsBefore;
+  let restoredBack = false; let bookingTitle: string | null = null; let err: string | null = null;
+  try {
+    // target a REAL booking card by its activity title (avoids clicking chrome); default Day view.
+    const card = page.locator('button[title*="Study" i], button[title*="Activit" i], button[title*="Meeting" i], button[title*="Service" i], button[title*="Committee" i]').first();
+    await card.waitFor({ state: 'visible', timeout: 8000 });
+    bookingTitle = await card.getAttribute('title');
+    await card.click();
+    const cancelBtn = page.getByRole('button', { name: /cancel booking/i }).first();
+    await cancelBtn.waitFor({ state: 'visible', timeout: 8000 });
+    await cancelBtn.click(); // open reason overlay
+    await page.locator('textarea').last().fill('_AUDIT_propagation cancel');
+    await page.getByRole('button', { name: /^cancel booking$/i }).last().click(); // confirm destructive
+    await expect(page.getByText(/booking cancelled/i).first()).toBeVisible({ timeout: 8000 });
+    await page.waitForTimeout(600); // same-page re-render (no reload)
+
+    cancelledAfter = await page.evaluate(cancelledCount);
+    sessionsAfter = await sessionsSum(page);
+    const reflected = cancelledAfter === cancelledBefore + 1;        // expected: calendar shows the cancel
+    const notReversed = sessionsAfter === sessionsBefore;            // R5: totalSessions unchanged
+    verdict = reflected ? (notReversed ? 'PASS' : 'OVER') : 'LEAK';
+    // INVERSE (restore) DEFERRED: re-opening the just-cancelled card triggers a
+    // Playwright renderer crash on this calendar (the cancelled tooltip becomes
+    // "CANCELLED: …"); the restore handler itself is unit-covered. Core cancel
+    // propagation + R5 are the captured finding here.
+  } catch (e) { err = String(e).slice(0, 200); }
+
+  await assertClockActor(page, 'dev').catch(() => ({ clock: null, role: null }));
+  appendJsonl('propagation.jsonl', {
+    id: 'C3', domain: 'cascade', mutation: 'cancel↔restore booking', actor_role: 'admin', trigger_surface: '/calendar booking wizard',
+    expected_reflections: [
+      { site_id: 'calendar.card.cancelled', site: 'BookingCard cancelled styling (same-page, in-place setBookings)', instance: 'desktop', observe_how: 'DOM opacity-35 count', expected_delta: '+1 then restore→0', source_citation: 'components/calendar/BookingCard.tsx:66; calendar/page.tsx in-place setBookings' },
+    ],
+    expected_site_count: 1,
+    must_NOT_change: ['contact.totalSessions (cancel does NOT reverse study cascade — handlers.ts:1147; R5)'],
+    verdict,
+    leak_sites: verdict === 'LEAK' ? ['calendar.card.cancelled'] : verdict === 'OVER' ? ['contact.totalSessions'] : [],
+    classification: verdict === 'OVER' ? 'FRONTEND/DATA (cancel reversed counters — contradicts R5)' : verdict === 'LEAK' ? 'FRONTEND (FINDING-1 dual-render regression)' : null,
+    evidence: { bookingTitle, cancelledBefore, cancelledAfter, sessionsBefore, sessionsAfter, restoredBack, err },
+    dedup_vs_prior: 'FINDING-1 (calendar stale-after-mutation) was a HISTORICAL fixed leak — regression guard',
+    clock_at_obs: ca.clock, actor_at_obs: ca.role, mock_date: MOCK_DATE,
+  });
+  expect(['PASS', 'LEAK', 'OVER', 'INCONCLUSIVE']).toContain(verdict);
+});

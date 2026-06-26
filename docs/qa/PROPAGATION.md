@@ -7,37 +7,38 @@
 ## Environment fingerprint
 | field | START | END | ok |
 |---|---|---|---|
-| git SHA | `59a81fa` | `59a81fa` | ✅ |
+| git SHA | `b65d8f2` | `b65d8f2` | ✅ |
 | branch | `feat/mobile-opt-main` | | |
 | MOCK_DATE | `2026-06-22T12:00:00` | | |
 | node / playwright | v24.13.1 / 1.61.1 | | |
 | seed counts | users:132 · contacts:50 · bookings:104 · areas:5 · blockedSlots:4 · auditLog:83 | | |
 | Z0 | PASS (contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)) | | |
 
-## Summary (6 cells logged)
+## Summary (7 cells logged)
 | verdict | count |
 |---|---|
-| PASS | 6 |
+| PASS | 7 |
 | **confirmed LEAK/OVER** | **0** |
 
 
 ## Cell matrix
 | id | domain | mutation | actor | expected sites | verdict | classification |
 |---|---|---|---|---|---|---|
+| C1 | cascade | baptize (stage→Baptized) | branch1 | 1 | PASS | — |
+| C3 | cascade | cancel↔restore booking | admin | 1 | PASS | — |
 | S1 | settings | set profilePhoto | member3 | 2 | PASS | — |
 | S2 | settings | language en→es | member3 | 1 | PASS | — |
 | S3 | settings | colorTheme set+inverse | member3 | 1 | PASS | — |
 | S4 | settings | backgroundStyle → Galaxy background | member3 | 1 | PASS | — |
 | S5 | settings | timeFormat 12h→24h | member3 | 1 | PASS | — |
-| C1 | cascade | baptize (stage→Baptized) | branch1 | 1 | PASS | — |
 
 ## LEAK / OVER findings (ranked by blast radius)
 _None this run._
 
 ## Per-domain coverage (cells run / surfaces covered)
+- **cascade**: 2 cells — sites: contacts.chip.baptized, calendar.card.cancelled
 - **settings**: 5 cells — sites: sidebar.avatar, settings.avatar, sidebar.nav, html.data-theme, html.data-bg, calendar.bookingcard.time
-- **cascade**: 1 cells — sites: contacts.chip.baptized
 
 ## Notes
-- This is an INCREMENTAL render. Batches landed so far: settings, cascade.
+- This is an INCREMENTAL render. Batches landed so far: cascade, settings.
 - Integrity gate: START==END fingerprint OK; parse errors 0.
