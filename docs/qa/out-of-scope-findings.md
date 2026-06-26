@@ -74,3 +74,18 @@ C2/C2b (contact reassign + member scope) — opening ContactDetailDialog crashes
 (page-close) reproducibly. Behavior verified by workflow source-trace + the F1 feature (prod-verified) + Run-2
 specs. C2b correction: a Member is NOT denied the reassign *field* — for their own contact the Select renders
 with exactly one option (self), a no-op; the gate holds by offering no other target.
+
+### Batch-2 (E1 tags) — harness facts + a candidate finding
+- **HARNESS (methodology-critical):** a full document navigation (`page.goto`, or even the sidebar link)
+  RELOADS the page → re-imports `handlers.ts` → **re-seeds the in-page mock**, wiping mutations made earlier in
+  the same cell. Cross-page propagation must therefore be observed via a **client-side** route/tab change, or
+  corroborated by a **same-page fetch**. (This is a mock/test artifact, not an app bug — a real backend would
+  refetch on nav.)
+- **GET `/audit-log` returns insertion-order, NO sort** (`[...mockAuditLog].slice(start,start+limit)`,
+  handlers.ts) — newest rows append at the END. CANDIDATE FINDING: verify the **reports Change Log** + **admin
+  Audit Log** views sort DESC client-side; if they page on the raw order, the newest activity is NOT on page 1.
+- **Admin "Audit Log" tab does not refetch on a cross-tab mutation** (grant a tag in Users → switch to Audit Log
+  → the new row is absent until a manual refresh). Minor frontend staleness (plausibly by-design; a Refresh
+  control exists) — flagged for the follow-up, not fixed here.
+- **E1 PASS:** tag grant/revoke → UserRow Tags badge updates same-page (primary), audit row emitted in data
+  (total 83→84), `user.role` unchanged (must-NOT-change held).

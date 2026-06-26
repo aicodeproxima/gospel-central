@@ -7,20 +7,21 @@
 ## Environment fingerprint
 | field | START | END | ok |
 |---|---|---|---|
-| git SHA | `2a71e47` | `2a71e47` | ✅ |
+| git SHA | `2a71e47` | `fac2f8b` | ✅ |
 | branch | `feat/mobile-opt-main` | | |
 | MOCK_DATE | `2026-06-22T12:00:00` | | |
 | node / playwright | v24.13.1 / 1.61.1 | | |
 | seed counts | users:132 · contacts:50 · bookings:104 · areas:5 · blockedSlots:4 · auditLog:83 | | |
 | Z0 | PASS (contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)) | | |
 
-## Summary (9 cells logged)
+## Summary (10 cells logged)
 | verdict | count |
 |---|---|
-| PASS | 7 |
+| PASS | 8 |
 | DEFERRED | 2 |
 | **confirmed LEAK/OVER** | **0** |
 
+_Superseded (corrected instrument re-run, last-wins): E1._
 
 ## Cell matrix
 | id | domain | mutation | actor | expected sites | verdict | classification |
@@ -34,6 +35,7 @@
 | S5 | settings | timeFormat 12h→24h | member3 | 1 | PASS | — |
 | C2 | cascade | reassign contact owner (branch1) | branch1 | 1 | DEFERRED | verified-by-source (harness-deferred) |
 | C2b | cascade | reassign scope (member3 self-only) | member3 | 1 | DEFERRED | verified-by-source (harness-deferred) |
+| E1 | users | tag grant/revoke | admin | 2 | PASS | — |
 
 ## LEAK / OVER findings (ranked by blast radius)
 _None this run._
@@ -41,7 +43,8 @@ _None this run._
 ## Per-domain coverage (cells run / surfaces covered)
 - **cascade**: 4 cells — sites: contacts.chip.baptized, calendar.card.cancelled, reports.audit.reassign, contacts.dialog.reassign-self-only
 - **settings**: 5 cells — sites: sidebar.avatar, settings.avatar, sidebar.nav, html.data-theme, html.data-bg, calendar.bookingcard.time
+- **users**: 1 cells — sites: usersTab.row.tags, audit.tag_grant.data
 
 ## Notes
-- This is an INCREMENTAL render. Batches landed so far: cascade, settings.
+- This is an INCREMENTAL render. Batches landed so far: cascade, settings, users.
 - Integrity gate: START==END fingerprint OK; parse errors 0.

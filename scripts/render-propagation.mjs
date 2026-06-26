@@ -35,7 +35,12 @@ const data = cells.filter((c) => c.id !== 'Z0');
 const fpStart = existsSync(FP) ? JSON.parse(readFileSync(FP, 'utf8')) : null;
 const sh = (c) => { try { return execSync(c, { encoding: 'utf8' }).trim(); } catch { return '?'; } };
 const endSha = sh('git rev-parse --short HEAD');
-const startEndOk = fpStart && fpStart.gitSha === endSha;
+// Integrity gate = the SUT (app code under src/) must be byte-identical start→end.
+// Compare the src/ TREE hash, not the full commit SHA — catalog-only deliverable
+// commits (docs/qa, e2e/) legitimately move HEAD but must NOT touch src/.
+const startSrc = fpStart ? sh(`git rev-parse ${fpStart.gitSha}:src`) : '?';
+const endSrc = sh('git rev-parse HEAD:src');
+const startEndOk = fpStart && startSrc !== '?' && startSrc === endSrc;
 
 // tallies
 const tally = {};
