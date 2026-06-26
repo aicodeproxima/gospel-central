@@ -7,7 +7,7 @@
 ## Environment fingerprint
 | field | START | END | ok |
 |---|---|---|---|
-| git SHA | `2a71e47` | `efba6ea` | ✅ |
+| git SHA | `2a71e47` | `83ec6d0` | ✅ |
 | branch | `feat/mobile-opt-main` | | |
 | MOCK_DATE | `2026-06-22T12:00:00` | | |
 | node / playwright | v24.13.1 / 1.61.1 | | |
@@ -50,6 +50,16 @@ _None this run._
 - **rooms**: 1 cells — sites: roomsTab.area.roomCount, audit.room.create.data
 - **areas**: 1 cells — sites: roomsTab.areaCard.new, audit.area.create.data
 
+## Coverage disclosure (what was NOT run this batch)
+This is an INCREMENTAL audit — it does NOT claim full graph-edge coverage. Honestly enumerated:
+- **DEFERRED (harness limit, verified-by-source):** C2, C2b — ContactDetailDialog crashes the Playwright renderer; behavior confirmed by source-trace + F1 + Run-2 specs.
+- **Cataloged but NOT RUN (queued in `propagation-catalog.md`):**
+  - **E5** — deactivate↔restore user (subtree cascade + scope-visibility) (catalog cell (c))
+  - **E6** — reparent user (parent change → tree node + manageable scope) (catalog cell (b) reparent half)
+  - **E7** — blocked-slot create/delete (booking-wizard grey-out) (catalog cell (f))
+  - **C4** — log-study via the 9-step booking wizard (full study cascade) (Z0 used a bulk-stage-change substitute)
+- **Known missed graph edges (false-PASS risk until folded in):** see `propagation-graph-gaps.md` (A1–A6: dashboard currentlyStudying/stat-dialogs, tree-node live metrics, /admin family).
+
 ## Notes
-- This is an INCREMENTAL render. Batches landed so far: cascade, settings, users, rooms, areas.
-- Integrity gate: START==END fingerprint OK; parse errors 0.
+- Batches landed so far: cascade, settings, users, rooms, areas.
+- Integrity gate: START==END (src/ tree hash) OK; parse errors 0.

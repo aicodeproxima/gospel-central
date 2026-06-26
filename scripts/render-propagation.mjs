@@ -52,6 +52,17 @@ for (const c of data) (byDomain[c.domain] ||= []).push(c);
 // blast-radius rank for leaks (machine-derived: #expected sites; persist/cross-entity bonus from notes)
 const blast = (c) => (c.expected_site_count || 0) + (/persist|localStorage|cookie|sidebar/i.test(JSON.stringify(c)) ? 2 : 0) + (/cascade|cross/i.test(JSON.stringify(c)) ? 2 : 0);
 
+// Cataloged-but-NOT-YET-RUN cells (queued in propagation-catalog.md). Enumerated so
+// the render can NEVER read as more complete than it is (3AgentScan honesty finding).
+const NOT_RUN = [
+  { id: 'E5', cell: 'deactivate↔restore user (subtree cascade + scope-visibility)', src: 'catalog cell (c)' },
+  { id: 'E6', cell: 'reparent user (parent change → tree node + manageable scope)', src: 'catalog cell (b) reparent half' },
+  { id: 'E7', cell: 'blocked-slot create/delete (booking-wizard grey-out)', src: 'catalog cell (f)' },
+  { id: 'C4', cell: 'log-study via the 9-step booking wizard (full study cascade)', src: 'Z0 used a bulk-stage-change substitute' },
+];
+const notRun = NOT_RUN.filter((n) => !byId.has(n.id));
+const deferred = data.filter((c) => c.verdict === 'DEFERRED');
+
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const md = `# Diamond — Propagation Expectation-Matrix Audit (catalog-only) — GENERATED
 
@@ -87,9 +98,16 @@ ${leaks.length === 0 ? '_None this run._' : leaks.sort((a, b) => blast(b) - blas
 ## Per-domain coverage (cells run / surfaces covered)
 ${Object.entries(byDomain).map(([d, cs]) => `- **${d}**: ${cs.length} cells — sites: ${[...new Set(cs.flatMap((c) => (c.expected_reflections || []).map((r) => r.site_id)))].join(', ')}`).join('\n')}
 
+## Coverage disclosure (what was NOT run this batch)
+This is an INCREMENTAL audit — it does NOT claim full graph-edge coverage. Honestly enumerated:
+- **DEFERRED (harness limit, verified-by-source):** ${deferred.length ? deferred.map((c) => c.id).join(', ') : 'none'} — ContactDetailDialog crashes the Playwright renderer; behavior confirmed by source-trace + F1 + Run-2 specs.
+- **Cataloged but NOT RUN (queued in \`propagation-catalog.md\`):**
+${notRun.length ? notRun.map((n) => `  - **${n.id}** — ${n.cell} (${n.src})`).join('\n') : '  - none'}
+- **Known missed graph edges (false-PASS risk until folded in):** see \`propagation-graph-gaps.md\` (A1–A6: dashboard currentlyStudying/stat-dialogs, tree-node live metrics, /admin family).
+
 ## Notes
-- This is an INCREMENTAL render. Batches landed so far: ${[...new Set(data.map((c) => c.domain))].join(', ')}.
-- Integrity gate: START==END fingerprint ${startEndOk ? 'OK' : 'FAILED'}; parse errors ${parseErrors}.
+- Batches landed so far: ${[...new Set(data.map((c) => c.domain))].join(', ')}.
+- Integrity gate: START==END (src/ tree hash) ${startEndOk ? 'OK' : 'FAILED'}; parse errors ${parseErrors}.
 `;
 
 writeFileSync(OUT, md);
