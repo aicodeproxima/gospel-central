@@ -220,3 +220,73 @@ test('E3 area create (admin) → new AreaCard + audit row', async ({ page }) => 
   });
   expect(['PASS', 'LEAK', 'INCONCLUSIVE']).toContain(verdict);
 });
+
+function actionCount(page: import('@playwright/test').Page, act: string) {
+  return page.evaluate(async (a) => {
+    const t = localStorage.getItem('token');
+    const r = await fetch(`/api/audit-log?action=${encodeURIComponent(a)}&limit=1`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const j = await r.json(); return (j && typeof j.total === 'number') ? j.total : 0;
+  }, act);
+}
+
+// ── E4: role change (admin) → row Role badge (same-page) + audit role_change row.
+//        must-NOT-change: username (sanitizer strips it from PUT /users — R). ──
+test('E4 role change (admin) → row Role badge + audit role_change row', async ({ page }) => {
+  test.setTimeout(90_000);
+  await loginAs(page, 'admin');
+  await page.goto('/admin?tab=users');
+  await page.waitForLoadState('networkidle');
+  const ca = await assertClockActor(page, 'dev'); expect(ca.clock).toBe(MOCK_DATE);
+
+  let verdict = 'INCONCLUSIVE'; let err: string | null = null;
+  let roleBadgeChanged = false; let roleChangeDelta = 0; let usernameKept = false; let pickedRole: string | null = null;
+  const RX = /team leader|group leader|branch leader|overseer|member|dev/i;
+  try {
+    await page.getByPlaceholder(/search/i).first().fill('team1').catch(() => {});
+    await page.waitForTimeout(500);
+    const row = page.locator('tr', { hasText: /team1|jude/i }).first();
+    const rowText = async () => (await row.textContent().catch(() => ''))?.replace(/\s+/g, ' ').trim() ?? '';
+    const before = await rowText();
+    const roleBefore = (before.match(RX) || [''])[0].toLowerCase();
+    const hadUsername = /team1/i.test(before);
+    const beforeRC = await actionCount(page, 'role_change');
+
+    await row.getByRole('button', { name: /row actions/i }).click();
+    await page.getByRole('menuitem', { name: /edit details/i }).click();
+    const dlg = page.getByRole('dialog');
+    await dlg.locator('#role').click(); // base-ui Select trigger
+    await page.waitForTimeout(200);
+    const opts = page.locator('[data-slot="select-item"], [role="option"]');
+    const oc = await opts.count();
+    for (let i = 0; i < oc; i++) {
+      const t = (await opts.nth(i).textContent())?.trim() ?? '';
+      if (t && !new RegExp(roleBefore, 'i').test(t) && RX.test(t)) { pickedRole = t; await opts.nth(i).click(); break; }
+    }
+    await dlg.getByRole('button', { name: /save changes/i }).click();
+    await page.waitForTimeout(800);
+
+    const after = await rowText();
+    const roleAfter = (after.match(RX) || [''])[0].toLowerCase();
+    roleBadgeChanged = roleBefore !== roleAfter && !!roleAfter;
+    usernameKept = hadUsername && /team1/i.test(after);
+    roleChangeDelta = (await actionCount(page, 'role_change')) - beforeRC;
+
+    const expectedOk = roleBadgeChanged && roleChangeDelta >= 1;
+    verdict = expectedOk ? (usernameKept ? 'PASS' : 'OVER') : 'LEAK';
+  } catch (e) { err = String(e).slice(0, 200); }
+
+  await assertClockActor(page, 'dev').catch(() => ({}));
+  appendJsonl('propagation.jsonl', {
+    id: 'E4', domain: 'users', mutation: 'role change', actor_role: 'admin', trigger_surface: '/admin?tab=users → Edit details → Role',
+    expected_reflections: [
+      { site_id: 'usersTab.row.role', site: 'UserRow Role badge', instance: 'desktop', observe_how: 'DOM row text', expected_delta: 'role label changes', source_citation: 'UsersTab.tsx:857-859; reload onClose' },
+      { site_id: 'audit.role_change.data', site: 'audit-log role_change (data)', instance: 'n/a', observe_how: 'fetch action count delta', expected_delta: '+1', source_citation: 'handlers.ts:1729-1742' },
+    ],
+    expected_site_count: 2, must_NOT_change: ['user.username (sanitizer strips from PUT /users)'], verdict,
+    leak_sites: verdict === 'LEAK' ? ['usersTab.row.role'] : verdict === 'OVER' ? ['user.username'] : [],
+    classification: verdict === 'LEAK' || verdict === 'OVER' ? 'FRONTEND' : null,
+    evidence: { pickedRole, roleBadgeChanged, roleChangeDelta, usernameKept, err },
+    dedup_vs_prior: 'new (batch-2 role)', clock_at_obs: ca.clock, actor_at_obs: ca.role, mock_date: MOCK_DATE,
+  });
+  expect(['PASS', 'LEAK', 'OVER', 'INCONCLUSIVE']).toContain(verdict);
+});
