@@ -77,5 +77,5 @@ Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → 
 ## 6. WORKFLOW CONVENTIONS
 - Commit + push without asking; one commit per coherent step; end messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - Update `MOBILE_AUDIT_PROGRESS.md` after each unit (files · VERIFIED evidence + screenshot/measurement · commit · pending).
-- Keep "Built by AccessorySeezin". No backend wiring (mock UX only). Investigate + plan before non-trivial changes (the user asks for this explicitly). Honest status — tie verification claims to the actual engine/platform tested.
+- **"Built by AccessorySeezin" attribution REMOVED (user request, 2026-06-27) — do NOT re-add.** (The sidebar footer now shows the app version stamp instead.) No backend wiring (mock UX only). Investigate + plan before non-trivial changes (the user asks for this explicitly). Honest status — tie verification claims to the actual engine/platform tested.
 - `HANDOFF.md` (sibling) may be an older artifact — this file is the current passdown.

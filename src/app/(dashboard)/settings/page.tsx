@@ -47,6 +47,7 @@ import {
   Video,
   Sparkles,
   Settings2,
+  Info,
 } from 'lucide-react';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { settingsHelp } from '@/components/shared/pageHelp';
@@ -65,6 +66,7 @@ import {
   type BackgroundId,
 } from '@/lib/background/schemas';
 import { BackgroundCustomizerDialog } from '@/components/shared/BackgroundCustomizerDialog';
+import { APP_VERSION } from '@/lib/version';
 
 interface ThemeOption {
   id: ColorTheme;
@@ -363,6 +365,40 @@ export default function SettingsPage() {
               </Badge>
             )}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* About — app version / build identity. Values come from
+          src/lib/version.ts (generated at build time); the same data is served
+          at /version.json and drives the update-available banner. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            {t('settings.about')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <span className="text-muted-foreground">{t('settings.version')}</span>
+              <p className="font-medium font-mono">v{APP_VERSION.version}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">{t('settings.build')}</span>
+              <p className="font-medium font-mono">{APP_VERSION.shortCommit}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">{t('settings.built')}</span>
+              <p className="font-medium">
+                {format(new Date(APP_VERSION.buildTime), 'MMM d, yyyy')}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">{t('settings.branch')}</span>
+              <p className="font-medium font-mono">{APP_VERSION.branch}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

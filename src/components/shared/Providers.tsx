@@ -13,6 +13,7 @@ import {
 import { GoldStarTrail } from './GoldStarTrail';
 import { ThemedBackground, ANIMATED_DARK_THEMES, ANIMATED_LIGHT_THEMES } from './ThemedBackground';
 import { BackgroundRenderer } from './BackgroundRenderer';
+import { UpdateBanner } from './UpdateBanner';
 
 /**
  * Applies the persisted color theme on mount so the CSS custom
@@ -99,6 +100,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeApplier />
         <BackgroundApplier />
         <ThemeEffects />
+        <UpdateBanner />
         {children}
         <Toaster
           position="top-right"

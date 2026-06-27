@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { ROLE_LABELS } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
+import { APP_VERSION } from '@/lib/version';
 
 const navItemDefs = [
   { href: '/dashboard', i18nKey: 'nav.dashboard', icon: BookOpen },
@@ -161,16 +162,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
         {!collapsed && (
-          <div className="mt-3 pt-3 border-t border-border/50 text-center text-[10px] text-muted-foreground">
-            Built by{' '}
-            <a
-              href="https://accessoryseezin.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-primary hover:text-primary/80 transition-colors"
-            >
-              AccessorySeezin.com
-            </a>
+          <div className="mt-3 pt-3 border-t border-border/50 text-center text-[10px] text-muted-foreground/70">
+            v{APP_VERSION.version} · <span className="font-mono">{APP_VERSION.shortCommit}</span>
           </div>
         )}
       </div>

@@ -1,9 +1,10 @@
 {
   "name": "diamond",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/generate-version.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
