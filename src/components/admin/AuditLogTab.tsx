@@ -213,7 +213,7 @@ export function AuditLogTab() {
             loadAll={loadAll}
             columns={auditColumns}
             toRow={auditToRow}
-            filenamePrefix="diamond-audit"
+            filenamePrefix="gospel-central-audit"
             allLabel="All entries (cap 9999)"
             triggerClassName="touch-manipulation max-xl:h-11"
           />

@@ -69,7 +69,7 @@ export async function seedCounts(page: Page): Promise<Record<string, number | nu
 /** Read a zustand store value (CORROBORATION ONLY for store-backed fields — R4). */
 export async function prefsState(page: Page): Promise<Record<string, unknown> | null> {
   return page.evaluate(() => {
-    try { return JSON.parse(localStorage.getItem('diamond-preferences') || 'null')?.state ?? null; }
+    try { return JSON.parse(localStorage.getItem('gospel-central-preferences') || localStorage.getItem('diamond-preferences') || 'null')?.state ?? null; }
     catch { return null; }
   });
 }

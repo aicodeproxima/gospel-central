@@ -81,7 +81,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <BookOpen className="h-4 w-4" />
             </div>
-            <span className="text-lg font-bold">Diamond</span>
+            <span className="text-lg font-bold">Gospel Central</span>
           </motion.div>
         )}
         {collapsed && (

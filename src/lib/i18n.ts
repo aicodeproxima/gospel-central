@@ -3,7 +3,7 @@
 import { usePreferencesStore } from './stores/preferences-store';
 
 /**
- * i18n system for Diamond. Covers ALL user-visible strings across
+ * i18n system for Gospel Central. Covers ALL user-visible strings across
  * every page, dialog, form, and component. English is the source
  * language; Spanish translations provided for every key.
  */
@@ -79,7 +79,7 @@ const translations: Record<string, Record<string, string>> = {
     'cal.month': 'Month',
 
     // ── Login page ──────────────────────────────────────────────
-    'login.appName': 'Diamond',
+    'login.appName': 'Gospel Central',
     'login.tagline': 'Bible Study Room Booking',
     'login.username': 'Username',
     'login.password': 'Password',
@@ -436,7 +436,7 @@ const translations: Record<string, Record<string, string>> = {
     'cal.month': 'Mes',
 
     // ── Login page ──────────────────────────────────────────────
-    'login.appName': 'Diamond',
+    'login.appName': 'Gospel Central',
     'login.tagline': 'Reserva de Salas de Estudio Bíblico',
     'login.username': 'Usuario',
     'login.password': 'Contraseña',

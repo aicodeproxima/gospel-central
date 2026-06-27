@@ -253,7 +253,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'diamond-my-data.json';
+    a.download = 'gospel-central-my-data.json';
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Data exported');

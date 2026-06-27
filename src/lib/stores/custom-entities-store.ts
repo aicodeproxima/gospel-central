@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateLegacyLocalStorageKey } from './migrate-storage';
 
 /**
  * User-added entities (rooms, teachers, contacts, groups) that persist
@@ -29,7 +30,9 @@ import { persist } from 'zustand/middleware';
  *    strip these prefixes from all submissions.
  */
 
-const STORAGE_KEY = 'diamond-custom-entities';
+const STORAGE_KEY = 'gospel-central-custom-entities';
+// Diamond → Gospel Central: carry over user-added entities across the key rename.
+migrateLegacyLocalStorageKey('diamond-custom-entities', STORAGE_KEY);
 const STORAGE_VERSION = 2;
 const MAX_ENTITIES = 500;
 const ID_PREFIX = 'custom-';

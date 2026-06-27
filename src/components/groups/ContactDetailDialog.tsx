@@ -486,7 +486,7 @@ function ConvertMode({
     <div className="space-y-5">
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
         <p className="font-medium">
-          Promote {contact.firstName} {contact.lastName} into a Diamond user account.
+          Promote {contact.firstName} {contact.lastName} into a Gospel Central user account.
         </p>
         <p className="mt-1 text-muted-foreground text-xs">
           The contact record stays in the system (status = <span className="font-mono">converted</span>) and

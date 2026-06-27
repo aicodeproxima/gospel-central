@@ -25,7 +25,7 @@ export default function RootError({
 
   useEffect(() => {
     // Best-effort surface until a real observability pipeline exists.
-    console.error('[Diamond] Unhandled error:', error);
+    console.error('[Gospel Central] Unhandled error:', error);
   }, [error]);
 
   return (

@@ -154,7 +154,7 @@ const DATE_RANGE_LABELS = {
 // (EXPORT-4: replaces the prior hand-rolled local exportCSV which mishandled
 // names containing literal quotes.)
 // ---------------------------------------------------------------------------
-function exportAuditCSV(entries: AuditLogEntry[], filename = 'diamond-audit-log.csv') {
+function exportAuditCSV(entries: AuditLogEntry[], filename = 'gospel-central-audit-log.csv') {
   const headers = [
     'Timestamp',
     'Action',
@@ -860,7 +860,7 @@ export default function ReportsPage() {
                     search: search || undefined,
                     ...dateBounds,
                   })
-                  .then((data) => exportAuditCSV(data.entries, 'diamond-change-log.csv'));
+                  .then((data) => exportAuditCSV(data.entries, 'gospel-central-change-log.csv'));
               }}
               className="gap-1.5"
             >

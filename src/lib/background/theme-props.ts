@@ -1,7 +1,7 @@
 /**
  * Theme → background color adapter.
  *
- * Given the colors resolved from the ACTIVE Diamond palette (see
+ * Given the colors resolved from the ACTIVE Gospel Central palette (see
  * `useThemeColors`), produce the color-prop overrides for a given background
  * so the animation is tinted to the current theme. These are DEFAULTS only —
  * a user override saved in the customizer takes precedence (merged on top in

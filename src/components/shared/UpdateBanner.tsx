@@ -9,7 +9,7 @@ import {
 } from '@/lib/version-check';
 
 const POLL_MS = 5 * 60 * 1000; // re-check every 5 minutes
-const DISMISS_KEY = 'diamond-update-dismissed';
+const DISMISS_KEY = 'gospel-central-update-dismissed';
 
 /**
  * Tier-2 "update available" detector. Polls /version.json and, when the

@@ -14,7 +14,11 @@ import type { User } from '../types';
  * and remove the cookie-mirror + localStorage logic from this file.
  */
 
-const SESSION_COOKIE = 'diamond-session';
+const SESSION_COOKIE = 'gospel-central-session';
+// Legacy cookie name (pre Diamond→Gospel Central rename). Still ACCEPTED by the
+// proxy and CLEARED on logout so the rename neither strands an active session
+// nor leaves a stale cookie that defeats logout.
+const LEGACY_SESSION_COOKIES = ['diamond-session'];
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8; // 8 hours
 
 function setSessionCookie(token: string) {
@@ -26,7 +30,9 @@ function setSessionCookie(token: string) {
 
 function clearSessionCookie() {
   if (typeof document === 'undefined') return;
-  document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; samesite=lax; secure`;
+  for (const name of [SESSION_COOKIE, ...LEGACY_SESSION_COOKIES]) {
+    document.cookie = `${name}=; path=/; max-age=0; samesite=lax; secure`;
+  }
 }
 
 interface AuthState {

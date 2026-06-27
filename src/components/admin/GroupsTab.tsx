@@ -43,7 +43,7 @@ import { ExportDropdown } from '@/components/shared/ExportDropdown';
 /**
  * GroupsTab — admin view of the org tree. Branches → Groups → Teams → Members.
  *
- * In Diamond's data model, each "node" in the tree IS a User record:
+ * In Gospel Central's data model, each "node" in the tree IS a User record:
  *   - Branch  = User with role=BRANCH_LEADER
  *   - Group   = User with role=GROUP_LEADER  (parentId = a Branch leader)
  *   - Team    = User with role=TEAM_LEADER   (parentId = a Group leader,
@@ -205,7 +205,7 @@ export function GroupsTab() {
             allRows={allLeaders}
             columns={nodeColumns}
             toRow={nodeToRow}
-            filenamePrefix="diamond-org"
+            filenamePrefix="gospel-central-org"
             currentLabel="Current view"
             allLabel="All leaders"
             triggerClassName="touch-manipulation max-xl:h-11"

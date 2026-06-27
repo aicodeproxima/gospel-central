@@ -401,7 +401,7 @@ export default function ContactsPage() {
       c.lastSessionDate ? format(parseISO(c.lastSessionDate), 'yyyy-MM-dd') : '',
       c.notes || '',
     ]);
-    exportCSV(headers, rows, 'diamond-contacts.csv'); // exportCSV already toasts "Exported N rows"
+    exportCSV(headers, rows, 'gospel-central-contacts.csv'); // exportCSV already toasts "Exported N rows"
   };
 
   // ── Render ─────────────────────────────────────────────────────

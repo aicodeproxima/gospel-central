@@ -7,7 +7,7 @@ import { Providers } from '@/components/shared/Providers';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'Diamond — Bible Study Room Booking',
+  title: 'Gospel Central — Bible Study Room Booking',
   description: 'Comprehensive Bible study room booking and management system',
 };
 

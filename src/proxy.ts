@@ -68,7 +68,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get('diamond-session')?.value;
+  // Accept the legacy `diamond-session` cookie during the Diamond→Gospel Central
+  // rename so active sessions aren't booted; new logins set `gospel-central-session`.
+  const session =
+    request.cookies.get('gospel-central-session')?.value ||
+    request.cookies.get('diamond-session')?.value;
   if (!session) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

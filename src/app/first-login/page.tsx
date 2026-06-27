@@ -63,7 +63,7 @@ export default function FirstLoginPage() {
     try {
       const updated = await usersApi.changeOwnPassword(user.id, pw1);
       setUser(updated);
-      toast.success('Password updated. Welcome to Diamond.');
+      toast.success('Password updated. Welcome to Gospel Central.');
       router.replace('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Change failed');

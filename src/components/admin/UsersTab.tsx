@@ -429,7 +429,7 @@ export function UsersTab() {
           allRows={users}
           columns={userColumns}
           toRow={userToRow}
-          filenamePrefix="diamond-users"
+          filenamePrefix="gospel-central-users"
           allLabel="All users"
           triggerClassName="touch-manipulation max-xl:h-11 xl:h-8"
         />

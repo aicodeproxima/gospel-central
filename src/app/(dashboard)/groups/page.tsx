@@ -129,13 +129,13 @@ export default function GroupsPage() {
   // Load preferred view mode
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('diamond-tree-view');
+    const stored = localStorage.getItem('gospel-central-tree-view') ?? localStorage.getItem('diamond-tree-view');
     if (stored === 'list' || stored === '3d') setViewMode(stored);
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('diamond-tree-view', viewMode);
+    localStorage.setItem('gospel-central-tree-view', viewMode);
   }, [viewMode]);
 
   // F: the LIST view has no camera — when a search/jump sets the external focus,

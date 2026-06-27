@@ -29,7 +29,7 @@ import { getResponse } from 'msw';
 import { handlers } from './handlers';
 
 const interceptor = new BatchInterceptor({
-  name: 'diamond-mock-network',
+  name: 'gospel-central-mock-network',
   interceptors: [new FetchInterceptor(), new XMLHttpRequestInterceptor()],
 });
 

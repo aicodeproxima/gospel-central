@@ -297,7 +297,7 @@ export function ContactsAdminTab() {
           allRows={visibleContacts}
           columns={columns}
           toRow={toRow}
-          filenamePrefix="diamond-contacts-admin"
+          filenamePrefix="gospel-central-contacts-admin"
           allLabel="All in scope"
           triggerClassName="touch-manipulation max-xl:h-11"
         />

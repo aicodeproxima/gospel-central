@@ -2,6 +2,11 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateLegacyLocalStorageKey } from './migrate-storage';
+
+// Diamond → Gospel Central: carry over saved prefs (theme/language/view/…) across
+// the key rename. Runs before the store below hydrates from the new key.
+migrateLegacyLocalStorageKey('diamond-preferences', 'gospel-central-preferences');
 
 export type ColorTheme =
   | 'default'
@@ -151,7 +156,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       },
     }),
     {
-      name: 'diamond-preferences',
+      name: 'gospel-central-preferences',
       version: 3,
       // Migrations are cumulative — apply every step whose version the
       // persisted blob predates, then return the upgraded object.

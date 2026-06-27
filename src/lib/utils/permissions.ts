@@ -1,5 +1,5 @@
 /**
- * Diamond — permission utilities.
+ * Gospel Central — permission utilities.
  *
  * SOURCE OF TRUTH: docs/PERMISSIONS.md. If a helper here disagrees with that
  * doc, fix the helper — the doc wins. Every helper is a pure function of
@@ -592,7 +592,7 @@ export function canExportImport(viewer: User | null | undefined): boolean {
  * nearest explicit per-node override, plus which node decided it.
  *
  * Override keys are node ids = the Branch / Group / Team *leader's* user id
- * (in Diamond's model a "group" IS its leader's User record). So a Member
+ * (in Gospel Central's model a "group" IS its leader's User record). So a Member
  * inherits from their Team leader, a Team leader from their Group leader, a
  * Group leader from their Branch leader, and a Branch leader from the global
  * default. The FIRST explicit override encountered walking up wins ("nearest

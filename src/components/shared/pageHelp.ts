@@ -13,7 +13,7 @@ export interface PageHelp {
 
 export const dashboardHelp: PageHelp = {
   title: 'Dashboard',
-  summary: 'Your home base — a quick overview of your activity and fast access to every other area of Diamond.',
+  summary: 'Your home base — a quick overview of your activity and fast access to every other area of Gospel Central.',
   sections: [
     {
       heading: 'What you see',
@@ -37,7 +37,7 @@ export const dashboardHelp: PageHelp = {
 
 export const calendarHelp: PageHelp = {
   title: 'Calendar',
-  summary: 'MRBS-style booking grid showing every room across the current week, day, or month. This is the core of Diamond.',
+  summary: 'MRBS-style booking grid showing every room across the current week, day, or month. This is the core of Gospel Central.',
   sections: [
     {
       heading: 'Views',
@@ -169,7 +169,7 @@ export const settingsHelp: PageHelp = {
 
 export const reportsHelp: PageHelp = {
   title: 'Reports & Audit Log',
-  summary: 'Activity log of every action taken in Diamond. Restricted to Branch Leader and above.',
+  summary: 'Activity log of every action taken in Gospel Central. Restricted to Branch Leader and above.',
   sections: [
     {
       heading: 'Who can access',

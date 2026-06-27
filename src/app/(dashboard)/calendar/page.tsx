@@ -431,7 +431,7 @@ export default function CalendarPage() {
               loadAll={loadAllBookings}
               columns={bookingColumns}
               toRow={bookingToRow}
-              filenamePrefix="diamond-bookings"
+              filenamePrefix="gospel-central-bookings"
               allLabel="All bookings (5-year window)"
             />
           )}
@@ -618,7 +618,7 @@ export default function CalendarPage() {
                 loadAll={loadAllBookings}
                 columns={bookingColumns}
                 toRow={bookingToRow}
-                filenamePrefix="diamond-bookings"
+                filenamePrefix="gospel-central-bookings"
                 allLabel="All bookings (5-year window)"
               />
             </div>
