@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# Diamond — project rules & facts
+# Gospel Central — project rules & facts
 
-Diamond is a **Bible-study room-booking admin/dashboard** app (frontend only). Mock backend; real Go
+Gospel Central (renamed from "Diamond" 2026-06-27) is a **Bible-study room-booking admin/dashboard** app (frontend only). Mock backend; real Go
 backend cutover to Mike's `gospel-experience` is pending. This file loads automatically when working in
 this repo — keep it current.
 
@@ -19,10 +19,10 @@ this repo — keep it current.
 - Canonical checkout: `C:\Users\aicod\Projects\_src\diamond-live` on branch **`feat/mobile-opt-main`**.
   A second worktree at `C:\Users\aicod\Diamond` exists on the OLDER `feat/mobile-optimization` branch —
   the user keeps both deliberately; do NOT edit `C:\Users\aicod\Diamond` without confirming.
-- Origin `github.com/aicodeproxima/Diamond`. Vercel project **`diamond`**, team `aicodeproximas-projects`
+- Origin `github.com/aicodeproxima/gospel-central` (renamed from `Diamond` 2026-06-27; GitHub redirects the old path). Vercel project **`gospel-central`**, team `aicodeproximas-projects`
   (`team_vILmEnHlW1iEzWxhM3UJhzim`), git-connected; production branch `main` auto-deploys prod in ~40–90s.
-- **Prod URL is `diamond-delta-eight.vercel.app`** (the Vercel **project** is `diamond`; this is its prod
-  alias). SSO/Deployment Protection is **era-dependent — always check current `ssoProtection` before
+- **Prod URL is `gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` also still resolves;
+  the Vercel **project** is `gospel-central`). SSO/Deployment Protection is **era-dependent — always check current `ssoProtection` before
   assuming.** During mobile testing it has been DISABLED (plain previews open on any device); other eras
   use `all_except_custom_domains` (prod public, preview/hash URLs 401 → need the bypass dance).
 

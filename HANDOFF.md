@@ -1,4 +1,4 @@
-# Diamond — Frontend Handoff Packet (authoritative)
+# Gospel Central — Frontend Handoff Packet (authoritative)
 
 _Last updated 2026-06-27 · supersedes all prior HANDOFF/SESSION_PASSDOWN drafts (old content lives in git history)._
 
@@ -8,10 +8,10 @@ detailed docs. Where this disagrees with code, the code wins (`src/lib/api/*`, `
 ## 0. Status at a glance
 | | |
 |---|---|
-| **What** | Diamond — a Bible-study room-booking + discipleship/org-management app for a church community. **Frontend-only**; a real Go backend ("Mike's") is the planned cutover. |
-| **Repo** | `github.com/aicodeproxima/Diamond` · canonical checkout `C:\Users\aicod\Projects\_src\diamond-live`. |
-| **Branch / deploy** | Work on `feat/mobile-opt-main`; ship by fast-forwarding into **`main`**. The Vercel project `diamond` (team `aicodeproximas-projects`) is **git-connected** — pushing `main` auto-builds Production (~40s) and repoints the prod alias. **No `vercel --prod` CLI deploy** (the old handoff's CLI flow is obsolete). |
-| **Live** | **https://diamond-delta-eight.vercel.app** — current prod = `main` HEAD (`b8e5b11`), build Ready. |
+| **What** | Gospel Central (renamed from "Diamond" 2026-06-27) — a Bible-study room-booking + discipleship/org-management app for a church community. **Frontend-only**; a real Go backend ("Mike's") is the planned cutover. |
+| **Repo** | `github.com/aicodeproxima/gospel-central` (renamed from `Diamond`; GitHub redirects the old path) · canonical checkout `C:\Users\aicod\Projects\_src\diamond-live`. |
+| **Branch / deploy** | Work on `feat/mobile-opt-main`; ship by fast-forwarding into **`main`**. The Vercel project `gospel-central` (team `aicodeproximas-projects`) is **git-connected** — pushing `main` auto-builds Production (~40s) and repoints the prod alias. **No `vercel --prod` CLI deploy** (the old handoff's CLI flow is obsolete). |
+| **Live** | **https://gospel-central.vercel.app** (legacy `diamond-delta-eight.vercel.app` still resolves) — current prod = `main` HEAD, build Ready. |
 | **Backend state** | Mock is PERMANENT (the API contract + Mike's test oracle). Cutover = a two-flag env flip, not a code change. See [`docs/MIKE_HANDOFF.md`](docs/MIKE_HANDOFF.md). |
 | **Quality** | 3AgentScan grade **A**. vitest **332 pass / 7 todo**; Playwright green on chromium + mobile-s24; both gate CI. |
 

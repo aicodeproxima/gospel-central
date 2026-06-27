@@ -1,4 +1,6 @@
-# Diamond Mobile — Session Passdown (cold-start for the next session)
+# Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
+
+> **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond` and historical/QA docs keep the old name (records). Do NOT re-introduce "Diamond" as the app's display name.
 
 > Companion to `MOBILE_AUDIT_PROGRESS.md` (durable ledger). Read BOTH. This is the action-oriented handoff.
 > **Updated end of "Diamond Mobile 3" (session `53458c63-619e-4ad4-b7e6-58a4ad469eb5`), context near full.**
