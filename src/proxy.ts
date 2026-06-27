@@ -35,6 +35,10 @@ const PUBLIC_PREFIXES = [
   '/_next',
   '/favicon.ico',
   '/avatars',
+  // Public build manifest for the "update available" check (no secrets). Must
+  // bypass the auth gate, or the detector's cookieless fetch gets redirected to
+  // the login HTML and JSON.parse fails.
+  '/version.json',
 ];
 
 export function proxy(request: NextRequest) {

@@ -25,7 +25,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npm run dev',
+    // Generate /version.json (+ src/lib/version.ts) before dev starts so the
+    // update-banner specs can hit a real manifest (dev doesn't run `prebuild`).
+    command: 'node scripts/generate-version.mjs && npm run dev',
     url: 'http://localhost:3000/login',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

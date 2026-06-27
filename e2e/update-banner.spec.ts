@@ -50,4 +50,17 @@ test.describe('update-available banner (Tier 2)', () => {
 
     await expect(page.getByText('A new version is available')).toHaveCount(0);
   });
+
+  test('/version.json is served as public JSON (not auth-gated by the proxy)', async ({ page }) => {
+    // No stub — hit the REAL endpoint with no session cookie. src/proxy.ts must
+    // allow /version.json through, or the detector's fetch is redirected to the
+    // login HTML and JSON.parse fails. (Regression guard for the prod bug where
+    // the proxy 307'd /version.json -> /login.)
+    const res = await page.request.get('/version.json');
+    expect(res.ok()).toBeTruthy();
+    expect(res.headers()['content-type']).toContain('json');
+    const json = await res.json();
+    expect(typeof json.commit).toBe('string');
+    expect(typeof json.version).toBe('string');
+  });
 });
