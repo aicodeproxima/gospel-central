@@ -1,11 +1,12 @@
 # Diamond — Backend Handoff for Mike
 
-> **Status as of this writing:** Frontend Phases 0–7 are complete and live at
-> `https://diamond-delta-eight.vercel.app` driven entirely by MSW mocks.
-> Phase 8 = your backend cutover. Branch `feat/admin-system` is **local-only**
-> on the frontend repo right now (16 commits ahead of `main`); we'll push it
-> the moment your auto-scanner can absorb the new shape without clobbering
-> your WIP. **Don't fetch the branch yet** — heads-up first.
+> **Status (updated 2026-06-27):** The frontend is complete, **merged to `main`, and
+> live** at `https://diamond-delta-eight.vercel.app`, driven entirely by SW-free MSW
+> mocks (the active dev branch is `feat/mobile-opt-main`, fast-forwarded into `main`;
+> the old `feat/admin-system` "local-only / don't-fetch" note is obsolete — **`main`
+> is the source of truth, pull it freely**). Phase 8 = your backend cutover (a two-flag
+> env flip — see §2/§15). Frontend QA (Run-1/Run-2/propagation, grade A) lives in
+> `docs/qa/`; the backend-acceptance gaps you must gate are in `docs/qa/out-of-scope-findings.md`.
 >
 > This doc is your one-stop reference. Treat it as the contract. If anything
 > below disagrees with what you find in `src/lib/api/*.ts` or
