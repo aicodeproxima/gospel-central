@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Booking } from '../types';
+import { now as mockNow } from '../../mocks/mock-clock';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -20,7 +21,11 @@ interface BookingState {
 }
 
 export const useBookingStore = create<BookingState>((set) => ({
-  selectedDate: new Date(),
+  // mockNow() is the real clock in prod (no override) — identical behavior — but the
+  // PINNED date under test (NEXT_PUBLIC_MOCK_DATE / window.__MOCK_DATE__), so the
+  // calendar's default day aligns with the deterministic seed week instead of drifting
+  // with the real clock (fixes the lifecycle-E2E real-clock dependency; was R3).
+  selectedDate: mockNow(),
   view: 'day',
   selectedAreaId: null,
   selectedBooking: null,

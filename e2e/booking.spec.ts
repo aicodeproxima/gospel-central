@@ -50,12 +50,10 @@ test.describe('List B — booking', () => {
  * reschedule moves the time, cancel marks the card, restore reverts — all observed
  * same-page (in-place reloadBookings, no document reload).
  *
- * NOTE on the date: the calendar's selectedDate reads the REAL clock (booking-store
- * `new Date()`), NOT the pinned mock date (the documented R3 finding) — so the view
- * opens on the real today. The seed fills the whole pinned week (2026-06-22..28); the
- * GET /bookings range is ignored so all seeds are returned and filtered client-side
- * by the visible day. These cells therefore require the real clock to be inside the
- * seeded week; the guard below fails LEGIBLY if it isn't (fix = pin the calendar clock).
+ * DETERMINISM: booking-store seeds selectedDate from mockNow(), so under test the
+ * calendar opens on the PINNED Monday (2026-06-22) — the same week the seed fills —
+ * regardless of the real clock (in prod mockNow() is the real clock, so prod is
+ * unchanged). The day therefore always has seeded bookings to operate on.
  *
  * A booking CARD has a time RANGE in its title ("8:00 — 9:00"); empty slots are
  * "Click to book 8:00 AM" (single time) — so match a range to avoid opening the
@@ -90,8 +88,10 @@ test.describe('booking lifecycle (admin) — driven', () => {
   const activeBookingCard = (page: import('@playwright/test').Page) => page.getByTitle(new RegExp(RANGE)).first();
 
   test('reschedule moves a booking time on the calendar (same-page, no reload)', async ({ page }) => {
+    // proves the determinism pin: the calendar opens on the mock Monday, not real-today
+    await expect(page.getByText(/Monday, June 22, 2026/i).first(), 'calendar pinned to MOCK_DATE (booking-store mockNow)').toBeVisible();
     const before = await dayTimes(page);
-    expect(before.length, 'real-clock day has seeded bookings (else real-now drifted outside the seed week 06-22..28 — pin the calendar clock)').toBeGreaterThan(0);
+    expect(before.length, 'the pinned Monday (2026-06-22) has seeded bookings to reschedule').toBeGreaterThan(0);
 
     await activeBookingCard(page).click();
     const dlg = page.getByRole('dialog');
