@@ -1,83 +1,103 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond` and historical/QA docs keep the old name (records). Do NOT re-introduce "Diamond" as the app's display name.
+> **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond`, historical/QA docs, and this file's siblings named `*diamond*`/`MOBILE_AUDIT_PROGRESS.md` keep the old name (records). **Do NOT re-introduce "Diamond" as the app's display name.**
 
-> Companion to `MOBILE_AUDIT_PROGRESS.md` (durable ledger). Read BOTH. This is the action-oriented handoff.
-> **Updated end of "Diamond Mobile 3" (session `53458c63-619e-4ad4-b7e6-58a4ad469eb5`), context near full.**
-> Prior content (Groups-3D rework era) is fully superseded — see the ledger Loops 0–9 for history.
+> This is the action-oriented handoff. `HANDOFF.md` is the authoritative packet (Mike + new devs); `MOBILE_AUDIT_PROGRESS.md` is the durable historical ledger. Where any doc disagrees with code, **code wins** (`src/lib/api/*`, `src/mocks/handlers.ts`). Trust `git` + live browser over any SHA/claim written here.
 
 ---
 
 ## 0. FIRST 60 SECONDS (re-anchor ritual — before ANY edit)
 ```
-cd C:\Users\aicod\Projects\_src\diamond-live   # the ONLY correct repo. NOT C:\Users\aicod\Diamond (stale clone)
+cd C:\Users\aicod\Projects\_src\diamond-live   # the ONLY correct repo. NOT C:\Users\aicod\Diamond (older worktree, do not edit)
 git fetch --all --prune
 git branch --show-current        # expect: feat/mobile-opt-main
-git rev-parse --short HEAD       # ground truth — trust THIS, not any SHA written in a doc
+git rev-parse --short HEAD       # ground truth — trust THIS, not any SHA in a doc (was 9d49f62 at handoff)
 git log --oneline -8
-git status --short               # expect clean
+git status --short               # expect clean (only untracked scratch: "Background Ideas/", "Diamond Quotes.txt", "Organization Tree Ideas/")
 ```
-Then read: this file → `MOBILE_AUDIT_PROGRESS.md` (ledger, esp. "Loop 9") → plan `C:\Users\aicod\.claude\plans\i-just-realized-that-humming-bentley.md`.
-**Anti-hallucination (in force):** re-Read the real file region before every edit; grep helpers/constants before reuse; label status **VERIFIED** (cite screenshot/DOM measurement) or **EXPECTED** (untested); "fixed" needs observed browser behavior, not a clean diff; if memory disagrees with git/screenshots, trust the evidence.
+**Anti-hallucination (in force):** re-Read the real file region before every edit; grep helpers/constants before reuse; label status **VERIFIED** (cite screenshot/DOM/tool output) or **EXPECTED** (untested); "fixed" needs observed browser behavior on prod, not a clean diff; if memory disagrees with git/screenshots, trust the evidence.
 
 ---
 
-## 1. ✅ RESOLVED (commit `fbfe7ea`) — pending iPhone sign-off — iPhone login "invalid credentials"
-**Status: FIXED in code + Chromium-verified (2026-06-06). ⚠️ ONLY remaining step: user confirms on a real iPhone.** Subsequent hardening (same-origin API base, typed auth errors, dead-backend banner, ghost-SW eviction, pinned interceptors) landed 2026-06-10 — see ledger.
-
-- **Symptom (was):** on a real **iPhone (iOS Safari)**, `admin`/`admin` → "invalid credentials", data blank. Worked on Android + desktop. Reproduced on two iPhones → iOS-Safari-specific, not lost data.
-- **Root cause (confirmed):** the mock data + login ran on **MSW = a service worker**, and **iOS Safari has chronic SW failures** (script not downloaded, SW memory-evicted). When the SW didn't intercept, the login `fetch` fell through to `client.ts` `API_BASE = http://localhost:8080/api` (dead from a phone) → threw → caught.
-- **"Invalid credentials" is a LIE / catch-all:** `src/lib/hooks/use-auth.ts:32` does `catch { toast.error('Invalid credentials') }` for ANY failure (incl. network). Trace the catch; don't trust the toast.
-- **⚠️ VERIFICATION TRAP (carry forward):** Chromium/Android emulation (Playwright, chrome-devtools) proves app logic but **cannot prove iOS-Safari SW behavior**. Never claim "works on iPhone" from an emulator test.
-- **THE FIX (DONE):** the mock now runs **with no service worker** — `src/mocks/browser.ts` patches `window.fetch`/XHR in-page via `@mswjs/interceptors` (`BatchInterceptor` = `FetchInterceptor` + `XMLHttpRequestInterceptor`) and dispatches to the existing `handlers` through MSW's public `getResponse(handlers, request)`; `src/components/shared/MSWProvider.tsx` dropped the SW gate/reload and renders immediately. Import interceptors from the `/fetch`+`/XMLHttpRequest` subpaths, NOT `presets/browser` (its `node:null`/no-`import` export map breaks Turbopack's SSR compile). handlers.ts/client.ts/use-auth.ts unchanged. Full detail: **ledger Loop 10**.
-- **VERIFIED (Chromium, S24 emulation, preview `diamond-5iuhd8ttj`):** login → `/dashboard` with data; `serviceWorker.controller===null`; 0 SW regs; direct `POST /api/login` intercepted in-page (200); build green (local + Vercel); vitest 242/242.
-- **➡️ TO CLOSE THE BUG:** user opens `https://diamond-5iuhd8ttj-aicodeproximas-projects.vercel.app/login` in **real iPhone Safari** and logs in admin/admin → should reach the dashboard with data. (SSO protection is OFF; opens on any device.)
-- Original research + sources are in the recon doc (see §5).
-
----
-
-## 2. PROJECT STATE
-- **App:** Diamond (Bible-study room booking), Next.js 16 / React / Tailwind / framer-motion / react-three-fiber. Repo `C:\Users\aicod\Projects\_src\diamond-live`, GitHub `github.com/aicodeproxima/Diamond`.
-- **Branch:** `feat/mobile-opt-main` (off current `origin/main`). **Pushed; re-derive current HEAD from git.** NEVER push/merge to `main` (integration is the user's deliberate call). Ignore stale `feat/mobile-realdevice`.
-- **Device target:** Galaxy **S24 Ultra = 275×596 CSS @ DPR 5.24** (NOT 412×915 — that's the S20 Ultra preset; corrected this project). Design/verify to the narrowest realistic width.
-- **DONE + shipped (this project):**
-  - Mobile audit **Loops 1–8** (shell/calendar/groups-3D/contacts/dashboard/settings/admin/reports/login) — verified 275→1440, desktop unchanged.
-  - **Contacts redesign Loop 9** (commits `f287a9b` A, `5d7e91e` B, `3a51683` C, `0ed329a` D, `b2ff683` ledger): dense desktop **Table view** (`ContactsTable.tsx`) default ≥lg; `ViewMode = grid|kanban|table`; page `max-w-[1600px] mx-auto` + grid `2xl:grid-cols-4` (fixed the 2048 sparse-card stretch); cards/dialog surface **assigned teacher + Step N/5** (`contact-helpers.ts`); deep-link filters `?stage/?type/?q/?view/?id` synced to URL via **`history.replaceState`** (NOT `router.replace`); sticky bulk bar; kanban `min-w-[260px]`+`ring-2`.
-  - **Loop 11** (commit d916046): booking-conflict reason surfaced + contact card opens at top.
-- **OPEN:** none code-side — §1 (iPhone/MSW) is FIXED + Chromium-verified (commit `fbfe7ea`), pending only the user's on-device iPhone tap. Desktop 2048 polish for OTHER screens remains the user's separately-deferred phase.
+## 1. IDENTITY, BRANCH & DEPLOY
+- **App:** Gospel Central — Bible-study room-booking + discipleship/org-management (church). **Frontend-only**; mock backend is PERMANENT (Mike's Go backend `gospel-experience` is the planned flag-flip cutover, NOT a code removal).
+- **Repo:** `C:\Users\aicod\Projects\_src\diamond-live`, GitHub `aicodeproxima/gospel-central`. **Branch `feat/mobile-opt-main`** is the work branch; `main` is prod.
+- **Hosting:** Vercel project `gospel-central` (team `aicodeproximas-projects`, **Project ID `prj_3kVmKXbbTlGBZGsXn3np062CtxAY`**), **git-connected** — pushing `main` auto-builds Production (~40–90s) and repoints the prod alias. Prod domains: **`gospel-central.vercel.app`** (primary) + `diamond-delta-eight.vercel.app` (legacy, still live). No `vercel --prod` CLI deploy.
+- **FRONTEND-to-main is AUTHORIZED** (user, 2026-06-18; standing authorization 2026-06-25). "The whole front end is ours to change." **Mike owns the BACKEND only** — coordinate backend, don't push backend changes.
+- **DEPLOY FLOW (what actually works):** commit on `feat/mobile-opt-main`, then:
+  ```
+  git checkout main
+  git merge --ff-only feat/mobile-opt-main
+  git push origin main            # RUN UNCHAINED — alone, while ON main
+  git checkout feat/mobile-opt-main
+  ```
+  Then verify: poll `curl -s https://gospel-central.vercel.app/version.json` until `.commit` == the pushed SHA (the version manifest == deployed commit — see §3).
+- **DEPLOY GOTCHAS:** (a) the `~/.claude/hooks/bash-guard.ps1` H4 rule false-positives when `git push origin main` is CHAINED in one command with anything containing `feat/mobile-opt-main` (greedy regex spans `&&`) — keep the push on its own line. (b) The auto-mode permission classifier may demand a fresh in-chat "yes" for `git push origin main` EACH new session — it won't accept a memory/self-edit as authorization. Frontend-to-main IS user-authorized; just re-confirm in chat if it blocks. `origin/feat/mobile-opt-main` intentionally lags `origin/main` (feature-branch push often blocked) — prod = `origin/main`.
 
 ---
 
-## 3. VERIFICATION LOOP (how to test)
-- **NO local dev server. NO Android emulator** (too slow for the R3F page). Test on a **deployed Vercel mock preview** via chrome-devtools MCP (Chromium) — BUT remember §1: Chromium ≠ iOS Safari.
-- **Build gate:** PowerShell only (Git Bash mangles args); `Set-Location` every call (cwd resets). `npm run build` (use `npm install`, not `npm ci`). Or just `vercel deploy` (builds remotely + reports errors).
-- **Deploy mock preview:** `Set-Location 'C:\Users\aicod\Projects\_src\diamond-live'; vercel deploy --build-env NEXT_PUBLIC_MOCK_API=true 2>&1 | Select-String 'Preview:'` (deploys the WORKING TREE; `--build-env` turns MSW on — do NOT flip the mock default in code).
-- **Vercel Deployment Protection is now DISABLED** (`ssoProtection:null`, set via API this session) → **plain preview URLs work on any device, no Vercel login, no bypass query needed.** The bypass secret `diamondMobileAudit2026realdevXYZ` is therefore no longer needed for access (re-enable protection + revoke the secret at final sign-off if desired). To re-enable: `PATCH https://api.vercel.com/v9/projects/diamond?teamId=<id>` body `{"ssoProtection":{"deploymentType":"all_except_custom_domains"}}` (Vercel token: `%APPDATA%\com.vercel.cli\Data\auth.json` `.token`; teamId via `GET /v2/teams` slug `aicodeproximas-projects`, or `config.json` `currentTeam` — do token-read + call in ONE PowerShell invocation).
-- **Open + log in (chrome-devtools):** `emulate viewport="275x596x5.24,mobile,touch" userAgent="…Android 14; SM-S928B…Chrome/126…Mobile…"` → `navigate <preview>/login` → wait → fill admin/admin → Sign In. **Re-apply `emulate` after EVERY cross-origin navigation** (new preview subdomain silently resets viewport+UA). **Re-login per new preview origin.** Latest preview: `https://diamond-5iuhd8ttj-aicodeproximas-projects.vercel.app` (Loop 10 SW-free fix; SSO OFF → opens on any device). Prior Loop 9: `diamond-nq73ywcmy`.
-- Mock creds **admin/admin**. View mode persists in `localStorage['contacts.view']`. Browser UX is the source of truth — screenshots, not rect-math alone.
+## 2. WHAT SHIPPED MOST RECENTLY (2026-06-27, all live on prod, verified)
+1. **Version stamp (Tier 1) + "update available" detector (Tier 2)** — commits `dda84ed` + `6031401`. Settings ▸ **About** card (Version/Build/Built/Branch) + sidebar footer `v<ver> · <shortSHA>`. A global `UpdateBanner` polls `/version.json` and prompts "Reload" when the deployed commit ≠ the running bundle. `package.json` version = **1.0.0**.
+2. **"Built by AccessorySeezin.com" attribution REMOVED** (user request) — the sidebar footer shows the version stamp instead. Do NOT re-add. (Overrides the global "attribution on every app" default for THIS client app.)
+3. **Full rename Diamond → Gospel Central** — commit `da03bbd` (code + storage-key migration) + `9d49f62` (live docs) + infra (repo/project/domain renamed via `gh` + Vercel dashboard). All connections re-verified end-to-end.
 
 ---
 
-## 4. GOTCHAS (carried + new this session)
-- **MSW + iOS Safari** — §1. The crux open issue.
-- **chrome-devtools `emulate` RESETS on cross-origin nav** — re-apply viewport+UA after navigating to a new preview subdomain.
-- **Grep/ripgrep has NO lookahead** (Rust regex) — `(?!…)` silently returns "No matches" (false negative). Use plain alternation + filter in code.
-- **base-ui (`@base-ui`) DropdownMenu/Select** don't open from a synchronous `.click()` in `evaluate_script` — use the chrome-devtools native `click` tool (real pointer events) on a snapshot uid, or async click + await the portal.
-- **SPA nav can briefly show the prior page** — confirm `location.pathname` + a page-specific selector before asserting.
-- **MSW SW-control timing** — HISTORICAL: the SW-control gate + one-time reload were removed when the mock went SW-free (§1); `MSWProvider.tsx` now starts the in-page interceptor and additionally unregisters any ghost SW on boot.
-- **Vercel cookie-bypass** (only if you re-enable protection): the bypass HEADER doesn't cover the SW script; use `?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=true`. (Moot while protection is off.)
+## 3. ARCHITECTURE QUICK-FACTS (verify against code before relying on)
+- **Stack:** Next.js 16.2.3 (App Router, Turbopack) · React 19.2.4 · TS 5 · Tailwind v4 (CSS-first `@theme`, NO tailwind.config) · shadcn/ui + `@base-ui` · framer-motion 12 · zustand 5 · next-themes · MSW `^2.13` (`@mswjs/interceptors` pinned **exact 0.41.3**) · R3F/drei/three (Groups 3D) · recharts. 11 `vendor/interactive-*-background` `file:` deps (don't let `git add -A` sweep their node_modules).
+- **MSW is SW-FREE** — `src/mocks/browser.ts` patches `window.fetch`/XHR in-page via `BatchInterceptor` (import from `/fetch`+`/XMLHttpRequest` subpaths, NOT `presets/browser`). Unmatched (non-`/api`) requests pass through. No service worker (MSWProvider evicts ghosts). Prod runs `NEXT_PUBLIC_MOCK_API=true` (set in Vercel env for all scopes). `API_BASE` (only in `src/lib/api/client.ts`) = env `NEXT_PUBLIC_API_URL` → `/api` in mock → localhost fallback.
+- **Auth is mock + client-side.** Seeded logins, all **password `admin`**: `admin`(Dev/Michael), `overseer1`(Gabriel), `branch1`(Joseph, Branch Leader), `group1`(Elizabeth), `team1`(Jude, Team Leader), `member3`(Ananias, member+teacher — `member1` is NOT teacher-tagged). Wrong pw = real 401; logout **resets the mock to seed** (can't create-a-user-then-relogin-as-them). Contacts are owner-scoped. Seed: `src/mocks/scenario-church-week.ts` (re-seeds to the CURRENT week every load).
+- **Version system (new):** `scripts/generate-version.mjs` runs as the **`prebuild`** npm hook (fires on Vercel + local build) and writes BOTH `public/version.json` (served, gitignored artifact) AND `src/lib/version.ts` (`APP_VERSION`, baked into the bundle) from ONE run. Commit source = `VERCEL_GIT_COMMIT_SHA` ‖ `git rev-parse HEAD` ‖ `'unknown'`. `next.config.ts` sends `/version.json` `no-store`. `src/proxy.ts` PUBLIC_PREFIXES includes `/version.json` (else the auth gate 307s it → detector breaks). `src/lib/version-check.ts` = `isUpdateAvailable()` + fetch. Banner mounted in `Providers` after `<ThemeEffects/>`.
+- **Rename migration:** `src/lib/stores/migrate-storage.ts` copies legacy `diamond-*` localStorage keys → `gospel-central-*` before the zustand stores hydrate. `src/proxy.ts` accepts BOTH `gospel-central-session` and legacy `diamond-session` cookies; `auth-store.ts` clears both on logout. tree-view reads legacy as fallback.
+- **`src/proxy.ts`** = the Next 16 middleware (renamed from `middleware.ts`; shows as "Proxy" in build output) — server-side auth gate via `diamond-session`/`gospel-central-session` cookie + a PUBLIC_PREFIXES allowlist.
 
 ---
 
-## 5. POINTERS
-- **Ledger:** `MOBILE_AUDIT_PROGRESS.md` (Loops 0–9, evidence + commits).
-- **Plan:** `C:\Users\aicod\.claude\plans\i-just-realized-that-humming-bentley.md` (Contacts redesign plan + safeguards).
-- **Recon doc (learnings to fold into memory/CLAUDE.md — not yet applied):** `C:\Users\aicod\Documents\Claude Improvement Results\Diamond Mobile 3 - 53458c63-619e-4ad4-b7e6-58a4ad469eb5.md`. Contains the MSW/iOS findings + sources, the SW-free fix, the "don't disable SSO" exception, tooling gotchas, and a file-ops table.
-- **Email:** "email me / email it to me" → **accessoryseezin@gmail.com** (send via Gmail-web-through-Playwright as aicodeproxima@gmail.com). Don't infer other addresses (classifier blocks novel recipients).
-- Architecture quick-facts: `client.ts` exports `API_BASE` (the ONLY base-URL derivation — env `NEXT_PUBLIC_API_URL`, else `/api` in mock mode, else localhost dev fallback); `NEXT_PUBLIC_MOCK_API==='true'` gates the in-page mock (env now set in Vercel for ALL scopes); rich `Contact` model in `src/lib/types/contact.ts`; mock seed `src/mocks/scenario-church-week.ts` (50 contacts); auth handler in `src/mocks/handlers.ts` (`POST /login`, seeded users use password `admin`; wrong password = real 401 `UNAUTHORIZED`, transport failure = `NETWORK_ERROR` — the toast no longer lies).
+## 4. VERIFICATION (how to test — prod is the source of truth)
+- **NO local dev server for casual checks; verify on the deployed prod URL.** Primary tool = **Chrome MCP** (`mcp__Claude_in_Chrome__*`) in the user's real, signed-in Chrome (has a persisted session). Fallback = chrome-devtools MCP (separate Chrome — may need a fresh `admin`/`admin` login) for faithful device emulation. **Hard-reload after a deploy** (open tab serves the previous cached JS until reload).
+- **Version-stamp proof = 5-way cross-source-of-truth, all must equal:** `git rev-parse origin/main` == `vercel inspect <prod alias>` deployed commit == `GET /version.json .commit` == Settings About-card SHA == sidebar SHA.
+- **Tests:** `npm test` (vitest unit + integration, ~338 pass/7 todo) · `npm run test:integration` · `npm run e2e` (Playwright: chromium + `mobile-s24`) · `npm run e2e:update` (regen visual baselines — do this whenever brand/layout changes; visual specs are chromium, skip-in-CI).
+- **e2e cold-start is slow** (`npm run e2e`'s 120s webServer timeout often trips on this heavy app). Reliable pattern: start the dev server in the BACKGROUND, poll, then run playwright (it reuses the server):
+  ```
+  # background:  NEXT_PUBLIC_MOCK_API=true NEXT_PUBLIC_MOCK_DATE=2026-06-22T12:00:00 npm run dev
+  # poll ready:  curl --retry 40 --retry-delay 5 --retry-all-errors --retry-connrefused -s -o /dev/null -w "%{http_code}" http://localhost:3000/login
+  # run:         npx playwright test <spec> --project=chromium
+  # (foreground `sleep` is blocked here; use curl --retry or `ping -n N 127.0.0.1` as a timer)
+  ```
+- **Device widths:** Galaxy **S24 Ultra** — verify at BOTH `412×915` (standard) AND the narrow **`275×596` @ DPR 5.24** (Samsung display-size zoom; the project's worst-case). Tap targets ≥44px, no horizontal page pan, no iOS-specific claims from Chromium.
+- **`src/lib/version.ts` churn:** a local `npm run build` rewrites it (tracked + build-overwritten). After a local build, `git checkout -- src/lib/version.ts` before committing (deploy's prebuild regenerates it with the real main SHA).
 
-## 6. WORKFLOW CONVENTIONS
+---
+
+## 5. OPEN / DEFERRED (nothing blocking; pick up as prioritized)
+- **Real iOS Safari proof of the SW-free MSW fix still PENDING** — Chromium/emulators can't prove it; needs a physical iPhone tap (login admin/admin → dashboard with data).
+- **Backend authz gaps = Mike's, do NOT "fix" in the mock** (masks the real gap): contacts-family (`POST/PUT/DELETE /contacts`, convert), `PUT /users/:id/username`, `GET /audit-log`, `PUT /contacts/:id {assignedTeacherId}`, `PUT /bookings/:id`+cancel. Full list: `docs/qa/out-of-scope-findings.md`, `docs/BACKEND_GAPS.md`.
+- **Settings component-internal dual-shell** — the theme/background picker double-renders responsively (separate from the already-fixed `(dashboard)/layout.tsx` dual-mount). Needs its own pass.
+- **Calendar/wizard minors:** no UI Delete affordance (only soft-cancel; DELETE handler unreachable), wizard blocked-slot tooltip reads "Occupied by: undefined", a few 275px tap targets <44 (Close-X ~36, duration btns ~40).
+- **Secondary docs still say "Diamond"** (optional sweep, not done): `docs/MIKE_HANDOFF.md` and the GitHub repo *description*. Historical/QA docs (`docs/qa/*`, `AUDIT_REPORT.md`, `MOBILE_AUDIT_PROGRESS.md`) are intentionally left as records.
+- **QUEUED (not run):** Settings cross-page propagation stress test (16 workflows) — approved plan `C:\Users\aicod\.claude\plans\peaceful-weaving-sundae.md`; report-only, `audit-anti-drift`, browser UI. Run when the user asks.
+- **`MEMORY.md` compaction** — the auto-memory index is over its load limit; a task chip (`task_a8b25a29`) was spawned for it.
+
+---
+
+## 6. GOTCHAS (durable)
+- **Browser bundle cache after deploy** — the same tab serves OLD JS until a hard reload; hard-refresh before verifying (this is literally what the Tier-2 update banner exists to surface).
+- **Grep/ripgrep has NO lookahead** — `(?!…)` silently returns no matches; use alternation + post-filter.
+- **`@base-ui` DropdownMenu/Select** don't open from a synchronous `.click()` in an eval — use a real pointer click (chrome-devtools `click` on a snapshot uid) or async click + await the portal.
+- **SPA nav can briefly show the prior page / a stale tab-context title** — confirm `location.pathname` + a page selector (or re-`get_page_text`) before asserting.
+- **PowerShell is the default shell** — no `&&`/`||`, consumes `--`; use the Bash tool for POSIX (git chains, curl retry loops).
+- **Playwright `browser_click` acts as drag-start on `draggable`/WebGL surfaces** — use the element's real DOM `.click()`. Keep Claude-in-Chrome OFF `/groups` (WebGL/GPU). Repeated reloads of `/groups` (2 WebGL contexts) can exhaust the GPU pool browser-wide → node cards stop mounting; recover via a separate Chrome process.
+
+---
+
+## 7. POINTERS
+- **Authoritative packet:** `HANDOFF.md` (repo root) — status, stack, deploy, QA evidence, backend handoff.
+- **Backend cutover:** `docs/MIKE_HANDOFF.md`, `docs/BACKEND_GAPS.md`. **Testing:** `docs/TESTING.md` (3-tier suite). **Permissions:** `docs/PERMISSIONS.md`.
+- **Auto-memory:** `project_diamond_mobile_audit.md` (cross-session status — the DONE entries at the bottom are the recent history; file keeps its old name deliberately).
+- **Email:** "email me / email it to me" → **accessoryseezin@gmail.com** (send via Gmail-web as aicodeproxima@gmail.com; classifier blocks novel recipients).
+
+## 8. WORKFLOW CONVENTIONS
 - Commit + push without asking; one commit per coherent step; end messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
-- Update `MOBILE_AUDIT_PROGRESS.md` after each unit (files · VERIFIED evidence + screenshot/measurement · commit · pending).
-- **"Built by AccessorySeezin" attribution REMOVED (user request, 2026-06-27) — do NOT re-add.** (The sidebar footer now shows the app version stamp instead.) No backend wiring (mock UX only). Investigate + plan before non-trivial changes (the user asks for this explicitly). Honest status — tie verification claims to the actual engine/platform tested.
-- `HANDOFF.md` (sibling) may be an older artifact — this file is the current passdown.
+- **Investigate + plan before non-trivial changes** (the user asks for this explicitly). **Honest status** — tie every "verified" claim to the exact engine/surface tested; surface failures immediately.
+- Stage app source only — never commit the scratch dirs (`Background Ideas/`, `Organization Tree Ideas/`, `Diamond Quotes.txt`).
+- Records keep the old name (local `C:\Users\aicod\Diamond` worktree, dated QA/audit docs); only LIVE current-state docs (`CLAUDE.md`, `HANDOFF.md`, this file) carry "Gospel Central".
