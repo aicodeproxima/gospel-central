@@ -567,6 +567,19 @@ export function canExportReports(viewerOrRole: User | UserRole): boolean {
   return canAccessReports(viewerOrRole);
 }
 
+/**
+ * 2026-07 overhaul Decision 13: ALL export surfaces gate on Group Leader and
+ * up — members and team leaders never see an export affordance (anti-scraping;
+ * packet: Admin > "Restrict export to leaders"). Introduced in Phase 2 for the
+ * Dashboard "Your Group" member-list export; Phase 8 aligns canExportReports /
+ * canExportImport to this same GL+ tier.
+ */
+export function canExportMemberList(viewerOrRole: User | UserRole): boolean {
+  const role = typeof viewerOrRole === 'string' ? viewerOrRole : viewerOrRole?.role;
+  if (!role) return false;
+  return getRoleLevel(role) >= getRoleLevel(UserRole.GROUP_LEADER);
+}
+
 // =============================================================================
 // Data export / import (CSV affordances on non-admin pages)
 // =============================================================================

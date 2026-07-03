@@ -8,7 +8,11 @@ import { usePreferencesStore } from './stores/preferences-store';
  * language; Spanish translations provided for every key.
  */
 
-const translations: Record<string, Record<string, string>> = {
+// Exported for the en/es key-parity test (src/lib/i18n.test.ts) — the D3b
+// delegation gate: any agent that edits this file must keep both locales'
+// key sets identical, and the test makes drift a vitest failure instead of
+// a silent missing-translation at runtime.
+export const translations: Record<string, Record<string, string>> = {
   en: {
     // ── Navigation ──────────────────────────────────────────────
     'nav.dashboard': 'Dashboard',
@@ -125,6 +129,22 @@ const translations: Record<string, Record<string, string>> = {
     'dash.totalSessions': 'total sessions',
     'dash.sessions': 'sessions',
     'dash.scheduledSlots': 'scheduled slots',
+    'dash.contactsStudyingCard': 'Contacts Studying',
+    'dash.bibleStudies': 'Bible Studies',
+    'dash.upcomingStudies': 'Upcoming Studies',
+    'dash.throughSaturday': 'through Saturday',
+    'dash.yourGroup': 'Your Group',
+    'dash.members': 'Members',
+    'dash.selectChurch': 'Church',
+    'dash.setDefault': 'Set default',
+    'dash.default': 'Default',
+    'dash.exportCsv': 'Export CSV',
+    'dash.exportTxt': 'Export TXT',
+    'dash.leaderboards': 'Leaderboards',
+    'dash.topStudies': 'Top 10 — Bible Studies This Month',
+    'dash.topFruit': 'Top 10 — Fruit This Month',
+    'dash.noStudiesYet': 'No completed studies yet this month',
+    'dash.noFruitYet': 'No fruit recorded this month',
 
     // ── Calendar page ───────────────────────────────────────────
     'page.calendar.title': 'Calendar',
@@ -494,6 +514,22 @@ const translations: Record<string, Record<string, string>> = {
     'dash.totalSessions': 'sesiones totales',
     'dash.sessions': 'sesiones',
     'dash.scheduledSlots': 'horarios programados',
+    'dash.contactsStudyingCard': 'Contactos Estudiando',
+    'dash.bibleStudies': 'Estudios Bíblicos',
+    'dash.upcomingStudies': 'Próximos Estudios',
+    'dash.throughSaturday': 'hasta el sábado',
+    'dash.yourGroup': 'Tu Grupo',
+    'dash.members': 'Miembros',
+    'dash.selectChurch': 'Iglesia',
+    'dash.setDefault': 'Establecer predeterminado',
+    'dash.default': 'Predeterminado',
+    'dash.exportCsv': 'Exportar CSV',
+    'dash.exportTxt': 'Exportar TXT',
+    'dash.leaderboards': 'Tablas de Líderes',
+    'dash.topStudies': 'Top 10 — Estudios Bíblicos Este Mes',
+    'dash.topFruit': 'Top 10 — Fruto Este Mes',
+    'dash.noStudiesYet': 'Aún no hay estudios completados este mes',
+    'dash.noFruitYet': 'No hay fruto registrado este mes',
 
     // ── Calendar page ───────────────────────────────────────────
     'page.calendar.title': 'Calendario',

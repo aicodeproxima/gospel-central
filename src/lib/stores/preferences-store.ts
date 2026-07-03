@@ -66,6 +66,15 @@ interface PreferencesState {
   profilePhotoBase64: string | null;
   backgroundStyle: BackgroundStyle;
   backgroundConfig: BackgroundConfig;
+  /**
+   * 2026-07 overhaul Phase 2 (packet: Dashboard > per-church metrics): the
+   * user's saved default church for the DASHBOARD toggle only — contacts/
+   * groups stay role-scope-filtered, calendar keeps its own area selector.
+   * `null` = no default saved (dashboard opens on the first area). Additive
+   * key: no persist-version bump needed (zustand shallow-merges defaults;
+   * there is no partialize list to keep in sync).
+   */
+  dashboardChurchId: string | null;
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -78,6 +87,7 @@ interface PreferencesState {
    *  resetBackgroundConfig) to clear back to theme-derived colors. */
   setBackgroundConfig: (style: BackgroundStyle, values: Record<string, unknown>) => void;
   resetBackgroundConfig: (style: BackgroundStyle) => void;
+  setDashboardChurchId: (areaId: string | null) => void;
 }
 
 /**
@@ -127,6 +137,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       profilePhotoBase64: null,
       backgroundStyle: 'none',
       backgroundConfig: {},
+      dashboardChurchId: null,
 
       setColorTheme: (theme) => {
         applyThemeToDOM(theme);
@@ -154,6 +165,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         delete next[style];
         set({ backgroundConfig: next });
       },
+      setDashboardChurchId: (areaId) => set({ dashboardChurchId: areaId }),
     }),
     {
       name: 'gospel-central-preferences',

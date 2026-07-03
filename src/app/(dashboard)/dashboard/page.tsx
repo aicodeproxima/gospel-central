@@ -8,18 +8,22 @@ import {
   Calendar,
   Users,
   Contact,
-  Settings,
   BookOpen,
   TrendingUp,
   Clock,
-  BarChart3,
   MapPin,
-  ChevronRight,
   Sparkles,
 } from 'lucide-react';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -27,24 +31,28 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { canAccessReports } from '@/lib/utils/permissions';
+import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { dashboardHelp } from '@/components/shared/pageHelp';
 import { bookingsApi } from '@/lib/api/bookings';
 import { contactsApi } from '@/lib/api/contacts';
+import { usersApi } from '@/lib/api/users';
+import {
+  getChurchUserIds,
+  contactBelongsToChurch,
+  contactsStudyingThisMonth,
+  bibleStudiesThisMonth,
+  upcomingStudies,
+} from '@/lib/utils/church';
+import { YourGroup } from '@/components/dashboard/YourGroup';
+import { Leaderboards } from '@/components/dashboard/Leaderboards';
 import {
   BOOKING_TYPE_CONFIG,
   PIPELINE_STAGE_CONFIG,
   PipelineStage,
 } from '@/lib/types';
-import type { Booking, Contact as ContactType, Area } from '@/lib/types';
-import {
-  format,
-  parseISO,
-  isAfter,
-  startOfMonth,
-  compareAsc,
-} from 'date-fns';
+import type { Booking, Contact as ContactType, Area, User } from '@/lib/types';
+import { format, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
@@ -58,38 +66,46 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-type StatKey = 'bookings' | 'contacts' | 'sessions' | 'baptisms';
+type StatKey = 'contactsStudying' | 'bibleStudies' | 'upcomingStudies' | 'baptisms';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { t, tStage, tBookingType } = useTranslation();
   const { withDate } = useTimeFormat();
+  const dashboardChurchId = usePreferencesStore((s) => s.dashboardChurchId);
+  const setDashboardChurchId = usePreferencesStore((s) => s.setDashboardChurchId);
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [contacts, setContacts] = useState<ContactType[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [openStat, setOpenStat] = useState<StatKey | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
 
   const loadDashboard = useCallback(() => {
     setLoading(true);
     setLoadError(false);
     const now = new Date();
-    // Bookings + contacts are the dashboard's data; areas only feed roomMap, so
-    // it degrades to empty. A real failure of the first two now surfaces an
-    // error + Retry instead of silently rendering blank zero-cards (which read
-    // as "the app is broken") — matching the Groups/Contacts pages.
+    // Bookings + contacts + users are the dashboard's load-critical data;
+    // areas only feed roomMap, so it degrades to empty. A real failure of
+    // the load-critical set now surfaces an error + Retry instead of
+    // silently rendering blank zero-cards (which read as "the app is
+    // broken") — matching the Groups/Contacts pages.
     Promise.all([
       bookingsApi.getBookings({
-        start: new Date(now.getTime() - 30 * 86400000).toISOString(),
+        start: startOfMonth(now).toISOString(),
         end: new Date(now.getTime() + 30 * 86400000).toISOString(),
       }),
       contactsApi.getContacts(),
+      usersApi.getAll(),
       bookingsApi.getAreas().catch(() => [] as Area[]),
     ])
-      .then(([bk, con, ar]) => {
+      .then(([bk, con, us, ar]) => {
         setBookings(bk);
         setContacts(con);
+        setUsers(us);
         setAreas(ar);
       })
       .catch((e) => {
@@ -103,6 +119,21 @@ export default function DashboardPage() {
     loadDashboard();
   }, [loadDashboard]);
 
+  // Initial church selection: saved dashboardChurchId if it matches a
+  // fetched area, else the first fetched area. Runs whenever the fetched
+  // area list changes (e.g. after Retry) and no selection has been made yet.
+  useEffect(() => {
+    if (areas.length === 0) return;
+    setSelectedAreaId((current) => {
+      if (current && areas.some((a) => a.id === current)) return current;
+      if (dashboardChurchId && areas.some((a) => a.id === dashboardChurchId)) {
+        return dashboardChurchId;
+      }
+      return areas[0]?.id ?? null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas]);
+
   const roomMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of areas) for (const r of a.rooms) m.set(r.id, r.name);
@@ -110,45 +141,38 @@ export default function DashboardPage() {
   }, [areas]);
 
   const now = new Date();
-  const monthStart = startOfMonth(now);
+
+  const churchUserIds = useMemo(
+    () => (selectedAreaId ? getChurchUserIds(users, selectedAreaId) : new Set<string>()),
+    [users, selectedAreaId],
+  );
+
+  const studyingContacts = useMemo(
+    () =>
+      selectedAreaId ? contactsStudyingThisMonth(bookings, contacts, selectedAreaId, now) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings, contacts, selectedAreaId],
+  );
+
+  const studiesThisMonth = useMemo(
+    () => (selectedAreaId ? bibleStudiesThisMonth(bookings, selectedAreaId, now) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings, selectedAreaId],
+  );
 
   const upcoming = useMemo(
-    () =>
-      bookings
-        .filter((b) => b.status !== 'cancelled' && isAfter(parseISO(b.startTime), now))
-        .sort((a, b) => compareAsc(parseISO(a.startTime), parseISO(b.startTime)))
-        .slice(0, 20),
+    () => (selectedAreaId ? upcomingStudies(bookings, selectedAreaId, now) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookings],
-  );
-
-  const activeContacts = useMemo(
-    () =>
-      contacts.filter(
-        (c) =>
-          c.pipelineStage !== PipelineStage.BAPTIZED &&
-          c.currentlyStudying,
-      ),
-    [contacts],
-  );
-
-  const sessionsThisMonth = useMemo(
-    () =>
-      bookings
-        .filter((b) => b.status !== 'cancelled' && isAfter(parseISO(b.startTime), monthStart))
-        .sort((a, b) => compareAsc(parseISO(a.startTime), parseISO(b.startTime))),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookings],
+    [bookings, selectedAreaId],
   );
 
   const baptisms = useMemo(
-    () => contacts.filter((c) => c.pipelineStage === PipelineStage.BAPTIZED),
-    [contacts],
+    () =>
+      contacts.filter(
+        (c) => c.pipelineStage === PipelineStage.BAPTIZED && contactBelongsToChurch(c, churchUserIds),
+      ),
+    [contacts, churchUserIds],
   );
-
-  const progressingCount = contacts.filter(
-    (c) => c.pipelineStage === PipelineStage.POTENTIAL,
-  ).length;
 
   const stats: Array<{
     key: StatKey;
@@ -158,25 +182,25 @@ export default function DashboardPage() {
     trend: string;
   }> = [
     {
-      key: 'bookings',
-      label: t('dash.upcomingBookings'),
+      key: 'contactsStudying',
+      label: t('dash.contactsStudyingCard'),
+      value: String(studyingContacts.length),
+      icon: Contact,
+      trend: format(startOfMonth(now), 'MMMM yyyy'),
+    },
+    {
+      key: 'bibleStudies',
+      label: t('dash.bibleStudies'),
+      value: String(studiesThisMonth.length),
+      icon: BookOpen,
+      trend: format(startOfMonth(now), 'MMMM yyyy'),
+    },
+    {
+      key: 'upcomingStudies',
+      label: t('dash.upcomingStudies'),
       value: String(upcoming.length),
       icon: Clock,
-      trend: `${upcoming.filter((b) => { const d = parseISO(b.startTime); return d.getTime() - now.getTime() < 7 * 86400000; }).length} ${t('dash.thisWeek')}`,
-    },
-    {
-      key: 'contacts',
-      label: t('dash.activeContacts'),
-      value: String(activeContacts.length),
-      icon: Contact,
-      trend: `${progressingCount} ${t('dash.progressing')}`,
-    },
-    {
-      key: 'sessions',
-      label: t('dash.sessionsThisMonth'),
-      value: String(sessionsThisMonth.length),
-      icon: BookOpen,
-      trend: format(monthStart, 'MMMM yyyy'),
+      trend: t('dash.throughSaturday'),
     },
     {
       key: 'baptisms',
@@ -187,15 +211,7 @@ export default function DashboardPage() {
     },
   ];
 
-  const quickLinks = [
-    { href: '/calendar', label: t('nav.calendar'), icon: Calendar, desc: t('dash.bookRooms'), color: 'from-blue-500/20 to-blue-600/10' },
-    { href: '/contacts', label: t('nav.contacts'), icon: Contact, desc: t('dash.manageContacts'), color: 'from-green-500/20 to-green-600/10' },
-    { href: '/groups', label: t('nav.groups'), icon: Users, desc: t('dash.viewOrgTree'), color: 'from-purple-500/20 to-purple-600/10' },
-    { href: '/settings', label: t('nav.settings'), icon: Settings, desc: t('dash.profilePrefs'), color: 'from-orange-500/20 to-orange-600/10' },
-  ];
-  if (user && canAccessReports(user.role)) {
-    quickLinks.push({ href: '/reports', label: t('nav.reports'), icon: BarChart3, desc: t('dash.viewLogs'), color: 'from-red-500/20 to-red-600/10' });
-  }
+  const isSavedDefault = selectedAreaId !== null && selectedAreaId === dashboardChurchId;
 
   if (loading) {
     return (
@@ -227,6 +243,37 @@ export default function DashboardPage() {
         <p className="mt-1 text-muted-foreground">{t('page.dashboard.subtitle')}</p>
       </motion.div>
 
+      {/* Church toggle */}
+      <motion.div variants={item} className="flex flex-wrap items-center gap-3">
+        <Select
+          value={selectedAreaId ?? undefined}
+          onValueChange={(v) => setSelectedAreaId(v as string)}
+        >
+          <SelectTrigger aria-label={t('dash.selectChurch')}>
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+            <SelectValue placeholder={t('dash.selectChurch')} />
+          </SelectTrigger>
+          <SelectContent>
+            {areas.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isSavedDefault ? (
+          <Badge variant="outline" className="text-xs">{t('dash.default')}</Badge>
+        ) : (
+          selectedAreaId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDashboardChurchId(selectedAreaId)}
+            >
+              {t('dash.setDefault')}
+            </Button>
+          )
+        )}
+      </motion.div>
+
       {/* Stats — clickable cards that expand into detail dialogs */}
       {/* mobile: 1-col phone, 2-col tablet (max-xl) — desktop ≥xl unchanged */}
       <motion.div variants={item} className="grid gap-4 sm:grid-cols-2 max-xl:grid-cols-2 lg:grid-cols-4">
@@ -252,40 +299,120 @@ export default function DashboardPage() {
         ))}
       </motion.div>
 
-      {/* Quick Links */}
-      <motion.div variants={item}>
-        <h2 className="mb-4 text-xl font-semibold">{t('dash.quickAccess')}</h2>
-        {/* 1-col phone (horizontal icon+text needs the full width), 2-col >=sm, 3-col >=lg */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {quickLinks.map((link) => (
-            <Link key={link.href} href={link.href}>
-              <Card className="group cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5">
-                <CardContent className={`bg-gradient-to-br ${link.color} p-6`}>
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-xl bg-card p-3 shadow-sm">
-                      <link.icon className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{link.label}</CardTitle>
-                      <p className="mt-1 text-sm text-muted-foreground">{link.desc}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </motion.div>
+      {/* Your Group */}
+      {user && <YourGroup viewer={user} users={users} />}
 
       {/* ── Detail Dialogs ─────────────────────────────────────────── */}
 
-      {/* Upcoming Bookings */}
-      <Dialog open={openStat === 'bookings'} onOpenChange={(o) => !o && setOpenStat(null)}>
+      {/* Contacts Studying This Month */}
+      <Dialog open={openStat === 'contactsStudying'} onOpenChange={(o) => !o && setOpenStat(null)}>
         <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" /> {t('dash.upcomingBookings')}
+              <Contact className="h-5 w-5 text-primary" /> {t('dash.contactsStudyingCard')}
             </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {t('dash.contactsStudying')}
+            </p>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
+            {studyingContacts.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t('dash.noActive')}</p>
+            ) : (
+              studyingContacts.map((c) => {
+                const stage = PIPELINE_STAGE_CONFIG[c.pipelineStage];
+                return (
+                  <div key={c.id} className="rounded-md border border-border px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold truncate">
+                          {c.firstName} {c.lastName}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <span className={cn('h-2 w-2 rounded-full', stage?.color)} />
+                          {tStage(c.pipelineStage)}
+                          {c.currentSubject && (
+                            <>
+                              <span>•</span>
+                              <span>Step {c.currentStep}: {c.currentSubject}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-[11px] text-muted-foreground">
+                        {c.totalSessions} {t('dash.sessions')}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="pt-3 flex justify-between">
+            <Link href="/contacts">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Users className="h-3.5 w-3.5" /> {t('btn.viewAllContacts')}
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>{t('btn.close')}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bible Studies This Month */}
+      <Dialog open={openStat === 'bibleStudies'} onOpenChange={(o) => !o && setOpenStat(null)}>
+        <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" /> {t('dash.bibleStudies')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
+            {studiesThisMonth.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t('dash.noSessions')}</p>
+            ) : (
+              studiesThisMonth.map((b) => {
+                const cfg = BOOKING_TYPE_CONFIG[b.type];
+                return (
+                  <div
+                    key={b.id}
+                    className={cn('rounded-md border px-3 py-2 text-sm', cfg?.bgColor)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium truncate block">{b.title}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {withDate(b.startTime, 'EEE, MMM d').toLowerCase()}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className={cn('shrink-0 text-[10px]', cfg?.color)}>
+                        {tBookingType(b.type)}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="pt-3 flex justify-between">
+            <Link href="/calendar">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Calendar className="h-3.5 w-3.5" /> {t('btn.viewCalendar')}
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>{t('btn.close')}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upcoming Studies */}
+      <Dialog open={openStat === 'upcomingStudies'} onOpenChange={(o) => !o && setOpenStat(null)}>
+        <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" /> {t('dash.upcomingStudies')}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{t('dash.throughSaturday')}</p>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
             {upcoming.length === 0 ? (
@@ -332,114 +459,10 @@ export default function DashboardPage() {
           <div className="pt-3 flex justify-between">
             <Link href="/calendar">
               <Button variant="outline" size="sm" className="gap-1.5">
-                <Calendar className="h-3.5 w-3.5" /> View Calendar
+                <Calendar className="h-3.5 w-3.5" /> {t('btn.viewCalendar')}
               </Button>
             </Link>
-            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Active Contacts */}
-      <Dialog open={openStat === 'contacts'} onOpenChange={(o) => !o && setOpenStat(null)}>
-        <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Contact className="h-5 w-5 text-primary" /> {t('dash.activeContacts')}
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              Contacts currently being studied with (not yet baptized)
-            </p>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
-            {activeContacts.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">{t('dash.noActive')}</p>
-            ) : (
-              activeContacts.map((c) => {
-                const stage = PIPELINE_STAGE_CONFIG[c.pipelineStage];
-                return (
-                  <div key={c.id} className="rounded-md border border-border px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold truncate">
-                          {c.firstName} {c.lastName}
-                        </div>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <span className={cn('h-2 w-2 rounded-full', stage.color)} />
-                          {tStage(c.pipelineStage)}
-                          {c.currentSubject && (
-                            <>
-                              <span>•</span>
-                              <span>Step {c.currentStep}: {c.currentSubject}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-[11px] text-muted-foreground">
-                        {c.totalSessions} sessions
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <div className="pt-3 flex justify-between">
-            <Link href="/contacts">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Users className="h-3.5 w-3.5" /> View All Contacts
-              </Button>
-            </Link>
-            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Sessions This Month */}
-      <Dialog open={openStat === 'sessions'} onOpenChange={(o) => !o && setOpenStat(null)}>
-        <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" /> {t('dash.sessionsThisMonth')}
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              {sessionsThisMonth.length} bookings since {format(monthStart, 'MMM d')}
-            </p>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
-            {sessionsThisMonth.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">{t('dash.noSessions')}</p>
-            ) : (
-              sessionsThisMonth.map((b) => {
-                const cfg = BOOKING_TYPE_CONFIG[b.type];
-                return (
-                  <div
-                    key={b.id}
-                    className={cn('rounded-md border px-3 py-2 text-sm', cfg?.bgColor)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium truncate block">{b.title}</span>
-                        <span className="text-[11px] text-muted-foreground">
-                          {withDate(b.startTime, 'EEE, MMM d').toLowerCase()}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className={cn('shrink-0 text-[10px]', cfg?.color)}>
-                        {tBookingType(b.type)}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <div className="pt-3 flex justify-between">
-            <Link href="/calendar">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Calendar className="h-3.5 w-3.5" /> View Calendar
-              </Button>
-            </Link>
-            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>{t('btn.close')}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -452,7 +475,7 @@ export default function DashboardPage() {
               <Sparkles className="h-5 w-5 text-amber-400" /> {t('dash.baptismsThisYear')}
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
-              {baptisms.length} contacts have been baptized
+              {baptisms.length} {t('dash.contactsBaptized')}
             </p>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
@@ -467,7 +490,7 @@ export default function DashboardPage() {
                         {c.firstName} {c.lastName}
                       </div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        {c.totalSessions} total sessions
+                        {c.totalSessions} {t('dash.totalSessions')}
                         {c.groupName && <> • {c.groupName}</>}
                       </div>
                     </div>
@@ -482,13 +505,25 @@ export default function DashboardPage() {
           <div className="pt-3 flex justify-between">
             <Link href="/contacts?stage=baptized">
               <Button variant="outline" size="sm" className="gap-1.5">
-                <Users className="h-3.5 w-3.5" /> View Baptized
+                <Users className="h-3.5 w-3.5" /> {t('btn.viewAllContacts')}
               </Button>
             </Link>
-            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => setOpenStat(null)}>{t('btn.close')}</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Leaderboards */}
+      {selectedAreaId && (
+        <Leaderboards
+          bookings={bookings}
+          contacts={contacts}
+          users={users}
+          areaId={selectedAreaId}
+          churchUserIds={churchUserIds}
+          now={now}
+        />
+      )}
     </motion.div>
   );
 }

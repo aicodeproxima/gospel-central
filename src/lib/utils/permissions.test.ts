@@ -32,6 +32,7 @@ import {
   canEditUser,
   canEditUserField,
   canExportImport,
+  canExportMemberList,
   canExportReports,
   canManageArea,
   canManageBlockedSlot,
@@ -704,6 +705,16 @@ describe('reports', () => {
   test('legacy role-string overload still works', () => {
     expect(canAccessReports(UserRole.BRANCH_LEADER)).toBe(true);
     expect(canAccessReports(UserRole.MEMBER)).toBe(false);
+  });
+  test('Decision 13: member-list export (Your Group) is Group Leader and up — full matrix', () => {
+    expect(canExportMemberList(memberA)).toBe(false);
+    expect(canExportMemberList(teamA)).toBe(false);
+    expect(canExportMemberList(groupA)).toBe(true);
+    expect(canExportMemberList(branchA)).toBe(true);
+    expect(canExportMemberList(overseer)).toBe(true);
+    expect(canExportMemberList(dev1)).toBe(true);
+    expect(canExportMemberList(UserRole.TEAM_LEADER)).toBe(false);
+    expect(canExportMemberList(UserRole.GROUP_LEADER)).toBe(true);
   });
 });
 
