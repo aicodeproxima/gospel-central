@@ -13,8 +13,11 @@
 > ex-BLs are VB Team Leaders keeping branch2/3/4 logins; all 6 statuses in both churches; persona
 > manifest at `docs/qa/stable-personas.md`). WebKit e2e project is blocked by a pre-existing
 > Secure-cookie-on-http limitation (chip task_17530de7); chromium/mobile/visual e2e green.
-> **NEXT: Phase 2 — Dashboard rework** (church toggle + set-default, current-month KPIs, Your Group
-> section replacing Quick Access, two top-10 leaderboards; see the plan's Phase 2 block).
+> **Phase 2 (dashboard) is COMPLETE + deployed** (`0bb8145`): church toggle + set-default, Completed-
+> only current-month KPIs, Your Group (GL+-gated member export), two leaderboards — executed under
+> the plan's MODEL-ROUTING protocol (sonnet built the volume, Fable reviewed/gated/deployed; tier
+> record in the ledger). **NEXT: Phase 3 — Calendar** (booking-card redesign with the prop-contract
+> spec, status controls Fable-inline, day-view alignment on opus; see the plan's routing table).
 > The DESKTOP FREEZE IS LIFTED (plan Decision 3) and frontend-to-main deploys are user-authorized —
 > the permission classifier may still demand a fresh in-chat "yes" each session.
 

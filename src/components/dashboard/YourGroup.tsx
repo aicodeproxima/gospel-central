@@ -112,6 +112,9 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
             );
           })}
 
+          {/* Members-count row is meaningless for viewers with no subtree
+              (plain members see their team-mates in the lateral list above). */}
+          {memberCount > 0 && (
           <div className="flex items-center justify-between border-t border-border pt-3">
             <div className="flex items-center gap-2 text-sm">
               <Users className="h-4 w-4 text-primary" />
@@ -129,6 +132,7 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
               </div>
             )}
           </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
