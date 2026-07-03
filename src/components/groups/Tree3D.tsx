@@ -6,9 +6,7 @@ import { OrbitControls, Html, Line, Billboard, useTexture, Stars } from '@react-
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
-  GraduationCap,
   BookOpen,
-  Sparkles,
   ChevronRight,
   UserCircle2,
 } from 'lucide-react';
@@ -27,6 +25,7 @@ import { topBandBounds, fitBboxIntoBand, type FrameBand } from '@/lib/utils/tree
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
+import { GrapesBearingFruitIcon, PersonCurrentlyStudyingIcon } from './GroupMetricIcons';
 
 type ContactFilter = null | 'studying' | 'total' | 'fruit';
 
@@ -234,7 +233,7 @@ function NodeCardInner({
           {showMetrics && metrics && (
             <div className="mt-2 flex items-center gap-1 justify-end">
               <MetricIcon
-                Icon={GraduationCap}
+                Icon={PersonCurrentlyStudyingIcon}
                 value={metrics.currentlyStudying}
                 color="#06b6d4"
                 active={activeFilter === 'studying'}
@@ -248,9 +247,9 @@ function NodeCardInner({
                 onClick={() => onFilter(activeFilter === 'total' ? null : 'total')}
               />
               <MetricIcon
-                Icon={Sparkles}
+                Icon={GrapesBearingFruitIcon}
                 value={metrics.bearingFruit}
-                color="#f59e0b"
+                color="#a855f7"
                 active={activeFilter === 'fruit'}
                 onClick={() => onFilter(activeFilter === 'fruit' ? null : 'fruit')}
               />
@@ -290,7 +289,7 @@ function MetricIcon({
         active ? 'bg-primary/20 ring-1 ring-primary' : 'hover:bg-accent',
       )}
     >
-      <Icon className="h-2.5 w-2.5" style={{ color }} />
+      <Icon className="shrink-0" style={{ color, height: 15, width: 15 }} />
       <span className="font-bold text-foreground">{value}</span>
     </button>
   );

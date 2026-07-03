@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight,
-  GraduationCap,
   BookOpen,
-  Sparkles,
   UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,6 +19,7 @@ import {
   getContactsForSubtree,
   filterRecentlyStudying,
 } from '@/lib/utils/org-metrics';
+import { GrapesBearingFruitIcon, PersonCurrentlyStudyingIcon } from './GroupMetricIcons';
 
 const ROLE_COLORS: Record<UserRole, string> = {
   member: 'bg-gray-500',
@@ -182,7 +181,7 @@ export function OrgNodeComponent({
             {showMetrics && metrics && (
               <div className="hidden sm:flex items-center gap-1.5 shrink-0">
                 <IconButton
-                  icon={GraduationCap}
+                  icon={PersonCurrentlyStudyingIcon}
                   value={metrics.currentlyStudying}
                   label="Currently studying (last 30 days) — click to expand"
                   color="text-cyan-500"
@@ -198,10 +197,10 @@ export function OrgNodeComponent({
                   onClick={() => handleIconClick('total')}
                 />
                 <IconButton
-                  icon={Sparkles}
+                  icon={GrapesBearingFruitIcon}
                   value={metrics.bearingFruit}
                   label="Bearing fruit — baptized contacts — click to expand"
-                  color="text-amber-500"
+                  color="text-purple-500"
                   active={activeFilter === 'fruit'}
                   onClick={() => handleIconClick('fruit')}
                 />
