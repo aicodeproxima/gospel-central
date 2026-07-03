@@ -2,6 +2,18 @@
 
 > **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond`, historical/QA docs, and this file's siblings named `*diamond*`/`MOBILE_AUDIT_PROGRESS.md` keep the old name (records). **Do NOT re-introduce "Diamond" as the app's display name.**
 
+> **OVERHAUL IN PROGRESS (2026-07-03):** the app is mid-way through the user's full overhaul packet
+> ("Gospel Central Overhaul and Deliverables - Final"). **Approved plan:**
+> `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` (13 locked decisions + phase specs +
+> the anti-hallucination/drift/context-rot protocol — READ IT before any overhaul work).
+> **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root, untracked, append-only — the resume point).
+> **Phase 0 (foundation) is COMPLETE + deployed** (`df09bfa` on main): 6-status contact model,
+> booking outcome statuses w/ status-gated metrics, 35-study curriculum, gender tags, dropdown fixes.
+> **NEXT: Phase 1 — seed reorg to 2 churches** via the user-mandated multi-agent plan→grill→decide
+> orchestration (inputs incl. a stable-persona manifest; see the plan's Phase 1 block).
+> The DESKTOP FREEZE IS LIFTED (plan Decision 3) and frontend-to-main deploys are user-authorized —
+> the permission classifier may still demand a fresh in-chat "yes" each session.
+
 > This is the action-oriented handoff. `HANDOFF.md` is the authoritative packet (Mike + new devs); `MOBILE_AUDIT_PROGRESS.md` is the durable historical ledger. Where any doc disagrees with code, **code wins** (`src/lib/api/*`, `src/mocks/handlers.ts`). Trust `git` + live browser over any SHA/claim written here.
 
 ---
