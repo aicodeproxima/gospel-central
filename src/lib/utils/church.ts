@@ -236,19 +236,31 @@ export function topTeachersByFruit(
 
 /**
  * buildYourGroup — the viewer's "org neighborhood": ancestors above, peers
- * beside, and the full reporting subtree below.
+ * beside, direct reports, and the full reporting subtree below.
  *
  *   - `above`: the parentId ancestor chain walking UP from the viewer,
  *     root-most ancestor first, excluding the viewer and excluding any
  *     DEV-role user (Devs are the platform operators, not part of anyone's
- *     visible chain of command). Cycle-safe.
+ *     visible chain of command). Cycle-safe. This is DIRECT by construction —
+ *     a team leader's chain contains only THEIR group leader, THEIR branch
+ *     leader, the overseer.
  *   - `lateral`: other users sharing the viewer's parentId AND the viewer's
- *     role (peers at the same level under the same parent). Excludes the
- *     viewer.
+ *     role (peers at the same level under the same parent — for a member,
+ *     their team-mates). Excludes the viewer.
+ *   - `directReports`: ONLY the viewer's immediate children
+ *     (parentId === viewer.id), grouped by role, sorted by firstName. This is
+ *     what the dashboard's Your Group sections display (user decision
+ *     2026-07-03: direct relationships only — a TL sees just their team's
+ *     members, a GL just their own TLs, never the whole Zion's).
  *   - `below`: the viewer's full subtree, walking parentId children
  *     transitively (cycle-safe), grouped by role, each group's users sorted
- *     by firstName.
+ *     by firstName. Kept for rollups (member totals + the GL+ full member
+ *     export), NOT for section display.
  *   - `memberCount`: convenience shorthand for `below.get(MEMBER)?.length`.
+ *
+ * Everything derives from the live `users` array — a role change, a
+ * reassignment, or a contact converted onto a team re-shapes the result on
+ * the next computation with zero special-casing.
  */
 export function buildYourGroup(
   viewer: User,
@@ -256,6 +268,7 @@ export function buildYourGroup(
 ): {
   above: User[];
   lateral: User[];
+  directReports: Map<UserRole, User[]>;
   below: Map<UserRole, User[]>;
   memberCount: number;
 } {
@@ -280,6 +293,18 @@ export function buildYourGroup(
       viewer.parentId !== undefined &&
       u.parentId === viewer.parentId,
   );
+
+  // --- directReports: immediate children only, grouped by role ---
+  const directReports = new Map<UserRole, User[]>();
+  for (const u of users) {
+    if (u.parentId !== viewer.id) continue;
+    const bucket = directReports.get(u.role);
+    if (bucket) bucket.push(u);
+    else directReports.set(u.role, [u]);
+  }
+  for (const bucket of directReports.values()) {
+    bucket.sort((a, b) => a.firstName.localeCompare(b.firstName));
+  }
 
   // --- below: full subtree grouped by role, cycle-safe transitive walk ---
   const reach = new Set<string>([viewer.id]);
@@ -309,6 +334,7 @@ export function buildYourGroup(
   return {
     above,
     lateral,
+    directReports,
     below,
     memberCount: below.get(UserRole.MEMBER)?.length ?? 0,
   };

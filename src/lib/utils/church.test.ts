@@ -511,6 +511,46 @@ describe('buildYourGroup', () => {
     expect(below.get(UserRole.TEAM_LEADER)?.map((u) => u.id)).toEqual(['y']);
   });
 
+  // --- directReports: DIRECT relationships only (user decision 2026-07-03) ---
+
+  test('directReports: a TL sees ONLY their own team members, not the sibling team', () => {
+    const { directReports } = buildYourGroup(teamA, allUsers);
+    // firstName asc: Amy (memberA2), Zed (memberA1). memberB1 (teamB's) excluded.
+    expect(directReports.get(UserRole.MEMBER)?.map((u) => u.id)).toEqual(['memberA2', 'memberA1']);
+    expect(directReports.size).toBe(1);
+  });
+
+  test('directReports: a GL sees ONLY their own TLs — never members two levels down', () => {
+    const { directReports } = buildYourGroup(group, allUsers);
+    expect(directReports.get(UserRole.TEAM_LEADER)?.map((u) => u.id)).toEqual(['teamA', 'teamB']);
+    expect(directReports.get(UserRole.MEMBER)).toBeUndefined();
+  });
+
+  test('directReports: a BL sees only their GLs; the overseer/root only their BLs', () => {
+    expect(buildYourGroup(branch, allUsers).directReports.get(UserRole.GROUP_LEADER)?.map((u) => u.id)).toEqual(['group']);
+    expect(buildYourGroup(dev, allUsers).directReports.get(UserRole.BRANCH_LEADER)?.map((u) => u.id)).toEqual(['branch']);
+  });
+
+  test('re-derives automatically when the tree changes: a role change / conversion re-shapes the result', () => {
+    // memberA1 gets promoted to TEAM_LEADER under the group (position change):
+    const promoted = { ...memberA1, role: UserRole.TEAM_LEADER, parentId: 'group' };
+    const changed = allUsers.map((u) => (u.id === 'memberA1' ? promoted : u));
+    const glView = buildYourGroup(group, changed);
+    expect(glView.directReports.get(UserRole.TEAM_LEADER)?.map((u) => u.id)).toEqual([
+      'teamA', 'teamB', 'memberA1',
+    ]);
+    // teamA no longer has memberA1 as a direct report:
+    expect(buildYourGroup(teamA, changed).directReports.get(UserRole.MEMBER)?.map((u) => u.id)).toEqual(['memberA2']);
+
+    // A freshly converted contact placed on teamA immediately sees the chain
+    // + their team-mates (packet: converted members get the full neighborhood):
+    const convert = makeUser({ id: 'newConvert', firstName: 'Nia', role: UserRole.MEMBER, parentId: 'teamA' });
+    const withConvert = [...changed, convert];
+    const newbie = buildYourGroup(convert, withConvert);
+    expect(newbie.above.map((u) => u.id)).toEqual(['branch', 'group', 'teamA']);
+    expect(newbie.lateral.map((u) => u.id)).toEqual(['memberA2']);
+  });
+
   test('real scenario data: u-mem-1 has a TEAM_LEADER ancestor in `above`', () => {
     const viewer = scenarioUsers.find((u) => u.id === 'u-mem-1');
     expect(viewer).toBeDefined();

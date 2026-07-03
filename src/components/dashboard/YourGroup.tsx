@@ -16,10 +16,16 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-// Leader roles shown as numbered groups under "below" — MEMBER is
-// deliberately excluded here and rendered as a count-only line instead
-// (packet Decision 13: full member list is export-only, not on-screen).
-const BELOW_LEADER_ROLES: UserRole[] = [
+// Roles shown as numbered sections from the viewer's DIRECT reports (user
+// decision 2026-07-03: Your Group shows direct relationships only — a TL sees
+// just their team's members, a GL just their own TLs, the overseer just the
+// branch leaders). MEMBER is included here because a Team Leader's direct
+// reports ARE their team members and should be listed; for higher roles no
+// direct MEMBER children exist, so the section simply doesn't render. The
+// church-wide member total stays a count-only rollup line below (full list is
+// export-only, GL+ — Decision 13).
+const DIRECT_REPORT_ROLES: UserRole[] = [
+  UserRole.MEMBER,
   UserRole.TEAM_LEADER,
   UserRole.GROUP_LEADER,
   UserRole.BRANCH_LEADER,
@@ -34,7 +40,7 @@ interface YourGroupProps {
 export function YourGroup({ viewer, users }: YourGroupProps) {
   const { t, tRole } = useTranslation();
 
-  const { above, lateral, below, memberCount } = useMemo(
+  const { above, lateral, directReports, below, memberCount } = useMemo(
     () => buildYourGroup(viewer, users),
     [viewer, users],
   );
@@ -79,21 +85,27 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
             </div>
           )}
 
-          {lateral.length > 0 && (
+          {/* A member's peers are their team — show them (packet: a converted
+              contact placed on a team sees their fellow members). Leader roles
+              don't list their peers: direct relationships only. */}
+          {viewer.role === UserRole.MEMBER && lateral.length > 0 && (
             <div className="space-y-1.5 border-t border-border pt-3">
               <div className="text-xs font-semibold uppercase text-muted-foreground">
-                {tRole(viewer.role) || ROLE_LABELS[viewer.role]}
+                {t('dash.teamMembers')} ({lateral.length})
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                {lateral.map((u) => (
-                  <span key={u.id}>{u.firstName} {u.lastName}</span>
+              <ol className="space-y-1 text-sm">
+                {lateral.map((u, i) => (
+                  <li key={u.id} className="flex gap-2">
+                    <span className="text-muted-foreground">{i + 1}.</span>
+                    <span>{u.firstName} {u.lastName}</span>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </div>
           )}
 
-          {BELOW_LEADER_ROLES.map((role) => {
-            const list = below.get(role);
+          {DIRECT_REPORT_ROLES.map((role) => {
+            const list = directReports.get(role);
             if (!list || list.length === 0) return null;
             return (
               <div key={role} className="space-y-1.5 border-t border-border pt-3">
