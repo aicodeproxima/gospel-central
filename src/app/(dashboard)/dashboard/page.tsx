@@ -147,7 +147,7 @@ export default function DashboardPage() {
   );
 
   const progressingCount = contacts.filter(
-    (c) => c.pipelineStage === PipelineStage.PROGRESSING,
+    (c) => c.pipelineStage === PipelineStage.POTENTIAL,
   ).length;
 
   const stats: Array<{

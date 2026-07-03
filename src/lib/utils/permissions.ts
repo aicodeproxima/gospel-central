@@ -538,6 +538,21 @@ export function canEditBooking(
   );
 }
 
+/**
+ * Who may set a booking's outcome status (Completed / No Show / Rescheduled) —
+ * 2026-07 overhaul Decision 11: the booking's teacher, its creator (the member
+ * who booked), or a leader whose scope covers the creator/teacher. Same shape
+ * as canEditBooking — an outcome update is a lightweight edit. Kept as its own
+ * helper so the matrix can diverge later without touching call sites.
+ */
+export function canSetBookingStatus(
+  viewer: User,
+  booking: Booking,
+  subtreeUserIds: string[] = [],
+): boolean {
+  return canEditBooking(viewer, booking, subtreeUserIds);
+}
+
 // =============================================================================
 // Reports + audit log
 // =============================================================================

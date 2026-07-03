@@ -66,12 +66,24 @@ const translations: Record<string, Record<string, string>> = {
     'role.overseer': 'Overseer',
     'role.dev': 'Developer',
 
-    // ── Pipeline stages ─────────────────────────────────────────
+    // ── Contact statuses (6, 2026-07 overhaul) ──────────────────
     'stage.first_study': 'First Study',
-    'stage.regular_study': 'Regular Study',
-    'stage.progressing': 'Progressing',
+    'stage.unbaptized': 'Unbaptized',
+    'stage.potential': 'Potential',
     'stage.baptism_ready': 'Baptism Ready',
+    'stage.needs_help': 'Needs Help',
     'stage.baptized': 'Baptized',
+
+    // ── Booking statuses ────────────────────────────────────────
+    'bstatus.bible_study': 'Bible Study',
+    'bstatus.completed': 'Completed Bible Study',
+    'bstatus.no_show': 'No Show',
+    'bstatus.rescheduled': 'Rescheduled',
+    'bstatus.cancelled': 'Cancelled',
+
+    // ── Curriculum sections ─────────────────────────────────────
+    'curriculum.foundation': 'Foundation',
+    'curriculum.growth': 'Growth',
 
     // ── Calendar views ──────────────────────────────────────────
     'cal.day': 'Day',
@@ -96,7 +108,7 @@ const translations: Record<string, Record<string, string>> = {
     'dash.keepGoing': 'Keep going!',
     'dash.prayForFruit': 'Pray for fruit',
     'dash.thisWeek': 'this week',
-    'dash.progressing': 'progressing',
+    'dash.progressing': 'potential',
     'dash.quickAccess': 'Quick Access',
     'dash.bookRooms': 'Book rooms & view schedule',
     'dash.manageContacts': 'Manage your contacts',
@@ -423,12 +435,24 @@ const translations: Record<string, Record<string, string>> = {
     'role.overseer': 'Supervisor',
     'role.dev': 'Desarrollador',
 
-    // ── Pipeline stages ─────────────────────────────────────────
+    // ── Contact statuses (6, 2026-07 overhaul) ──────────────────
     'stage.first_study': 'Primer Estudio',
-    'stage.regular_study': 'Estudio Regular',
-    'stage.progressing': 'Progresando',
+    'stage.unbaptized': 'No Bautizado',
+    'stage.potential': 'Potencial',
     'stage.baptism_ready': 'Listo para Bautismo',
+    'stage.needs_help': 'Necesita Ayuda',
     'stage.baptized': 'Bautizado',
+
+    // ── Booking statuses ────────────────────────────────────────
+    'bstatus.bible_study': 'Estudio Bíblico',
+    'bstatus.completed': 'Estudio Bíblico Completado',
+    'bstatus.no_show': 'No Asistió',
+    'bstatus.rescheduled': 'Reprogramado',
+    'bstatus.cancelled': 'Cancelado',
+
+    // ── Curriculum sections ─────────────────────────────────────
+    'curriculum.foundation': 'Fundamento',
+    'curriculum.growth': 'Crecimiento',
 
     // ── Calendar views ──────────────────────────────────────────
     'cal.day': 'Día',
@@ -453,7 +477,7 @@ const translations: Record<string, Record<string, string>> = {
     'dash.keepGoing': '¡Sigue adelante!',
     'dash.prayForFruit': 'Ora por fruto',
     'dash.thisWeek': 'esta semana',
-    'dash.progressing': 'progresando',
+    'dash.progressing': 'potencial',
     'dash.quickAccess': 'Acceso Rápido',
     'dash.bookRooms': 'Reservar salas y ver horarios',
     'dash.manageContacts': 'Administrar tus contactos',

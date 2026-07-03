@@ -8,11 +8,12 @@ import {
   mockTeacherMetrics,
   mockAuditLog,
 } from './data';
-import { STUDY_SUBJECTS } from './subjects';
+import { getStudyByTitle } from '../lib/curriculum';
 import {
   buildVisibilityScope,
   buildManageableScope,
   canChangeRole,
+  canSetBookingStatus,
   canCreateArea,
   canCreateRoom,
   canCreateUser,
@@ -30,6 +31,8 @@ import {
 } from '../lib/utils/permissions';
 import type { User } from '../lib/types/user';
 import { UserRole } from '../lib/types/user';
+import { PipelineStage } from '../lib/types/contact';
+import { BOOKING_STATUS_CONFIG, type Booking, type BookingStatus } from '../lib/types/booking';
 import { buildOrgTree } from '../lib/utils/org-tree';
 import { API_BASE } from '../lib/api/client';
 
@@ -366,6 +369,138 @@ function findBookingRoomConflict(
     }
   }
   return undefined;
+}
+
+/**
+ * Side-effects of a booking transitioning INTO 'completed' (2026-07 overhaul,
+ * Decision 9/11). Moved here from the booking POST handler — a study counts
+ * toward the contact card / teacher log ONLY once someone marks it Completed.
+ * Also runs the one-way auto-promotion: First Study → Unbaptized once the
+ * contact has 2+ completed studies (manual stage changes afterwards are
+ * always respected — this never fires again once the contact leaves
+ * first_study).
+ */
+function applyStudyCompletion(
+  booking: (typeof bookingsState)[number],
+  fallbackActorId?: string,
+): void {
+  const contactId = typeof booking.contactId === 'string' ? booking.contactId : undefined;
+  const isStudy = booking.activity === 'bible_study';
+  if (!contactId || !isStudy) return;
+  const cidx = contactsState.findIndex((c) => c.id === contactId);
+  if (cidx === -1) return;
+  const c = contactsState[cidx];
+  const when = typeof booking.startTime === 'string' ? booking.startTime : new Date().toISOString();
+  const raw = (booking as unknown as { subjectsStudied?: unknown }).subjectsStudied;
+  const sessionSubjects = Array.isArray(raw)
+    ? (raw as unknown[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim() !== '',
+      )
+    : typeof booking.subject === 'string' && booking.subject.trim() !== ''
+      ? [booking.subject]
+      : [];
+  const primary = sessionSubjects[0];
+  const primaryStep = primary ? getStudyByTitle(primary)?.number : undefined;
+  const actor = resolveActor(
+    typeof booking.teacherId === 'string' ? booking.teacherId : fallbackActorId,
+  );
+  const sessionEntry = {
+    date: when,
+    action: 'session' as const,
+    details: sessionSubjects.length
+      ? `Completed Bible study — ${sessionSubjects.join(', ')}`
+      : 'Completed Bible study session (subject TBD)',
+    userId: actor.id,
+    userName: actor.name,
+  };
+  contactsState[cidx] = {
+    ...c,
+    totalSessions: (c.totalSessions ?? 0) + 1,
+    lastSessionDate: when,
+    currentlyStudying: true,
+    // Only touch the study fields when a subject was actually chosen
+    // (Add-subject-later leaves them as-is but still logs the session).
+    ...(primary
+      ? {
+          currentSubject: primary,
+          ...(primaryStep ? { currentStep: primaryStep } : {}),
+          subjectsStudied: Array.from(
+            new Set([...(c.subjectsStudied ?? []), ...sessionSubjects]),
+          ),
+        }
+      : {}),
+    timeline: [...(c.timeline ?? []), sessionEntry],
+    updatedAt: new Date().toISOString(),
+  };
+  // Auto-promotion (packet: Contact details > Status): once 2 studies have
+  // been logged for a First Study contact, promote to Unbaptized. One-way.
+  const bumped = contactsState[cidx];
+  if (bumped.pipelineStage === PipelineStage.FIRST_STUDY && (bumped.totalSessions ?? 0) >= 2) {
+    contactsState[cidx] = {
+      ...bumped,
+      pipelineStage: PipelineStage.UNBAPTIZED,
+      timeline: [
+        ...(bumped.timeline ?? []),
+        {
+          date: new Date().toISOString(),
+          action: 'stage_change' as const,
+          details: 'Auto-promoted First Study → Unbaptized (2 completed studies)',
+          userId: actor.id,
+          userName: actor.name,
+        },
+      ],
+      updatedAt: new Date().toISOString(),
+    };
+    mockAuditLog.push({
+      id: 'al-' + Date.now() + '-ap',
+      action: 'update',
+      entityType: 'contact',
+      entityId: bumped.id,
+      userId: actor.id,
+      userName: actor.name,
+      details: `Auto-promoted "${bumped.firstName} ${bumped.lastName}" First Study → Unbaptized after 2 completed studies`,
+      before: { pipelineStage: PipelineStage.FIRST_STUDY },
+      after: { pipelineStage: PipelineStage.UNBAPTIZED },
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+/**
+ * Reverse of applyStudyCompletion for a booking leaving 'completed' (status
+ * correction, or cancel/delete of an already-completed study). Decrements the
+ * session counter and notes the correction on the timeline. Deliberately does
+ * NOT remove subjectsStudied or demote the stage — subjects may genuinely have
+ * been covered, and auto-promotion is one-way by design.
+ */
+function reverseStudyCompletion(
+  booking: (typeof bookingsState)[number],
+  fallbackActorId?: string,
+): void {
+  const contactId = typeof booking.contactId === 'string' ? booking.contactId : undefined;
+  const isStudy = booking.activity === 'bible_study';
+  if (!contactId || !isStudy) return;
+  const cidx = contactsState.findIndex((c) => c.id === contactId);
+  if (cidx === -1) return;
+  const c = contactsState[cidx];
+  const actor = resolveActor(
+    typeof booking.teacherId === 'string' ? booking.teacherId : fallbackActorId,
+  );
+  contactsState[cidx] = {
+    ...c,
+    totalSessions: Math.max(0, (c.totalSessions ?? 0) - 1),
+    timeline: [
+      ...(c.timeline ?? []),
+      {
+        date: new Date().toISOString(),
+        action: 'updated' as const,
+        details: `Study completion reverted for "${booking.title}"`,
+        userId: actor.id,
+        userName: actor.name,
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export const handlers = [
@@ -961,6 +1096,11 @@ export const handlers = [
     const newBooking = {
       id: 'b' + Date.now(),
       ...body,
+      // 2026-07 overhaul Decision 11: every new booking starts as scheduled
+      // ('bible_study'); outcome statuses are set later via PATCH :id/status.
+      // Forced AFTER the body spread so a client can't create pre-Completed
+      // bookings (that would bypass the status-gated metrics).
+      status: 'bible_study',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as typeof bookingsState[number];
@@ -992,68 +1132,11 @@ export const handlers = [
         timestamp: newBooking.createdAt,
       });
     }
-    // CONT-6: when a Bible-study booking is created with a contactId,
-    // bump that contact's session counters so the pipeline reflects the
-    // session in real time. Mirrored on cancel below.
-    // STUDY-1: also record the subject(s) studied this session onto the
-    // contact card (subjectsStudied + currentStep/currentSubject) and append
-    // a 'session' timeline entry, so a booking made through the calendar
-    // updates the contact's card + timeline. (Mike's backend mirrors this.)
-    const contactId = typeof body.contactId === 'string' ? body.contactId : undefined;
-    const isStudy = typeof body.activity === 'string' && body.activity === 'bible_study';
-    if (contactId && isStudy) {
-      const cidx = contactsState.findIndex((c) => c.id === contactId);
-      if (cidx !== -1) {
-        const c = contactsState[cidx];
-        const when = typeof body.startTime === 'string' ? body.startTime : new Date().toISOString();
-        const sessionSubjects = Array.isArray(body.subjectsStudied)
-          ? (body.subjectsStudied as unknown[]).filter(
-              (s): s is string => typeof s === 'string' && s.trim() !== '',
-            )
-          : [];
-        const primary = sessionSubjects[0];
-        const primaryStep = primary
-          ? STUDY_SUBJECTS.find((s) => s.title === primary)?.step
-          : undefined;
-        const studyActor = resolveActor(
-          typeof body.teacherId === 'string'
-            ? body.teacherId
-            : typeof body.actorId === 'string'
-              ? body.actorId
-              : typeof body.userId === 'string'
-                ? (body.userId as string)
-                : undefined,
-        );
-        const sessionEntry = {
-          date: when,
-          action: 'session' as const,
-          details: sessionSubjects.length
-            ? `Bible study — ${sessionSubjects.join(', ')}`
-            : 'Bible study session (subject TBD)',
-          userId: studyActor.id,
-          userName: studyActor.name,
-        };
-        contactsState[cidx] = {
-          ...c,
-          totalSessions: (c.totalSessions ?? 0) + 1,
-          lastSessionDate: when,
-          currentlyStudying: true,
-          // Only touch the study fields when a subject was actually chosen
-          // (Add-subject-later leaves them as-is but still logs the session).
-          ...(primary
-            ? {
-                currentSubject: primary,
-                ...(primaryStep ? { currentStep: primaryStep } : {}),
-                subjectsStudied: Array.from(
-                  new Set([...(c.subjectsStudied ?? []), ...sessionSubjects]),
-                ),
-              }
-            : {}),
-          timeline: [...(c.timeline ?? []), sessionEntry],
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    }
+    // 2026-07 overhaul (Decision 9/11): contact side-effects (totalSessions,
+    // subjectsStudied, timeline) NO LONGER fire at creation — they fire when
+    // the booking transitions to 'completed' (PATCH :id/status below). This
+    // is the structural fix for "a future-dated study already counted toward
+    // the teacher's log and the contact card". (Mike's backend mirrors this.)
     return HttpResponse.json(newBooking, { status: 201 });
   }),
 
@@ -1111,6 +1194,61 @@ export const handlers = [
     return HttpResponse.json(updated);
   }),
 
+  // 2026-07 overhaul (Decision 11): set a booking's outcome status.
+  // 'cancelled' is NOT settable here — it goes through /cancel (with reason)
+  // so the cancel/restore lifecycle and slot-freeing stay in one place.
+  // Metrics side-effects fire exactly on the edges into/out of 'completed'.
+  http.patch(`${API}/bookings/:id/status`, async ({ request, params }) => {
+    const body = (await request.json().catch(() => ({}))) as {
+      status?: string;
+      actorId?: string;
+    };
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
+    const idx = bookingsState.findIndex((b) => b.id === params.id);
+    if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    const booking = bookingsState[idx];
+    const allowed = ['bible_study', 'completed', 'no_show', 'rescheduled'];
+    if (!body.status || !allowed.includes(body.status)) {
+      return validationError(
+        `status must be one of: ${allowed.join(', ')} (cancel via POST /bookings/:id/cancel)`,
+      );
+    }
+    if (booking.status === 'cancelled') {
+      return validationError('Booking is cancelled — restore it before setting a status');
+    }
+    if (!canSetBookingStatus(viewer, booking as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can set booking status',
+      );
+    }
+    const prev = (booking.status ?? 'bible_study') as string;
+    if (prev === body.status) return HttpResponse.json(booking);
+    const updated = {
+      ...booking,
+      status: body.status,
+      updatedAt: new Date().toISOString(),
+    } as typeof bookingsState[number];
+    bookingsState[idx] = updated;
+    if (body.status === 'completed') applyStudyCompletion(updated, viewer.id);
+    else if (prev === 'completed') reverseStudyCompletion(updated, viewer.id);
+    const label =
+      BOOKING_STATUS_CONFIG[body.status as BookingStatus]?.label ?? body.status;
+    mockAuditLog.push({
+      id: 'al-' + Date.now() + '-bs',
+      action: 'update',
+      entityType: 'booking',
+      entityId: updated.id,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
+      details: `Set booking "${updated.title}" status to ${label}`,
+      before: { status: prev },
+      after: { status: body.status },
+      timestamp: new Date().toISOString(),
+    });
+    return HttpResponse.json(updated);
+  }),
+
   // CAL-5: convert hard-delete to soft-cancel so booking history is
   // preserved and the audit trail captures the deletion. Universal rule
   // #7 in PERMISSIONS.md ("Soft delete only") applies.
@@ -1119,6 +1257,9 @@ export const handlers = [
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = bookingsState[idx];
+    // Deleting an already-Completed study takes its session back off the
+    // contact card / teacher log (defensive guard for the status-gated metrics).
+    if (before.status === 'completed') reverseStudyCompletion(before, body.actorId);
     const updated = {
       ...before,
       status: 'cancelled',
@@ -1149,6 +1290,8 @@ export const handlers = [
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    // Cancelling an already-Completed study reverses its metrics side-effects.
+    if (booking.status === 'completed') reverseStudyCompletion(booking);
     const updated = {
       ...booking,
       status: 'cancelled',
@@ -1178,7 +1321,9 @@ export const handlers = [
     const booking = bookingsState[idx];
     const updated = {
       ...booking,
-      status: 'active',
+      // Restore always lands back on 'bible_study' (scheduled) — if the study
+      // actually happened, someone re-marks it Completed explicitly.
+      status: 'bible_study',
       cancelledAt: undefined,
       cancelReason: undefined,
       cancelledBy: undefined,
@@ -1217,7 +1362,7 @@ export const handlers = [
     // Sort
     const dir = sortDir === 'desc' ? -1 : 1;
     const stageOrder: Record<string, number> = {
-      first_study: 0, regular_study: 1, progressing: 2, baptism_ready: 3, baptized: 4,
+      first_study: 0, unbaptized: 1, potential: 2, baptism_ready: 3, needs_help: 4, baptized: 5,
     };
     filtered.sort((a, b) => {
       switch (sort) {

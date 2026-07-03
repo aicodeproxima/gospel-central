@@ -242,7 +242,7 @@ export default function ContactsPage() {
 
     // Sort
     const stageOrder: Record<string, number> = {
-      first_study: 0, regular_study: 1, progressing: 2, baptism_ready: 3, baptized: 4,
+      first_study: 0, unbaptized: 1, potential: 2, baptism_ready: 3, needs_help: 4, baptized: 5,
     };
     result = [...result].sort((a, b) => {
       switch (sortKey) {

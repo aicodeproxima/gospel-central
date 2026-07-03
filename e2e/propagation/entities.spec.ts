@@ -58,8 +58,8 @@ test('E1 tag toggle (admin) → row Tags badge + reports tag_grant/revoke row', 
     roleAfter = (after.match(/team leader|member|group leader|branch leader|overseer|dev/i) || [null])[0];
     // the toggled tag label appears (grant) or disappears (revoke) in the row Tags cell
     const lbl = (pillLabel || '').replace(/[+×x]\s*/i, '').trim();
-    const inBefore = lbl && before.includes(lbl);
-    const inAfter = lbl && after.includes(lbl);
+    const inBefore = Boolean(lbl && before.includes(lbl));
+    const inAfter = Boolean(lbl && after.includes(lbl));
     rowBadgeChanged = wasOn ? (inBefore && !inAfter) : (!inBefore && inAfter);
 
     // Audit-row reflection: the UI surfaces are NOT reliably live-observable here —

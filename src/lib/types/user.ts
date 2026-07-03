@@ -85,6 +85,9 @@ export function isTeacher(user: Pick<User, 'tags'>): boolean {
 // User
 // ---------------------------------------------------------------------------
 
+/** Brother/Sister tag (2026-07 overhaul). Drives booking-card color (blue/pink). */
+export type UserGender = 'brother' | 'sister';
+
 export interface User {
   id: string;
   username: string;
@@ -93,6 +96,13 @@ export interface User {
   email: string;
   phone?: string;
   role: UserRole;
+  /**
+   * Brother/Sister tag. Seeded by first-name inference; user-editable in
+   * Settings (and admin edit dialog). Optional so legacy fixtures compile —
+   * display code must go through `genderOf()` in
+   * `src/lib/utils/booking-display.ts`, which falls back to name inference.
+   */
+  gender?: UserGender;
   /**
    * Capability flags. Empty array if no tags. See KNOWN_TAGS for the seeded
    * baseline. Replaces the old `Teacher` role.

@@ -71,7 +71,7 @@ import type {
 } from '@/lib/types';
 import type { TeacherMetrics } from '@/lib/types/user';
 import { pickAvatarForUser, isFemaleFirstName } from '@/lib/avatars';
-import { STUDY_SUBJECTS } from './subjects';
+import { CURRICULUM } from '@/lib/curriculum';
 import { now as mockNow, nowMs as mockNowMs } from './mock-clock';
 
 // ---------------------------------------------------------------------------
@@ -549,6 +549,9 @@ for (const u of _rawUsers) {
     BIBLICAL_NAMES.find(
       (n) => n.first === u.firstName && (n.last === '' || n.last === u.lastName),
     )?.female ?? isFemaleFirstName(u.firstName);
+  // 2026-07 overhaul: Brother/Sister tag on every account, inferred from the
+  // name (user-editable in Settings). Drives booking-card color (Decision 4).
+  u.gender = isFemale ? 'sister' : 'brother';
   u.avatarUrl = pickAvatarForUser(u.role, u.id, isFemale);
 }
 export const scenarioUsers: User[] = _rawUsers;
@@ -652,52 +655,50 @@ const teacherPool = [
 
 function historicalBaseline(stage: PipelineStage): number {
   switch (stage) {
-    case PipelineStage.FIRST_STUDY:    return 1 + Math.floor(rand() * 3);
-    case PipelineStage.REGULAR_STUDY:  return 5 + Math.floor(rand() * 8);
-    case PipelineStage.PROGRESSING:    return 15 + Math.floor(rand() * 11);
+    case PipelineStage.FIRST_STUDY:    return 1 + Math.floor(rand() * 2);
+    case PipelineStage.UNBAPTIZED:     return 5 + Math.floor(rand() * 8);
+    case PipelineStage.POTENTIAL:      return 15 + Math.floor(rand() * 11);
+    case PipelineStage.NEEDS_HELP:     return 8 + Math.floor(rand() * 8);
     case PipelineStage.BAPTISM_READY:  return 25 + Math.floor(rand() * 11);
     case PipelineStage.BAPTIZED:       return 30 + Math.floor(rand() * 21);
     default:                           return 0;
   }
 }
 
+/**
+ * Curriculum progress model (2026-07 overhaul): a contact's history is a
+ * contiguous PREFIX of the 35-study curriculum — `prefixLen` studies done,
+ * currently on study `prefixLen + 1`. Ranges per status keep the G2 pipeline
+ * buckets (studies 1–4 / 5–10, Foundation-complete, in-Growth) realistically
+ * populated. BAPTISM_READY+ always has Foundation (1–12) complete.
+ */
+function prefixLenForStage(stage: PipelineStage, seed: number): number {
+  switch (stage) {
+    case PipelineStage.FIRST_STUDY:   return 1 + (seed % 3);   // 1–3
+    case PipelineStage.UNBAPTIZED:    return 3 + (seed % 6);   // 3–8
+    case PipelineStage.POTENTIAL:     return 8 + (seed % 7);   // 8–14
+    case PipelineStage.NEEDS_HELP:    return 5 + (seed % 8);   // 5–12 (stalled)
+    case PipelineStage.BAPTISM_READY: return 12 + (seed % 8);  // 12–19
+    case PipelineStage.BAPTIZED:      return CURRICULUM.length;
+    default:                          return 0;
+  }
+}
+
 function subjectForStage(stage: PipelineStage, seed: number) {
-  const stepForStage: Record<PipelineStage, number[]> = {
-    [PipelineStage.FIRST_STUDY]:   [1],
-    [PipelineStage.REGULAR_STUDY]: [1, 2],
-    [PipelineStage.PROGRESSING]:   [2, 3],
-    [PipelineStage.BAPTISM_READY]: [4, 5],
-    [PipelineStage.BAPTIZED]:      [5],
-  };
-  const validSteps = stepForStage[stage];
-  const pool = STUDY_SUBJECTS.filter((s) => validSteps.includes(s.step));
-  return pool[seed % pool.length];
+  const len = prefixLenForStage(stage, seed);
+  return CURRICULUM[Math.min(len, CURRICULUM.length - 1)];
 }
 
 function subjectsStudiedForStage(stage: PipelineStage, seed: number): string[] {
-  const all = STUDY_SUBJECTS;
-  const byStep = (step: number) => all.filter((s) => s.step === step).map((s) => s.title);
-  switch (stage) {
-    case PipelineStage.FIRST_STUDY:
-      return byStep(1).slice(0, 1 + (seed % 3));
-    case PipelineStage.REGULAR_STUDY:
-      return [...byStep(1), ...byStep(2).slice(0, 2 + (seed % 4))];
-    case PipelineStage.PROGRESSING:
-      return [...byStep(1), ...byStep(2), ...byStep(3).slice(0, 3 + (seed % 5))];
-    case PipelineStage.BAPTISM_READY:
-      return [...byStep(1), ...byStep(2), ...byStep(3), ...byStep(4), ...byStep(5).slice(0, 2 + (seed % 4))];
-    case PipelineStage.BAPTIZED:
-      return all.map((s) => s.title);
-    default:
-      return [];
-  }
+  return CURRICULUM.slice(0, prefixLenForStage(stage, seed)).map((s) => s.title);
 }
 
 function stageForIndex(i: number): PipelineStage {
   if (i < 4)  return PipelineStage.BAPTIZED;
   if (i < 10) return PipelineStage.BAPTISM_READY;
-  if (i < 22) return PipelineStage.PROGRESSING;
-  if (i < 40) return PipelineStage.REGULAR_STUDY;
+  if (i < 22) return PipelineStage.POTENTIAL;
+  if (i < 36) return PipelineStage.UNBAPTIZED;
+  if (i < 40) return PipelineStage.NEEDS_HELP;
   return PipelineStage.FIRST_STUDY;
 }
 
@@ -734,14 +735,16 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     userName: memberName,
   });
 
+  // NEEDS_HELP is not part of the linear journey — those contacts progress to
+  // Unbaptized normally, then get manually flagged Needs Help (see below).
   const stageOrder: PipelineStage[] = [
     PipelineStage.FIRST_STUDY,
-    PipelineStage.REGULAR_STUDY,
-    PipelineStage.PROGRESSING,
+    PipelineStage.UNBAPTIZED,
+    PipelineStage.POTENTIAL,
     PipelineStage.BAPTISM_READY,
     PipelineStage.BAPTIZED,
   ];
-  const stageIdx = stageOrder.indexOf(stage);
+  const stageIdx = stage === PipelineStage.NEEDS_HELP ? 1 : stageOrder.indexOf(stage);
   for (let s = 1; s <= stageIdx; s++) {
     const stageDate = new Date(createdDate.getTime() + s * 45 * DAY + Math.floor(rand() * 30 * DAY));
     const cfg = PIPELINE_STAGE_CONFIG[stageOrder[s]];
@@ -749,6 +752,15 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
       date: stageDate.toISOString(),
       action: 'stage_change',
       details: `Pipeline stage changed to ${cfg.label}`,
+      userId: member.id,
+      userName: memberName,
+    });
+  }
+  if (stage === PipelineStage.NEEDS_HELP) {
+    timeline.push({
+      date: new Date(createdDate.getTime() + 120 * DAY + Math.floor(rand() * 30 * DAY)).toISOString(),
+      action: 'stage_change',
+      details: 'Pipeline stage changed to Needs Help',
       userId: member.id,
       userName: memberName,
     });
@@ -792,12 +804,12 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
     totalSessions: historicalBaseline(stage),
     lastSessionDate: new Date(mockNowMs() - Math.floor(rand() * 10) * DAY).toISOString(),
     currentlyStudying: isStudying,
-    currentStep: isStudying ? subject.step : undefined,
+    currentStep: isStudying ? subject.number : undefined,
     currentSubject: isStudying ? subject.title : undefined,
     subjectsStudied: subjectsStudiedForStage(stage, i),
     notes: isBaptized
       ? `Baptized after completing the curriculum. ${fullContactName} is now an active member of ${branch.firstName} ${branch.lastName}'s branch.`
-      : `Currently on Step ${subject.step} — ${subject.title}`,
+      : `Currently on Study ${subject.number} — ${subject.title}`,
     timeline,
     createdBy: member.id,
     createdAt: '2024-06-01T00:00:00Z',
@@ -891,19 +903,33 @@ interface BookingSpec {
   participants: string[];
 }
 
-function tryAddBooking(spec: BookingSpec): boolean {
+function tryAddBooking(spec: BookingSpec): Booking | null {
   const start = new Date(spec.startTime);
   const end = new Date(spec.endTime);
-  if (overlapsBlockedSlot(spec.areaId, start, end)) return false;
-  if (!isFree(spec.roomId, start, end)) return false;
+  if (overlapsBlockedSlot(spec.areaId, start, end)) return null;
+  if (!isFree(spec.roomId, start, end)) return null;
   markOccupied(spec.roomId, start, end);
-  bookings.push({
+  // 2026-07 overhaul (Decision 9): past bookings seed as Completed (with a
+  // sprinkle of No Show / Rescheduled for realism), future ones as scheduled
+  // ('bible_study'). Metrics derive ONLY from Completed — seed and runtime
+  // agree by construction.
+  let status: BookingStatus = BookingStatus.BIBLE_STUDY;
+  if (end.getTime() < mockNowMs()) {
+    const r = rand();
+    status =
+      r < 0.08 ? BookingStatus.NO_SHOW
+      : r < 0.14 ? BookingStatus.RESCHEDULED
+      : BookingStatus.COMPLETED;
+  }
+  const booking: Booking = {
     id: `b-${++bookingCounter}`,
     createdAt: today(),
     updatedAt: today(),
+    status,
     ...spec,
-  });
-  return true;
+  } as Booking;
+  bookings.push(booking);
+  return booking;
 }
 
 function findFreeTime(
@@ -1121,7 +1147,9 @@ studyingContacts.forEach((contact, i) => {
             contactId: contact.id,
             participants: [teacher.id],
           });
-          if (added) {
+          // Status-gated metrics (Decision 9): only a COMPLETED session
+          // counts toward the contact's totals — future/scheduled ones don't.
+          if (added && added.status === BookingStatus.COMPLETED) {
             contact.totalSessions += 1;
             contact.lastSessionDate = slot.start.toISOString();
           }
@@ -1140,17 +1168,20 @@ const cancelReasons = [
   'Contact rescheduled to next week',
   'Room unavailable due to maintenance',
 ];
-for (let i = 0; i < Math.min(3, bookings.length); i++) {
-  const idx = 5 + i * 8;
-  if (bookings[idx]) {
-    bookings[idx] = {
-      ...bookings[idx],
-      status: BookingStatus.CANCELLED,
-      cancelledAt: new Date(mockNowMs() - (3 - i) * 86400000).toISOString(),
-      cancelReason: cancelReasons[i],
-      cancelledBy: uMichael.id,
-    } as Booking;
-  }
+// Only cancel still-scheduled (future) bookings — cancelling a seeded
+// Completed one would leave a phantom +1 on its contact's totals.
+const cancellable = bookings
+  .map((b, idx) => ({ b, idx }))
+  .filter(({ b }) => b.status === BookingStatus.BIBLE_STUDY);
+for (let i = 0; i < Math.min(3, cancellable.length); i++) {
+  const { idx } = cancellable[(5 + i * 8) % cancellable.length];
+  bookings[idx] = {
+    ...bookings[idx],
+    status: BookingStatus.CANCELLED,
+    cancelledAt: new Date(mockNowMs() - (3 - i) * 86400000).toISOString(),
+    cancelReason: cancelReasons[i],
+    cancelledBy: uMichael.id,
+  } as Booking;
 }
 
 export const scenarioBookings: Booking[] = bookings;

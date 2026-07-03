@@ -27,6 +27,15 @@ export const bookingsApi = {
   restoreBooking(id: string) {
     return api.post<Booking>(`/bookings/${id}/restore`);
   },
+  /**
+   * 2026-07 overhaul (Decision 11): set a booking's outcome status
+   * ('bible_study' | 'completed' | 'no_show' | 'rescheduled'). Cancelled is
+   * excluded — use cancelBooking/restoreBooking for the cancel lifecycle.
+   * Server gates via canSetBookingStatus (teacher | creator | leader-in-scope).
+   */
+  setBookingStatus(id: string, status: 'bible_study' | 'completed' | 'no_show' | 'rescheduled') {
+    return api.patch<Booking>(`/bookings/${id}/status`, { status });
+  },
 
   // Areas (a.k.a. branches' physical locations) — admin CRUD.
   /**

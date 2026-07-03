@@ -1,7 +1,54 @@
+/**
+ * Booking lifecycle + outcome status (2026-07 overhaul, Decision 11).
+ * BIBLE_STUDY replaces the old ACTIVE ('active') as the scheduled default —
+ * non-study activities carry it too and display as "Scheduled".
+ * CANCELLED keeps its lifecycle meaning: a cancelled booking frees its slot.
+ * Metrics (teacher logs, contact study counts) derive ONLY from COMPLETED.
+ */
 export enum BookingStatus {
-  ACTIVE = 'active',
+  BIBLE_STUDY = 'bible_study',
+  COMPLETED = 'completed',
+  NO_SHOW = 'no_show',
+  RESCHEDULED = 'rescheduled',
   CANCELLED = 'cancelled',
 }
+
+/** Packet-locked status text colors: yellow / green / gray / teal (+ red for cancelled). */
+export const BOOKING_STATUS_CONFIG: Record<
+  BookingStatus,
+  { label: string; nonStudyLabel: string; color: string; order: number }
+> = {
+  [BookingStatus.BIBLE_STUDY]: {
+    label: 'Bible Study',
+    nonStudyLabel: 'Scheduled',
+    color: 'text-yellow-600 dark:text-yellow-400',
+    order: 0,
+  },
+  [BookingStatus.COMPLETED]: {
+    label: 'Completed Bible Study',
+    nonStudyLabel: 'Completed',
+    color: 'text-green-600 dark:text-green-400',
+    order: 1,
+  },
+  [BookingStatus.NO_SHOW]: {
+    label: 'No Show',
+    nonStudyLabel: 'No Show',
+    color: 'text-gray-500 dark:text-gray-400',
+    order: 2,
+  },
+  [BookingStatus.RESCHEDULED]: {
+    label: 'Rescheduled',
+    nonStudyLabel: 'Rescheduled',
+    color: 'text-teal-600 dark:text-teal-400',
+    order: 3,
+  },
+  [BookingStatus.CANCELLED]: {
+    label: 'Cancelled',
+    nonStudyLabel: 'Cancelled',
+    color: 'text-red-600 dark:text-red-400',
+    order: 4,
+  },
+};
 
 export enum BookingType {
   UNBAPTIZED_CONTACT = 'unbaptized_contact',
@@ -13,6 +60,15 @@ export enum BookingType {
   TEAM_ACTIVITIES = 'team_activities',
 }
 
+/**
+ * @deprecated FOR DISPLAY (2026-07 overhaul, Decision C). BookingType remains
+ * internal storage (activity group × mode × baptism), but UI colors/labels are
+ * being dismantled phase-by-phase in favor of: teacher-gender card color +
+ * baptism top-border + booking status + contact status (see
+ * `src/lib/utils/booking-display.ts`). Do NOT add new display consumers; the
+ * Phase 8 close-out sweep expects usages only in booking.ts, the wizard
+ * compose path, and the seed.
+ */
 export const BOOKING_TYPE_CONFIG: Record<
   BookingType,
   { label: string; color: string; bgColor: string; icon: string; priority: number }

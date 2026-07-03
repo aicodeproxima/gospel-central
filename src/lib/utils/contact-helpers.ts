@@ -1,4 +1,5 @@
 import type { Contact, User } from '@/lib/types';
+import { CURRICULUM_STUDY_COUNT } from '@/lib/curriculum';
 
 /** Sort keys shared by the Contacts page Sort dropdown and the Table view headers. */
 export type ContactSortKey = 'name' | 'sessions' | 'stage' | 'updated';
@@ -30,8 +31,9 @@ export function initialsOf(firstName?: string, lastName?: string): string {
   return `${a ? a[0]! : ''}${b ? b[0]! : ''}`.toUpperCase() || '•';
 }
 
-/** Bible-study curriculum has 5 numbered steps. "Step 3/5" while studying, else null. */
-export const STUDY_STEP_COUNT = 5;
+/** "Step 17/35" while studying, else null. currentStep = the contact's current
+ *  study number in the 35-study curriculum (see src/lib/curriculum.ts). */
+export const STUDY_STEP_COUNT = CURRICULUM_STUDY_COUNT;
 export function stepLabel(contact: Contact): string | null {
   if (contact.currentStep && contact.currentStep > 0) {
     return `Step ${Math.min(contact.currentStep, STUDY_STEP_COUNT)}/${STUDY_STEP_COUNT}`;

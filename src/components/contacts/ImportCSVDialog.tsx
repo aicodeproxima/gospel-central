@@ -73,9 +73,10 @@ export function ImportCSVDialog({ open, onClose, onComplete }: ImportCSVDialogPr
         // Map stage string to enum
         let stage = PipelineStage.FIRST_STUDY;
         const stageStr = (row['Stage'] || row['Pipeline Stage'] || '').toLowerCase();
-        if (stageStr.includes('regular')) stage = PipelineStage.REGULAR_STUDY;
-        else if (stageStr.includes('progress')) stage = PipelineStage.PROGRESSING;
+        if (stageStr.includes('unbaptized') || stageStr.includes('regular')) stage = PipelineStage.UNBAPTIZED;
+        else if (stageStr.includes('potential') || stageStr.includes('progress')) stage = PipelineStage.POTENTIAL;
         else if (stageStr.includes('ready')) stage = PipelineStage.BAPTISM_READY;
+        else if (stageStr.includes('help')) stage = PipelineStage.NEEDS_HELP;
         else if (stageStr.includes('baptized')) stage = PipelineStage.BAPTIZED;
 
         await contactsApi.createContact({

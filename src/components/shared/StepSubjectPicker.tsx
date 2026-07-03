@@ -5,7 +5,11 @@ import { Check, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { PredictiveInput } from './PredictiveInput';
-import { STUDY_SUBJECTS } from '@/mocks/subjects';
+import {
+  CURRICULUM,
+  CURRICULUM_SECTION_CONFIG,
+  type CurriculumSection,
+} from '@/lib/curriculum';
 
 interface StepSubjectPickerProps {
   /** Currently selected subject titles */
@@ -16,36 +20,28 @@ interface StepSubjectPickerProps {
   placeholder?: string;
 }
 
-/**
- * Multi-select picker for the 50 Bible study subjects.
- * - Step 1-5 tabs
- * - Each subject is a toggle badge (click to add/remove)
- * - "Select all" button per step toggles all 10 subjects in that step
- * - Free-text predictive input for custom subjects
- * - Selected count badge shows total
- */
-/** Step 6 is TRE internally — show a distinct label in the tab bar. */
-const STEP_LABELS: Record<number, string> = {
-  1: 'Step 1',
-  2: 'Step 2',
-  3: 'Step 3',
-  4: 'Step 4',
-  5: 'Step 5',
-  6: 'TRE',
-};
-const STEP_IDS = [1, 2, 3, 4, 5, 6];
+const SECTION_IDS: CurriculumSection[] = ['foundation', 'growth'];
 
+/**
+ * Multi-select picker for the 35-study curriculum (src/lib/curriculum.ts).
+ * - Foundation (1–12) / Growth (13–35) tabs
+ * - Each study is a toggle badge; selected fills FIXED blue (Foundation) or
+ *   purple (Growth) regardless of theme, with white text for readability
+ *   (packet: Contact details > Primary Curriculum)
+ * - "Select all" per section
+ * - Free-text predictive input for custom subjects
+ */
 export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeholder }: StepSubjectPickerProps) {
-  const [activeStep, setActiveStep] = useState<number>(1);
+  const [activeSection, setActiveSection] = useState<CurriculumSection>('foundation');
   const [query, setQuery] = useState('');
 
-  const stepSubjects = useMemo(
-    () => STUDY_SUBJECTS.filter((s) => s.step === activeStep),
-    [activeStep],
+  const sectionStudies = useMemo(
+    () => CURRICULUM.filter((s) => s.section === activeSection),
+    [activeSection],
   );
 
   const allTitles = useMemo(
-    () => [...STUDY_SUBJECTS.map((s) => s.title), ...extraSubjects],
+    () => [...CURRICULUM.map((s) => s.title), ...extraSubjects],
     [extraSubjects],
   );
 
@@ -58,16 +54,14 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
     onChange(Array.from(next));
   };
 
-  const allInStepSelected = stepSubjects.every((s) => selectedSet.has(s.title));
+  const allInSectionSelected = sectionStudies.every((s) => selectedSet.has(s.title));
 
-  const toggleSelectAllInStep = () => {
+  const toggleSelectAllInSection = () => {
     const next = new Set(selectedSet);
-    if (allInStepSelected) {
-      // Remove all from this step
-      stepSubjects.forEach((s) => next.delete(s.title));
+    if (allInSectionSelected) {
+      sectionStudies.forEach((s) => next.delete(s.title));
     } else {
-      // Add all from this step
-      stepSubjects.forEach((s) => next.add(s.title));
+      sectionStudies.forEach((s) => next.add(s.title));
     }
     onChange(Array.from(next));
   };
@@ -96,8 +90,8 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                // If the query matches an existing subject, toggle it; else add as custom
-                const match = STUDY_SUBJECTS.find(
+                // If the query matches a curriculum study, toggle it; else add as custom
+                const match = CURRICULUM.find(
                   (s) => s.title.toLowerCase() === query.trim().toLowerCase(),
                 );
                 if (match) toggleSubject(match.title);
@@ -130,33 +124,36 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
         </div>
       )}
 
-      {/* Step tabs + Select all */}
+      {/* Section tabs + Select all */}
       <div className="flex flex-wrap items-center gap-2">
-        {STEP_IDS.map((step) => (
-          <button
-            key={step}
-            type="button"
-            onClick={() => setActiveStep(step)}
-            className={cn(
-              'rounded-md border px-3 py-1.5 text-sm font-medium transition-all',
-              activeStep === step
-                ? step === 6
-                  ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
-                  : 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
-            )}
-          >
-            {STEP_LABELS[step]}
-          </button>
-        ))}
+        {SECTION_IDS.map((section) => {
+          const config = CURRICULUM_SECTION_CONFIG[section];
+          return (
+            <button
+              key={section}
+              type="button"
+              onClick={() => setActiveSection(section)}
+              className={cn(
+                'rounded-md border px-3 py-1.5 text-sm font-medium transition-all',
+                activeSection === section
+                  ? section === 'foundation'
+                    ? 'border-blue-500/60 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    : 'border-purple-500/60 bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                  : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+              )}
+            >
+              {config.label} ({config.range})
+            </button>
+          );
+        })}
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={toggleSelectAllInStep}
+          onClick={toggleSelectAllInSection}
           className="ml-auto gap-1.5 h-8 text-xs"
         >
-          {allInStepSelected ? (
+          {allInSectionSelected ? (
             <>
               <CheckSquare className="h-3.5 w-3.5" />
               Deselect all
@@ -164,30 +161,34 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
           ) : (
             <>
               <Square className="h-3.5 w-3.5" />
-              Select all in {STEP_LABELS[activeStep]}
+              Select all in {CURRICULUM_SECTION_CONFIG[activeSection].label}
             </>
           )}
         </Button>
       </div>
 
-      {/* Subject badges for active step */}
+      {/* Study badges for active section — selected fill is theme-independent */}
       <div className="flex flex-wrap gap-2">
-        {stepSubjects.map((subj) => {
-          const selected = selectedSet.has(subj.title);
+        {sectionStudies.map((study) => {
+          const selected = selectedSet.has(study.title);
           return (
             <button
-              key={`${subj.step}-${subj.index}`}
+              key={study.number}
               type="button"
-              onClick={() => toggleSubject(subj.title)}
+              onClick={() => toggleSubject(study.title)}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-all',
                 selected
-                  ? 'border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold'
-                  : 'border-border text-muted-foreground hover:border-amber-500/40 hover:text-foreground',
+                  ? study.section === 'foundation'
+                    ? 'border-blue-600 bg-blue-600 text-white font-semibold'
+                    : 'border-purple-600 bg-purple-600 text-white font-semibold'
+                  : study.section === 'foundation'
+                    ? 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground'
+                    : 'border-border text-muted-foreground hover:border-purple-500/50 hover:text-foreground',
               )}
             >
               {selected && <Check className="h-3 w-3" />}
-              {subj.title}
+              {study.number}. {study.title}
             </button>
           );
         })}
