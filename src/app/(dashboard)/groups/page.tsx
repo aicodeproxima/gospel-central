@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useReducedMotion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -267,9 +268,21 @@ export default function GroupsPage() {
   );
 
   const handleContactDelete = useCallback(async (id: string) => {
-    await contactsApi.deleteContact(id);
+    // Packet bug "org chart not updating on delete": the state update below is
+    // correct (Tree3D/OrgNode layouts + metrics recompute from `contacts` via
+    // useMemo), but a failed API call used to reject silently — leaving the
+    // chart stale with zero feedback. Surface failures; only update on success.
+    try {
+      await contactsApi.deleteContact(id);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete contact',
+      );
+      throw err;
+    }
     setContacts((prev) => prev.filter((c) => c.id !== id));
     setSelectedContactId(null);
+    toast.success('Contact deleted');
   }, []);
 
   const selectedContact = useMemo(

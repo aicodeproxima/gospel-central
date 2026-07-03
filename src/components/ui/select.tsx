@@ -63,7 +63,12 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // 2026-07 overhaul (packet: Contacts "Filter/Sort design issue"): base-ui's
+  // default `alignItemWithTrigger` renders the popup OVER the trigger
+  // (macOS-select style), which read as "dropdowns overlap the header instead
+  // of dropping down" (Screenshots 2026-06-29 1631xx). Default to a normal
+  // below-the-trigger dropdown app-wide; callers can opt back in per-Select.
+  alignItemWithTrigger = false,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<

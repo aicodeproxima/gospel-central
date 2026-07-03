@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, ChevronRight, CalendarDays, Clock, MapPin } from 'lucide-react';
 import { format, parseISO, compareAsc } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -53,6 +54,8 @@ export function BookingSearchBar({
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const { time } = useTimeFormat();
 
   // Build an index of teachers who have at least one booking in the
@@ -93,16 +96,39 @@ export function BookingSearchBar({
     );
   }, [index, query]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click. The results panel is PORTALED to body
+  // (see below), so "inside" means the input container OR the panel itself.
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (containerRef.current?.contains(t)) return;
+      if (dropdownRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  // Anchor the portaled dropdown under the input. Fixed positioning + a body
+  // portal escapes every ancestor stacking context — the old in-place
+  // `absolute z-50` panel rendered BEHIND the calendar's sticky day-header
+  // (`sticky top-0 z-20` in DayView/WeekView) because a toolbar ancestor
+  // capped its stacking order (packet bug: "search results sit behind the
+  // page header", Screenshot 2026-06-28 170633).
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = containerRef.current?.getBoundingClientRect();
+      if (r) setDropdownRect({ left: r.left, top: r.bottom, width: r.width });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -174,8 +200,12 @@ export function BookingSearchBar({
           )}
         </div>
 
-        {open && (
-          <div className="absolute left-0 right-0 top-full mt-1 rounded-md border border-border bg-popover shadow-xl z-50 overflow-hidden">
+        {open && dropdownRect && typeof document !== 'undefined' && createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed rounded-md border border-border bg-popover shadow-xl z-[60] overflow-hidden"
+            style={{ left: dropdownRect.left, top: dropdownRect.top + 4, width: dropdownRect.width }}
+          >
             {results.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                 {index.length === 0
@@ -219,7 +249,8 @@ export function BookingSearchBar({
                 })}
               </ul>
             )}
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 
