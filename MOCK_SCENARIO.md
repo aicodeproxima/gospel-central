@@ -7,43 +7,43 @@
 
 ## Overview
 
-Diamond currently runs against a frozen, deterministic mock dataset that
-simulates an **active week across five branches** of a church community,
-with everyone booking every activity through the app.
+Gospel Central currently runs against a frozen, deterministic mock dataset
+that simulates an **active week across two churches** (2026-07 overhaul
+Phase 1: the former Chesapeake, Norfolk and Williamsburg congregations
+consolidated into Newport News + Virginia Beach; the merge story is seeded
+into the audit log).
 
 The scenario lives entirely in one file:
 [`src/mocks/scenario-church-week.ts`](./src/mocks/scenario-church-week.ts)
 
 The study curriculum lives in
-[`src/mocks/subjects.ts`](./src/mocks/subjects.ts).
+[`src/lib/curriculum.ts`](./src/lib/curriculum.ts) (35 studies: Foundation
+1–12 / Growth 13–35).
 
 ## Organization Hierarchy
 
 | Level | Count | Notes |
 |---|---|---|
 | Developer (Admin) | 2 | **Michael** (no last name), **Stephen Wright** |
-| Overseer | 1 | **Gabriel** — every branch reports up under him |
-| Branch Leader | 5 | Joseph, Zechariah, John the Baptist, Simeon, Simon Peter — male biblical names, one per branch |
-| Group Leader | 10 | Two per branch. All carry the `teacher` tag and have study metrics. |
-| Team Leader | 15 | Distributed across the 10 group leaders. All carry `teacher` and have study metrics. |
-| Member | 99 | All baptized, distributed across the 15 teams. ~20 carry the `teacher` tag. |
+| Overseer | 1 | **Gabriel** — both churches report up under him |
+| Branch Leader | 2 | Joseph (Newport News), Simon Peter (Virginia Beach) |
+| Group Leader | 10 | Five per church. All carry the `teacher` tag and have study metrics. |
+| Team Leader | 18 | 15 numbered teams + the 3 ex-Branch-Leaders (Zechariah, John the Baptist, Simeon — ids `u-branch-2/3/4` and logins `branch2/3/4` kept). |
+| Member | 99 | All baptized, round-robin across the 18 teams. ~20 carry the `teacher` tag. |
 | **Total users** | **132** | |
 
 Stephen Wright sits as a second top-level admin alongside Michael. Every
 operational reporting line is: Michael → Gabriel (Overseer) → Branch
 Leader → Group Leader → Team Leader → Member.
 
-## Branches
+## Churches
 
-5 branches under Gabriel, each with its own `area` (physical location):
+2 churches under Gabriel, each with its own `area` (physical location):
 
-| Branch (area) | Branch Leader | Rooms |
+| Church (area) | Branch Leader | Rooms |
 |---|---|---|
-| Newport News Zion (main) | Joseph | Bible Study Room 1–4, Conference Room, Sanctuary, Fellowship, TRE Room |
-| Chesapeake Zion | Zechariah | Study Room 1, 2, 3, Conference Room |
-| Norfolk Zion | John the Baptist | Study Room 1, 2, Living Room, ODU Library, ODU Web Center, HU Library, HU Student Center |
-| Virginia Beach Zion | Simeon | Study Room 1, 2, Conference Room |
-| Williamsburg Zion | Simon Peter | Study Room 1, Barnes and Noble |
+| Newport News Zion (main) | Joseph | Bible Study Room 1–4, Conference Room, Sanctuary, Fellowship, TRE Room, Barnes and Noble |
+| Virginia Beach Zion | Simon Peter | Study Room 1–3, Conference Room, ODU Library, Living Room |
 
 ## Tags
 
@@ -52,36 +52,34 @@ Teacher role). The seed populates:
 
 - `teacher` — every Group + Team Leader (and ~20 Members) carry it. Required to be assigned as the leader of a Bible Study booking.
 - `co_group_leader` — exactly 1 per group (10 total).
-- `co_team_leader` — exactly 1 per team (15 total).
+- `co_team_leader` — exactly 1 per team (18 total).
 
 New tag ids can be added at any time via the admin Tags tab; the data
 model is `tags: string[]`.
 
 ## Contacts (Unbaptized)
 
-- **50 contacts** total, all unbaptized, distributed across all 5 branches.
-- About half are currently studying one of the 50 Bible study subjects.
-- Pipeline stages used: `FIRST_STUDY`, `REGULAR_STUDY`, `PROGRESSING`, `BAPTISM_READY`, `BAPTIZED`. (`INITIAL_CONTACT` was removed in v1 of the overhaul — don't reference it.)
+- **50 contacts** total, distributed across both churches (NN 30 / VB 20).
+- Statuses (2026-07 overhaul, 6 values): `FIRST_STUDY`, `UNBAPTIZED`, `POTENTIAL`,
+  `BAPTISM_READY`, `NEEDS_HELP`, `BAPTIZED` — every status present in BOTH
+  churches (see `CONTACT_STAGES` in the scenario file).
 - Each studying contact has:
   - `currentlyStudying: true`
-  - `currentStep` (1–5)
-  - `currentSubject` (one of the 50 titles)
-  - Realistic session counts (2–16) and recent `lastSessionDate`
+  - `currentStep` (their current study number, 1–35)
+  - `currentSubject` (one of the 35 curriculum titles)
+  - Session totals derived from Completed bookings + historical baseline
 
-### Bible Study Curriculum — 5 steps × 10 subjects = 50
+### Bible Study Curriculum — 35 studies (Foundation 1–12, Growth 13–35)
 
-The full list is in `src/mocks/subjects.ts`. Structured as:
+The canonical list is in `src/lib/curriculum.ts` (2026-07 overhaul: replaced
+the old 50-subject/5-step list). A contact's history is a contiguous prefix
+of the curriculum; `currentStep` is the study number they're on.
 
-- **Step 1:** Forgiveness of Sins, Savior of Each Age, Jerusalem Mother,
-  Sabbath, Passover, Cross-Reverence, Baptism, …
-- **Step 2:** Whom the Bible Testifies About, King David, Zion, Heavenly
-  Wedding Banquet, Abraham's Family, Daniel 2 & 7, Revelation 13, 17, 18, …
-- **Step 3:** Trinity, Melchizedek, Mother the Source of Water of Life,
-  Weeds and Wheat, The Church Bought With God's Blood, …
-- **Step 4:** Church Established by the Root of David, The Last Adam,
-  Biblical Sabbath, True Meaning of the Passover, …
-- **Step 5:** Words of God Are Absolute, Watch Out for False Prophets,
-  Second Coming, Coming on the Clouds, God's Coming From the East, …
+- **Foundation (1–12, required before baptism):** Secret of the Forgiveness
+  of Sins, Keep the Sabbath Day Holy, Tree of Life, Cross-Reverence is
+  Idolatry, Weeds and Wheat, Jerusalem Mother, …
+- **Growth (13–35):** Passover the Way to Eternal Life, Daniel's Prophecy,
+  Seal of God, Holy Trinity, …, The Words of God Are Absolute
 
 ## Activities
 
@@ -102,7 +100,7 @@ in `src/lib/types/activity.ts`.
 
 ## Blocked time slots
 
-The seed defines 4 default global blocked slots (apply to all 5 branches,
+The seed defines 4 default global blocked slots (apply to both churches,
 no role can override):
 
 | Day | Time | Reason |

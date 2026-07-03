@@ -198,65 +198,65 @@ describe('Critical #22 — Audit log tamper / append-only contract', () => {
 });
 
 // ---------------------------------------------------------------------------
-// #23 — Cross-branch matrix (Joseph @ Newport News on Williamsburg resources)
+// #23 — Cross-branch matrix (Joseph @ Newport News on Virginia Beach resources)
 // ---------------------------------------------------------------------------
 
 describe('Critical #23 — Cross-branch matrix verification', () => {
   const joseph = allUsers.find((u) => u.id === 'u-branch-1')!;        // BL of Newport News
-  const simonPeter = allUsers.find((u) => u.id === 'u-branch-5')!;    // BL of Williamsburg
-  const williamsburgGroupL = allUsers.find(
+  const simonPeter = allUsers.find((u) => u.id === 'u-branch-5')!;    // BL of Virginia Beach
+  const virginiaBeachGroupL = allUsers.find(
     (u) => u.role === UserRole.GROUP_LEADER && u.parentId === simonPeter.id,
   )!;
-  const williamsburgTeamL = allUsers.find(
-    (u) => u.role === UserRole.TEAM_LEADER && u.parentId === williamsburgGroupL?.id,
+  const virginiaBeachTeamL = allUsers.find(
+    (u) => u.role === UserRole.TEAM_LEADER && u.parentId === virginiaBeachGroupL?.id,
   )!;
-  const williamsburgMember = allUsers.find(
-    (u) => u.role === UserRole.MEMBER && u.parentId === williamsburgTeamL?.id,
+  const virginiaBeachMember = allUsers.find(
+    (u) => u.role === UserRole.MEMBER && u.parentId === virginiaBeachTeamL?.id,
   )!;
-  const williamsburgContact = allContacts.find(
-    (c) => c.assignedTeacherId === williamsburgTeamL?.id,
+  const virginiaBeachContact = allContacts.find(
+    (c) => c.assignedTeacherId === virginiaBeachTeamL?.id,
   );
 
-  test('seed data has at least one Williamsburg-owned member + contact for cross-branch test', () => {
-    expect(simonPeter, 'Simon Peter (BL Williamsburg) seeded').toBeDefined();
-    expect(williamsburgMember, 'Williamsburg Member seeded').toBeDefined();
+  test('seed data has at least one Virginia Beach-owned member + contact for cross-branch test', () => {
+    expect(simonPeter, 'Simon Peter (BL Virginia Beach) seeded').toBeDefined();
+    expect(virginiaBeachMember, 'Virginia Beach Member seeded').toBeDefined();
     // Contact may or may not exist depending on scenario seeds; soft-check
-    if (williamsburgContact) {
-      expect(williamsburgContact.assignedTeacherId).toBe(williamsburgTeamL.id);
+    if (virginiaBeachContact) {
+      expect(virginiaBeachContact.assignedTeacherId).toBe(virginiaBeachTeamL.id);
     }
   });
 
-  test('Joseph (BL Newport News) CAN edit a Williamsburg member per universal rule #1', () => {
-    expect(canEditUser(joseph, williamsburgMember)).toBe(true);
+  test('Joseph (BL Newport News) CAN edit a Virginia Beach member per universal rule #1', () => {
+    expect(canEditUser(joseph, virginiaBeachMember)).toBe(true);
   });
 
-  test('Joseph CAN reset a Williamsburg member password per matrix', () => {
-    expect(canResetPassword(joseph, williamsburgMember)).toBe(true);
+  test('Joseph CAN reset a Virginia Beach member password per matrix', () => {
+    expect(canResetPassword(joseph, virginiaBeachMember)).toBe(true);
   });
 
-  test('Joseph CAN deactivate a Williamsburg member per matrix', () => {
-    expect(canDeactivateUser(joseph, williamsburgMember)).toBe(true);
+  test('Joseph CAN deactivate a Virginia Beach member per matrix', () => {
+    expect(canDeactivateUser(joseph, virginiaBeachMember)).toBe(true);
   });
 
-  test('Joseph CAN change a Williamsburg member role per matrix', () => {
+  test('Joseph CAN change a Virginia Beach member role per matrix', () => {
     // BL+ can promote/demote within their tier capabilities
-    expect(canChangeRole(joseph, williamsburgMember, UserRole.TEAM_LEADER)).toBe(true);
+    expect(canChangeRole(joseph, virginiaBeachMember, UserRole.TEAM_LEADER)).toBe(true);
   });
 
-  test('Joseph CANNOT promote a Williamsburg member to Overseer (above his tier)', () => {
+  test('Joseph CANNOT promote a Virginia Beach member to Overseer (above his tier)', () => {
     // Universal rule #3: cannot grant at-or-above own level
-    expect(canChangeRole(joseph, williamsburgMember, UserRole.OVERSEER)).toBe(false);
-    expect(canChangeRole(joseph, williamsburgMember, UserRole.DEV)).toBe(false);
+    expect(canChangeRole(joseph, virginiaBeachMember, UserRole.OVERSEER)).toBe(false);
+    expect(canChangeRole(joseph, virginiaBeachMember, UserRole.DEV)).toBe(false);
   });
 
-  test('Joseph CAN edit a Williamsburg-owned contact per universal rule #1', () => {
-    if (!williamsburgContact) return; // soft-skip if no eligible contact
+  test('Joseph CAN edit a Virginia Beach-owned contact per universal rule #1', () => {
+    if (!virginiaBeachContact) return; // soft-skip if no eligible contact
     const subtree = buildVisibilityScope(joseph, allUsers).userIds;
-    expect(canEditContact(joseph, williamsburgContact as Contact, subtree)).toBe(true);
+    expect(canEditContact(joseph, virginiaBeachContact as Contact, subtree)).toBe(true);
   });
 
-  test('Joseph CAN manage tags on a Williamsburg member (NOT self)', () => {
-    expect(canManageTags(joseph, williamsburgMember)).toBe(true);
+  test('Joseph CAN manage tags on a Virginia Beach member (NOT self)', () => {
+    expect(canManageTags(joseph, virginiaBeachMember)).toBe(true);
   });
 
   test('Joseph CANNOT manage tags on himself (self-grant prevention universal)', () => {

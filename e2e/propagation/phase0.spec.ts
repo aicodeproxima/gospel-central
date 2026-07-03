@@ -14,7 +14,7 @@ import { MOCK_DATE, seedCounts, assertClockActor, appendJsonl, writeFile, sh } f
 test.describe.configure({ mode: 'serial' });
 
 function chipScrape() {
-  // VISIBLE stage-chip counts: "All (50)", "Regular Study (18)", ...
+  // VISIBLE stage-chip counts: "All (50)", "Unbaptized (14)", ...
   const chips: Record<string, number> = {};
   document.querySelectorAll('button, a, [role="tab"]').forEach((el) => {
     const r = (el as HTMLElement).getBoundingClientRect();
@@ -60,8 +60,8 @@ test('Z0 + START fingerprint', async ({ page }) => {
   const selectedName = (await page.locator('input[type="checkbox"]:checked').first()
     .locator('xpath=ancestor::*[self::tr or contains(@class,"rounded")][1]').textContent())?.replace(/\s+/g, ' ').trim().slice(0, 80) ?? null;
 
-  // choose a target stage distinct from the most-populated; "Progressing" is mid-pipeline
-  const target = 'Progressing';
+  // choose a target stage distinct from the most-populated; "Potential" is mid-pipeline
+  const target = 'Potential';
   await page.getByText(/^change stage\.\.\.$/i).first().click();
   await page.getByRole('option', { name: new RegExp(`^${target}$`, 'i') }).first().click();
   // bulk change toasts "N contacts updated" and refetches
@@ -75,7 +75,7 @@ test('Z0 + START fingerprint', async ({ page }) => {
     target,
     chipsBefore,
     chipsAfter,
-    progressingDelta: (chipsAfter[target] ?? 0) - (chipsBefore[target] ?? 0),
+    potentialDelta: (chipsAfter[target] ?? 0) - (chipsBefore[target] ?? 0),
   };
 
   // PASS = the target stage chip increased (propagation observed at the chip-count surface).

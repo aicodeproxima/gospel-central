@@ -40,7 +40,7 @@
 | 20 | Error Boundary Catches → Posts to /api/error-log → Reset Recovers | u-mem-1 (trigger) + u-michael (verify) | 🔴 | 7 | `/dashboard` (force render error via console) → **ErrorBoundary fallback** (heading, "Try again" + "Back to dashboard" buttons) → "Try again" reset → `/dashboard` re-render → logout/login as Dev → `curl /api/error-log` → verify viewerId+role+url+stack present |
 | 21 | Session Token Expiry Mid-Action → Graceful Re-auth | u-team-1 | 🔴 | 9 | `/calendar` → **BookingWizard** (filled, not submitted) → DevTools (clear token + cookie) → submit → 401 surfaces → `/login` (re-auth) → `/calendar` (verify zero duplicates) → optional localStorage queue replay |
 | 22 | Audit Log Tamper Attempt — Append-Only Contract | u-michael | 🔴 | 7 | `/admin?tab=audit` (capture target row) → DevTools (5 tamper probes: PUT, DELETE, PATCH, POST-with-fabricated-id, bulk DELETE) → `/admin?tab=audit` (verify all 4xx/405) → row + count integrity → search `userId='attacker'` returns zero |
-| 23 | Cross-Branch Resource Access Matrix Verification | u-branch-1 (Joseph @ Newport News) on Williamsburg-owned resources | 🔴 | 10 | Setup as Michael → re-login as Joseph → `/contacts` (cross-branch read) → **ContactDetailDialog** (cross-branch edit) → cross-branch convert → `/calendar` (area=`area-williamsburg` filter, cross-branch booking) → `/admin?tab=users` (cross-branch password reset) → `/admin?tab=audit` (filter `userId=u-branch-1`, verify 4 cross-branch rows) |
+| 23 | Cross-Branch Resource Access Matrix Verification | u-branch-1 (Joseph @ Newport News) on Virginia Beach-owned resources | 🔴 | 10 | Setup as Michael → re-login as Joseph → `/contacts` (cross-branch read) → **ContactDetailDialog** (cross-branch edit) → cross-branch convert → `/calendar` (area=`area-virginia-beach` filter, cross-branch booking) → `/admin?tab=users` (cross-branch password reset) → `/admin?tab=audit` (filter `userId=u-branch-1`, verify 4 cross-branch rows) |
 | 24 | Soft-Delete + Restore Round-Trip Across All 5 Entity Types | u-michael | 🔴 | 25 (5 entity types × 5 verifications) | `/admin?tab=users` (User deactivate→restore) → `/admin?tab=rooms` (Room deactivate→restore) → `/admin?tab=blocked` (BlockedSlot delete→`?includeInactive=1` verify) → `/admin?tab=contacts` (Contact delete→status='inactive' check) → `/calendar` (Booking soft-cancel→restore); each cycle verifies UX hide, includeInactive reveal, paired audit rows, before/after snapshots, idempotent restore |
 | 25 | Booking Double-Submit / Button-Mash Idempotency | u-team-1 | 🔴 | 9 | `/calendar` → **BookingWizard** (filled) → DevTools (mash submit 2× synchronously, then 5×) → `/calendar` (verify exactly 1 booking) → `/admin?tab=audit` (filter EntityType=booking Action=create, verify exactly 1 row per mash test) |
 
@@ -510,19 +510,19 @@ For each theme in `[marble, starfield, aurora, galaxy, jellyfish, rain, matrix, 
 
 ## 23. Cross-Branch Resource Access Matrix Verification 🔴
 
-**Persona:** `u-branch-1` (Joseph @ Newport News BL) operating on Williamsburg-owned resources. **Pages:** `/contacts` → ContactDetailDialog → `/calendar` (cross-area) → `/admin?tab=users` → `/admin?tab=audit`.
+**Persona:** `u-branch-1` (Joseph @ Newport News BL) operating on Virginia Beach-owned resources. **Pages:** `/contacts` → ContactDetailDialog → `/calendar` (cross-area) → `/admin?tab=users` → `/admin?tab=audit`.
 
 **Steps:**
-1. As Michael, set up a known-state target: a Contact assigned to a teacher in Williamsburg (`u-team-15`'s subtree).
+1. As Michael, set up a known-state target: a Contact assigned to a teacher in Virginia Beach (`u-team-15`'s subtree).
 2. Logout; login as Joseph (BL of Newport News).
-3. Open `/contacts`; verify Joseph CAN see the Williamsburg contact (per matrix universal rule #1, cross-branch view allowed).
-4. Open ContactDetailDialog for the Williamsburg contact; try to edit the pipeline stage. Verify per matrix:
+3. Open `/contacts`; verify Joseph CAN see the Virginia Beach contact (per matrix universal rule #1, cross-branch view allowed).
+4. Open ContactDetailDialog for the Virginia Beach contact; try to edit the status. Verify per matrix:
    - **canEditContact** for cross-branch BL: **allowed** per universal rule #1 (cross-branch is allowed).
    - Attempted edit succeeds with audit row.
-5. Try to convert the Williamsburg contact to a user; verify success (cross-branch convert per matrix).
-6. Navigate to `/calendar`; switch the area filter to `area-williamsburg`.
-7. Try to create a booking on a Williamsburg-owned room; verify success (BL+ can manage rooms in any branch).
-8. Open `/admin?tab=users`; find a Williamsburg member; try to reset their password.
+5. Try to convert the Virginia Beach contact to a user; verify success (cross-branch convert per matrix).
+6. Navigate to `/calendar`; switch the area filter to `area-virginia-beach`.
+7. Try to create a booking on a Virginia Beach-owned room; verify success (BL+ can manage rooms in any branch).
+8. Open `/admin?tab=users`; find a Virginia Beach member; try to reset their password.
 9. Verify success per matrix (BL can reset passwords cross-branch).
 10. Open `/admin?tab=audit`; filter `userId=u-branch-1`; verify all 4 cross-branch actions are audited.
 

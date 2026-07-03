@@ -45,10 +45,12 @@ this repo — keep it current.
   in-memory module scope by `handlers.ts`). **In-memory, NO persistence** — every page reload RESETS to seed.
   Prod and every preview share identical data; nothing to "copy" between them; edits vanish on refresh.
 - **Default login: `admin` / `admin`** (Michael = Dev). All seeded users use password `admin`. Sample logins:
-  `stephen` (Dev), `overseer1`, `branch1`–`branch5` (Branch Leaders), `group1`–`group10`, `team1`–`team15`,
-  `member1`–`member99`. Seed is ~132 biblically-named users / 6 roles / 5 areas (~26 rooms: Newport News,
-  Chesapeake, Norfolk, Virginia Beach, Williamsburg Zion) / contacts / weekly bookings / 4 default global
-  blocked slots. (Exact seed counts drift — read the scenario file if an exact number matters.)
+  `stephen` (Dev), `overseer1`, `branch1` (BL Newport News) + `branch5` (BL Virginia Beach) — `branch2`–`branch4`
+  are ex-Branch-Leaders now seeded as Team Leaders (2026-07 Phase 1 consolidation; ids/logins kept) —
+  `group1`–`group10`, `team1`–`team15`, `member1`–`member99`. Seed is 132 biblically-named users / 6 roles /
+  **2 areas (15 rooms: Newport News Zion, Virginia Beach Zion)** / 50 contacts (all 6 statuses in BOTH
+  churches) / weekly bookings / 4 default global blocked slots. (Exact seed counts drift — read the
+  scenario file if an exact number matters.)
 
 ## Routing / auth shell
 - `src/proxy.ts` IS the Next 16 middleware (renamed from `middleware.ts` — Next 16 deprecated that filename;

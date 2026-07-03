@@ -1,11 +1,14 @@
 /**
  * ============================================================================
- * HYPOTHETICAL CHURCH WEEK — MOCK SCENARIO (v2: 5 branches, biblical names)
+ * HYPOTHETICAL CHURCH WEEK — MOCK SCENARIO (v3: 2 churches, biblical names)
  * ============================================================================
  *
  * This file generates a complete mock dataset representing a hypothetical
- * active week across 5 collaborating Zion branches in the Hampton Roads
- * area of Virginia.
+ * active week across the 2 Zion churches in the Hampton Roads area of
+ * Virginia. (v3, 2026-07 overhaul Phase 1: the former Chesapeake, Norfolk and
+ * Williamsburg congregations consolidated into these two — Williamsburg into
+ * Newport News, Chesapeake/Norfolk into Virginia Beach. The story is recorded
+ * in the seeded audit-log entries; no live id/name references a dead branch.)
  *
  * All data is mock and lives in this file. To replace with real data when
  * the Go backend is live, set `NEXT_PUBLIC_MOCK_API=false` and MSW will
@@ -14,21 +17,23 @@
  * Scenario overview
  * -----------------
  *   Roles (no Teacher role; Teacher is a TAG):
- *     - 2 Devs:           Michael, Stephen Wright
- *     - 1 Overseer:       Gabriel
- *     - 5 Branch Leaders: one per branch (all male biblical names)
- *     - 10 Group Leaders: 2 per branch
- *     - 15 Team Leaders:  ~3 per branch
- *     - 99 Members:       distributed across teams
+ *     - 2 Devs:            Michael, Stephen Wright
+ *     - 1 Overseer:        Gabriel
+ *     - 2 Branch Leaders:  Joseph (Newport News), Simon Peter (Virginia Beach)
+ *     - 10 Group Leaders:  5 per church (groups 1–5 NN, 6–10 VB)
+ *     - 18 Team Leaders:   15 numbered teams + the 3 ex-Branch-Leaders
+ *                          (Zechariah, John the Baptist, Simeon — now TLs at VB;
+ *                          their u-branch-2/3/4 ids + branch2/3/4 logins kept)
+ *     - 99 Members:        round-robin across the 18 teams (6 or 5 each)
  *     ------
  *     132 users total — biblical names #1–132 from the prepared list
+ *     Newport News = 75 people · Virginia Beach = 54 · +3 church-wide (Devs, Overseer)
  *
- *   Branches (each is a physical church location with its own area):
- *     1. Newport News Zion  — main church, 8 rooms (BS1–4, Conference, Sanctuary, Fellowship, TRE)
- *     2. Chesapeake Zion    — 4 rooms (Chesapeake Study Rooms 1–3, Conference Room)
- *     3. Norfolk Zion       — 7 rooms (Norfolk Study 1–2, Living Room, ODU Library, ODU Web Center, HU Library, HU Student Center)
- *     4. Virginia Beach Zion — 3 rooms (Virginia Beach Study Rooms 1–2, Conference Room)
- *     5. Williamsburg Zion  — 2 rooms (Williamsburg Study Room 1, Barnes and Noble)
+ *   Churches (each is a physical location with its own area):
+ *     1. Newport News Zion  — main church, 9 rooms (BS1–4, Conference, Sanctuary,
+ *        Fellowship, TRE, Barnes and Noble partner space)
+ *     2. Virginia Beach Zion — 6 rooms (Study Rooms 1–3, Conference, ODU Library,
+ *        Living Room)
  *
  *   Tags (orthogonal to role; multiple per user allowed):
  *     - 'teacher'          — can lead Bible Study bookings
@@ -36,13 +41,13 @@
  *     - 'co_team_leader'   — supports the primary team leader
  *     All Branch / Group / Team leaders carry 'teacher' by default.
  *     One Co-Group Leader per group (10 total) and one Co-Team Leader per
- *     team (15 total) are picked from members and tagged.
- *     ~20 random Members are also tagged 'teacher'.
+ *     team (18 total) are picked from members and tagged.
+ *     ~20 additional Members are also tagged 'teacher'.
  *
- *   Contacts: 50 unbaptized contacts in various pipeline stages, distributed
- *   across all 5 branches. Biblical names #133–182.
+ *   Contacts: 50 contacts across all 6 statuses (every status present in BOTH
+ *   churches — see CONTACT_STAGES). Biblical names #133–182. NN 30 / VB 20.
  *
- *   Bookings: Bible studies + admin meetings spread across all 5 branches.
+ *   Bookings: Bible studies + admin meetings spread across both churches.
  *   Sabbath services are NOT bookings — they live in BLOCKED_SLOTS instead.
  *
  *   Blocked slots: 4 weekly global blocks for service times that no role can
@@ -288,7 +293,11 @@ function nameAt(idx: number): { first: string; last: string; female?: boolean } 
 }
 
 // ---------------------------------------------------------------------------
-// Areas / Rooms — 5 branches with a per-branch room layout
+// Areas / Rooms — 2 churches (2026-07 overhaul Phase 1 consolidation).
+// The former Chesapeake/Norfolk congregations merged into Virginia Beach Zion
+// and Williamsburg merged into Newport News Zion; that history lives in the
+// seeded audit-log entries, NOT in any live id/name (grep gate: no dead-branch
+// names outside generateAuditLog + this comment).
 // ---------------------------------------------------------------------------
 export const scenarioAreas: Area[] = [
   {
@@ -308,50 +317,21 @@ export const scenarioAreas: Area[] = [
       { id: 'rm-nn-sanct',   areaId: 'area-newport-news', name: 'Sanctuary',          capacity: 300, features: ['Stage', 'Sound System', 'Live Stream'], isBookable: false },
       { id: 'rm-nn-fellow',  areaId: 'area-newport-news', name: 'Fellowship',         capacity: 60, features: ['Kitchen', 'Tables'], isBookable: false },
       { id: 'rm-nn-tre',     areaId: 'area-newport-news', name: 'TRE Room',           capacity: 15, features: ['Training Setup'] },
-    ],
-  },
-  {
-    id: 'area-chesapeake',
-    name: 'Chesapeake Zion',
-    description: 'Chesapeake branch.',
-    rooms: [
-      { id: 'rm-ch-sr1',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 1', capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-ch-sr2',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 2', capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-ch-sr3',  areaId: 'area-chesapeake', name: 'Chesapeake Study Room 3', capacity: 6, features: ['Whiteboard', 'Zoom Setup'] },
-      { id: 'rm-ch-conf', areaId: 'area-chesapeake', name: 'Conference Room',         capacity: 16, features: ['Projector'] },
-    ],
-  },
-  {
-    id: 'area-norfolk',
-    name: 'Norfolk Zion',
-    description: 'Norfolk branch — uses several public spaces (ODU, HU) for outreach studies.',
-    rooms: [
-      { id: 'rm-nf-sr1',     areaId: 'area-norfolk', name: 'Norfolk Study Room 1',  capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-nf-sr2',     areaId: 'area-norfolk', name: 'Norfolk Study Room 2',  capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-nf-living',  areaId: 'area-norfolk', name: 'Living Room',           capacity: 8, features: ['Casual'] },
-      { id: 'rm-nf-odu-lib', areaId: 'area-norfolk', name: 'ODU Library',           capacity: 6, features: ['Public Space'] },
-      { id: 'rm-nf-odu-web', areaId: 'area-norfolk', name: 'ODU Web Center',        capacity: 6, features: ['Public Space', 'Wi-Fi'] },
-      { id: 'rm-nf-hu-lib',  areaId: 'area-norfolk', name: 'HU Library',            capacity: 6, features: ['Public Space'] },
-      { id: 'rm-nf-hu-stu',  areaId: 'area-norfolk', name: 'HU Student Center',     capacity: 8, features: ['Public Space'] },
+      // Inherited public partner space from the Peninsula consolidation.
+      { id: 'rm-nn-bn',      areaId: 'area-newport-news', name: 'Barnes and Noble',   capacity: 6, features: ['Public Space'] },
     ],
   },
   {
     id: 'area-virginia-beach',
     name: 'Virginia Beach Zion',
-    description: 'Virginia Beach branch.',
+    description: 'Southside church — expanded after the consolidation; uses public spaces (ODU, host homes) for outreach studies.',
     rooms: [
-      { id: 'rm-vb-sr1',  areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 1', capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-vb-sr2',  areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 2', capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-vb-conf', areaId: 'area-virginia-beach', name: 'Conference Room',             capacity: 16, features: ['Projector'] },
-    ],
-  },
-  {
-    id: 'area-williamsburg',
-    name: 'Williamsburg Zion',
-    description: 'Williamsburg branch — small footprint, partners with Barnes & Noble for outreach studies.',
-    rooms: [
-      { id: 'rm-wb-sr1', areaId: 'area-williamsburg', name: 'Williamsburg Study Room 1', capacity: 6, features: ['Whiteboard'] },
-      { id: 'rm-wb-bn',  areaId: 'area-williamsburg', name: 'Barnes and Noble',          capacity: 6, features: ['Public Space'] },
+      { id: 'rm-vb-sr1',     areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 1', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-vb-sr2',     areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 2', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-vb-conf',    areaId: 'area-virginia-beach', name: 'Conference Room',             capacity: 16, features: ['Projector'] },
+      { id: 'rm-vb-sr3',     areaId: 'area-virginia-beach', name: 'Virginia Beach Study Room 3', capacity: 6, features: ['Whiteboard'] },
+      { id: 'rm-vb-odu-lib', areaId: 'area-virginia-beach', name: 'ODU Library',                 capacity: 6, features: ['Public Space'] },
+      { id: 'rm-vb-living',  areaId: 'area-virginia-beach', name: 'Living Room',                 capacity: 8, features: ['Casual'] },
     ],
   },
 ];
@@ -409,24 +389,22 @@ const uOverseer = makeUser({
   parentId: uMichael.id,
 });
 
-// --- Branch Leaders (5) — male biblical names, mapped to the 5 branches ---
-//   #4  Joseph              → Newport News Zion (main)
-//   #6  Zechariah            → Chesapeake Zion
-//   #7  John the Baptist     → Norfolk Zion
-//   #8  Simeon               → Virginia Beach Zion
-//   #10 Simon Peter          → Williamsburg Zion
-const BRANCH_LEADER_SEEDS: { areaId: string; nameIdx: number }[] = [
-  { areaId: 'area-newport-news',   nameIdx: 4 },
-  { areaId: 'area-chesapeake',     nameIdx: 6 },
-  { areaId: 'area-norfolk',        nameIdx: 7 },
-  { areaId: 'area-virginia-beach', nameIdx: 8 },
-  { areaId: 'area-williamsburg',   nameIdx: 10 },
+// --- Branch Leaders (2) — one per church post-consolidation ---
+//   #4  Joseph       → Newport News Zion (main)      [test-pinned: u-branch-1]
+//   #10 Simon Peter  → Virginia Beach Zion            [test-pinned: u-branch-5
+//                       must lead a DIFFERENT branch than u-branch-1 — see
+//                       docs/qa/stable-personas.md]
+// Ids/usernames are carried explicitly (they can no longer derive from the
+// array index — Simon Peter keeps his historical u-branch-5 identity).
+const BRANCH_LEADER_SEEDS: { id: string; username: string; areaId: string; nameIdx: number }[] = [
+  { id: 'u-branch-1', username: 'branch1', areaId: 'area-newport-news',   nameIdx: 4 },
+  { id: 'u-branch-5', username: 'branch5', areaId: 'area-virginia-beach', nameIdx: 10 },
 ];
-const branchLeaders: User[] = BRANCH_LEADER_SEEDS.map((s, i) => {
+const branchLeaders: User[] = BRANCH_LEADER_SEEDS.map((s) => {
   const n = nameAt(s.nameIdx);
   return makeUser({
-    id: `u-branch-${i + 1}`,
-    username: `branch${i + 1}`,
+    id: s.id,
+    username: s.username,
     firstName: n.first,
     lastName: n.last,
     role: UserRole.BRANCH_LEADER,
@@ -436,11 +414,10 @@ const branchLeaders: User[] = BRANCH_LEADER_SEEDS.map((s, i) => {
 });
 
 // --- Group Leaders (10) — names #5, #9, #11–18 ---
-// 2 groups per branch
+// 5 groups per church: groups 1–5 → Newport News, groups 6–10 → Virginia Beach
 const GROUP_LEADER_NAME_INDICES = [5, 9, 11, 12, 13, 14, 15, 16, 17, 18];
 const groupLeaders: User[] = GROUP_LEADER_NAME_INDICES.map((nameIdx, i) => {
-  const branchIdx = Math.floor(i / 2); // 2 groups per branch
-  const parent = branchLeaders[branchIdx];
+  const parent = i < 5 ? branchLeaders[0] : branchLeaders[1];
   const n = nameAt(nameIdx);
   return makeUser({
     id: `u-group-${i + 1}`,
@@ -453,10 +430,9 @@ const groupLeaders: User[] = GROUP_LEADER_NAME_INDICES.map((nameIdx, i) => {
   });
 });
 
-// --- Team Leaders (15) — names #19–33. 3 teams per branch (uneven) ---
-// Distribute 15 teams across 10 groups: each group gets 1 team, then
-// the first 5 groups get a second team. So: groups 0-4 → 2 teams each
-// (10), groups 5-9 → 1 team each (5). Total 15.
+// --- Team Leaders (15 numbered + 3 ex-Branch-Leaders = 18 teams) ---
+// Numbered teams distribute across the 10 groups exactly as before: groups
+// 0-4 (NN) → 2 teams each (10), groups 5-9 (VB) → 1 team each (5). Total 15.
 const TEAM_LEADER_NAME_INDICES = [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33];
 const teamToGroupIndex: number[] = [
   0, 0,    // group 0 → teams 0,1
@@ -470,7 +446,7 @@ const teamToGroupIndex: number[] = [
   8,       // group 8 → team 13
   9,       // group 9 → team 14
 ];
-const teamLeaders: User[] = TEAM_LEADER_NAME_INDICES.map((nameIdx, i) => {
+const numberedTeamLeaders: User[] = TEAM_LEADER_NAME_INDICES.map((nameIdx, i) => {
   const groupIdx = teamToGroupIndex[i];
   const n = nameAt(nameIdx);
   return makeUser({
@@ -483,6 +459,36 @@ const teamLeaders: User[] = TEAM_LEADER_NAME_INDICES.map((nameIdx, i) => {
     tags: [KNOWN_TAGS.TEACHER],
   });
 });
+
+// --- Former Branch Leaders (3) — now Team Leaders at Virginia Beach ---
+// The 2026-07 consolidation demoted the three freed BLs to shepherd
+// transplant teams under VB groups 6–8 (audit-log entries record the story).
+// WARNING: the id prefix `u-branch-` NO LONGER implies role — the `role`
+// field is authoritative. Do NOT "clean up" these ids or usernames: logins
+// branch2/branch3/branch4 and the ids are load-bearing in history + tests.
+const FORMER_BRANCH_LEADER_SEEDS: { id: string; username: string; nameIdx: number; parentId: string }[] = [
+  { id: 'u-branch-2', username: 'branch2', nameIdx: 6, parentId: groupLeaders[5].id }, // Zechariah → Philip's group
+  { id: 'u-branch-3', username: 'branch3', nameIdx: 7, parentId: groupLeaders[6].id }, // John the Baptist → Bartholomew's group
+  { id: 'u-branch-4', username: 'branch4', nameIdx: 8, parentId: groupLeaders[7].id }, // Simeon → Thomas's group
+];
+const formerBlTeamLeaders: User[] = FORMER_BRANCH_LEADER_SEEDS.map((s) => {
+  const n = nameAt(s.nameIdx);
+  return makeUser({
+    id: s.id,
+    username: s.username,
+    firstName: n.first,
+    lastName: n.last,
+    role: UserRole.TEAM_LEADER,
+    parentId: s.parentId,
+    tags: [KNOWN_TAGS.TEACHER],
+  });
+});
+
+// Numbered teams FIRST (order is load-bearing: tests resolve "first TL under
+// the first VB group" to u-team-11, and the member round-robin below fills
+// slots 0-17 in this exact order). Declared BEFORE the members map — the map
+// dereferences teamLeaders at module init.
+const teamLeaders: User[] = [...numberedTeamLeaders, ...formerBlTeamLeaders];
 
 // --- Members (99) — names #34–132 ---
 // Distribute across 15 teams (~6-7 per team).
@@ -533,6 +539,13 @@ TEACHER_MEMBER_INDICES.forEach((i) => {
     m.tags = [...(m.tags ?? []), KNOWN_TAGS.TEACHER];
   }
 });
+
+// Defensive pin: u-mem-3 (username member3) is the heaviest e2e persona and
+// MUST carry the teacher tag (docs/qa/stable-personas.md). Today it emerges
+// from the co-leader loops; this guard makes the constraint order-independent.
+if (!members[2].tags?.includes(KNOWN_TAGS.TEACHER)) {
+  members[2].tags = [...(members[2].tags ?? []), KNOWN_TAGS.TEACHER];
+}
 
 // --- Assign avatars ---
 const _rawUsers: User[] = [
@@ -693,13 +706,32 @@ function subjectsStudiedForStage(stage: PipelineStage, seed: number): string[] {
   return CURRICULUM.slice(0, prefixLenForStage(stage, seed)).map((s) => s.title);
 }
 
+/**
+ * Per-contact stage assignment (2026-07 Phase 1 reorg): an explicit 50-entry
+ * literal instead of contiguous blocks, interleaved so that EVERY one of the
+ * 6 statuses appears in BOTH churches (contact i's church follows member
+ * (i*2)%99's team → group → branch chain; per-church result:
+ * NN 3B/4R/7P/8U/2N/6F, VB 1B/2R/5P/6U/2N/4F). Totals preserved exactly:
+ * 4 baptized, 6 baptism-ready, 12 potential, 14 unbaptized, 4 needs-help,
+ * 10 first-study. c-2 stays BAPTIZED and c-50 stays FIRST_STUDY (test-pinned
+ * personas teach them — see docs/qa/stable-personas.md).
+ */
+const B = PipelineStage.BAPTIZED;
+const R = PipelineStage.BAPTISM_READY;
+const P = PipelineStage.POTENTIAL;
+const U = PipelineStage.UNBAPTIZED;
+const N = PipelineStage.NEEDS_HELP;
+const F = PipelineStage.FIRST_STUDY;
+const CONTACT_STAGES: PipelineStage[] = [
+  B, B, B, R, R, B, R, N, P, R,  // c-1..c-10
+  R, P, P, P, R, U, P, F, P, P,  // c-11..c-20
+  P, P, U, U, P, U, N, U, U, U,  // c-21..c-30
+  U, U, F, P, U, U, U, U, N, N,  // c-31..c-40
+  F, F, P, U, F, F, F, F, F, F,  // c-41..c-50
+];
+
 function stageForIndex(i: number): PipelineStage {
-  if (i < 4)  return PipelineStage.BAPTIZED;
-  if (i < 10) return PipelineStage.BAPTISM_READY;
-  if (i < 22) return PipelineStage.POTENTIAL;
-  if (i < 36) return PipelineStage.UNBAPTIZED;
-  if (i < 40) return PipelineStage.NEEDS_HELP;
-  return PipelineStage.FIRST_STUDY;
+  return CONTACT_STAGES[i] ?? PipelineStage.FIRST_STUDY;
 }
 
 export const scenarioContacts: Contact[] = range(50).map((i) => {
@@ -957,14 +989,10 @@ function findFreeTime(
 // Per-branch admin meetings (committee, team meetings)
 // ============================================================================
 
-// One Branch Committee meeting in each branch's primary admin room
+// One Branch Committee meeting in each church's primary admin room
 branchLeaders.forEach((leader, i) => {
   const areaId = BRANCH_LEADER_SEEDS[i].areaId;
-  const adminRoom = areaId === 'area-newport-news'   ? 'rm-nn-conf'
-                  : areaId === 'area-chesapeake'     ? 'rm-ch-conf'
-                  : areaId === 'area-norfolk'        ? 'rm-nf-living'
-                  : areaId === 'area-virginia-beach' ? 'rm-vb-conf'
-                  : 'rm-wb-sr1';
+  const adminRoom = areaId === 'area-newport-news' ? 'rm-nn-conf' : 'rm-vb-conf';
   // Day rotates so meetings don't all collide on one day
   tryAddBooking({
     areaId, roomId: adminRoom,
@@ -988,7 +1016,9 @@ tryAddBooking({
   participants: [uOverseer.id, ...branchLeaders.map((b) => b.id), ...groupLeaders.map((g) => g.id)],
 });
 
-// Special video sessions in Newport News Sanctuary
+// Special video sessions in Newport News Sanctuary. (Seeding into the
+// non-bookable Sanctuary via tryAddBooking is intentional existing behavior —
+// isBookable only filters the wizard's picker, not seeded history.)
 tryAddBooking({
   areaId: 'area-newport-news', roomId: 'rm-nn-sanct',
   type: BookingType.GROUP_ACTIVITIES, activity: Activity.SPECIAL_VIDEO,
@@ -1004,29 +1034,42 @@ tryAddBooking({
   title: 'Special Video: Prophecy of Daniel',
   startTime: isoAt(dayOf(3), 11),
   endTime: isoAt(dayOf(3), 12, 30),
+  // branchLeaders[1] now resolves to Simon Peter (VB) — deliberate creator
+  // change from the pre-consolidation seed (was the ex-Chesapeake BL).
   createdBy: branchLeaders[1].id,
   participants: [],
 });
 
-// Outreach planning at Williamsburg Barnes & Noble
+// Outreach planning — one per church, in each church's public partner space.
 tryAddBooking({
-  areaId: 'area-williamsburg', roomId: 'rm-wb-bn',
+  areaId: 'area-newport-news', roomId: 'rm-nn-bn',
   type: BookingType.GROUP_ACTIVITIES, activity: Activity.COMMITTEE_MISSION,
-  title: 'Williamsburg Outreach Planning',
+  title: 'Peninsula Outreach Planning',
   startTime: isoAt(dayOf(2), 14),
   endTime: isoAt(dayOf(2), 15, 30),
-  createdBy: branchLeaders[4].id,
-  participants: [branchLeaders[4].id],
+  createdBy: branchLeaders[0].id,
+  participants: [branchLeaders[0].id],
+});
+tryAddBooking({
+  areaId: 'area-virginia-beach', roomId: 'rm-vb-odu-lib',
+  type: BookingType.GROUP_ACTIVITIES, activity: Activity.COMMITTEE_MISSION,
+  title: 'Southside Outreach Planning',
+  startTime: isoAt(dayOf(2), 14),
+  endTime: isoAt(dayOf(2), 15, 30),
+  createdBy: branchLeaders[1].id,
+  participants: [branchLeaders[1].id],
 });
 
-// New Teachers Training in Newport News TRE Room
+// New Teachers Training in Newport News TRE Room — run by Zechariah, the
+// ex-Chesapeake Branch Leader (now a VB Team Leader; deliberate narrative:
+// the most experienced freed leader trains the new teachers).
 tryAddBooking({
   areaId: 'area-newport-news', roomId: 'rm-nn-tre',
   type: BookingType.TEAM_ACTIVITIES, activity: Activity.TEAM_MEETING,
   title: 'New Teachers Training',
   startTime: isoAt(dayOf(3), 13),
   endTime: isoAt(dayOf(3), 15),
-  createdBy: branchLeaders[2].id,
+  createdBy: formerBlTeamLeaders[0].id,
   participants: [],
 });
 
@@ -1231,6 +1274,8 @@ function generateAuditLog(): AuditLogEntry[] {
     ...branchLeaders.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
     ...groupLeaders.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
     ...teamLeaders.slice(0, 6).map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
+    // Ex-Branch-Leaders stay active in the audit trail post-consolidation.
+    ...formerBlTeamLeaders.map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() })),
   ];
 
   const actions: AuditLogEntry['action'][] = ['create', 'update', 'delete', 'export'];
@@ -1259,10 +1304,10 @@ function generateAuditLog(): AuditLogEntry[] {
       'Registered walk-in visitor as contact',
     ],
     'update-contact': [
-      'Updated pipeline stage to Regular Study',
-      'Updated pipeline stage to Progressing',
-      'Updated pipeline stage to Baptism Ready',
-      'Updated pipeline stage to Baptized',
+      'Updated status to Unbaptized',
+      'Updated status to Potential',
+      'Updated status to Baptism Ready',
+      'Updated status to Baptized',
       'Changed preaching partners',
       'Added study subjects',
       'Updated phone number',
@@ -1331,6 +1376,33 @@ function generateAuditLog(): AuditLogEntry[] {
         timestamp: ts.toISOString(),
       });
     }
+  }
+
+  // --- Consolidation history (2026-07 Phase 1) ---------------------------
+  // The ONLY place the dead branch names may appear: the audit log records
+  // the merge story (grep-gate allowlist; see the header comment).
+  const gabriel = { id: uOverseer.id, name: `${uOverseer.firstName} ${uOverseer.lastName}`.trim() };
+  const consolidation: { dayOffset: number; entityType: AuditLogEntry['entityType']; details: string }[] = [
+    { dayOffset: 28, entityType: 'group', details: 'Merged Chesapeake Zion into Virginia Beach Zion' },
+    { dayOffset: 28, entityType: 'group', details: 'Merged Norfolk Zion into Virginia Beach Zion' },
+    { dayOffset: 27, entityType: 'group', details: 'Merged Williamsburg Zion into Newport News Zion' },
+    { dayOffset: 26, entityType: 'user', details: 'Reassigned Zechariah (former Chesapeake Branch Leader) to Team Leader, Virginia Beach' },
+    { dayOffset: 26, entityType: 'user', details: 'Reassigned John the Baptist (former Norfolk Branch Leader) to Team Leader, Virginia Beach' },
+    { dayOffset: 25, entityType: 'group', details: 'Opened Virginia Beach Study Room 3' },
+  ];
+  for (const c of consolidation) {
+    const ts = new Date(now - c.dayOffset * DAY);
+    ts.setHours(9, 30, 0, 0);
+    entries.push({
+      id: `al-${id++}`,
+      action: 'update',
+      entityType: c.entityType,
+      entityId: c.entityType === 'group' ? 'area-consolidation' : 'user-reassignment',
+      userId: gabriel.id,
+      userName: gabriel.name,
+      details: c.details,
+      timestamp: ts.toISOString(),
+    });
   }
 
   entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
