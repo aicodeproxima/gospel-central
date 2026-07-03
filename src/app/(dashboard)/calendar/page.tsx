@@ -30,7 +30,7 @@ import { bookingsApi } from '@/lib/api/bookings';
 import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
 import { Badge } from '@/components/ui/badge';
-import { BOOKING_TYPE_CONFIG } from '@/lib/types';
+import { BOOKING_TYPE_CONFIG, BookingType } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { calendarHelp } from '@/components/shared/pageHelp';
@@ -551,7 +551,12 @@ export default function CalendarPage() {
               Legend
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-auto max-w-[280px] flex-row flex-wrap gap-2">
-              {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+              {Object.entries(BOOKING_TYPE_CONFIG)
+                /* 2026-07 overhaul: Baptized Persecuted removed from the legend
+                   (user request; the wizard's segment label renames to plain
+                   "Baptized" in the Phase 4 booking-form rework). */
+                .filter(([type]) => type !== BookingType.BAPTIZED_PERSECUTED)
+                .map(([type, config]) => (
                 <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
                   {tBookingType(type)}
                 </Badge>
@@ -630,7 +635,9 @@ export default function CalendarPage() {
            Legend popover in the compact topbar instead, so no vertical space
            is spent above the calendar here. */}
       <div className="hidden flex-wrap gap-2 md:flex">
-        {Object.entries(BOOKING_TYPE_CONFIG).map(([type, config]) => (
+        {Object.entries(BOOKING_TYPE_CONFIG)
+          .filter(([type]) => type !== BookingType.BAPTIZED_PERSECUTED)
+          .map(([type, config]) => (
           <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
             {tBookingType(type)}
           </Badge>
