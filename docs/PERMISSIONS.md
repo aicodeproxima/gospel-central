@@ -261,6 +261,7 @@ canReassignContact(viewer, contact, newOwnerId)
 canConvertContact(viewer, contact)
 
 canEditBooking(viewer, booking)
+canSetBookingStatus(viewer, booking)   // outcome status (Completed/No Show/Rescheduled): teacher | creator | leader-in-scope | admin-tier. Metrics count ONLY Completed studies (2026-07 overhaul Decision 11).
 
 canAccessReports(viewer)
 canExportReports(viewer)

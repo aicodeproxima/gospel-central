@@ -89,7 +89,10 @@ this repo — keep it current.
 ## Groups 3D tree
 - Layout `src/lib/utils/tree-layout.ts` · scene `src/components/groups/Tree3D.tsx` · toolbar/focus
   `src/app/(dashboard)/groups/page.tsx` · list view `src/components/groups/OrgNode.tsx`.
-- All Groups changes are **compact-gated** (`matchMedia('(max-width:1279px)')`); desktop frozen at ≥1280.
+- **Desktop freeze LIFTED (2026-07 overhaul, user decision):** the compact-gate era (`max-width:1279px`,
+  desktop frozen ≥1280) ended with the approved overhaul plan (`~/.claude/plans/structured-scribbling-steele.md`).
+  Changes now apply at ALL widths; every phase verifies at desktop ≥1280 + 412×915 + 275×596@5.24.
+  Progress ledger: `OVERHAUL_PROGRESS.md` (repo root, untracked).
 - **Known overlap risk:** stacked contacts can overlap vertically (`CONTACT_GAP` < world-scaled card height).
   Verify by screenshot, not just rects.
 
