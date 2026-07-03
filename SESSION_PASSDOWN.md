@@ -7,10 +7,14 @@
 > `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` (13 locked decisions + phase specs +
 > the anti-hallucination/drift/context-rot protocol — READ IT before any overhaul work).
 > **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root, untracked, append-only — the resume point).
-> **Phase 0 (foundation) is COMPLETE + deployed** (`df09bfa` on main): 6-status contact model,
-> booking outcome statuses w/ status-gated metrics, 35-study curriculum, gender tags, dropdown fixes.
-> **NEXT: Phase 1 — seed reorg to 2 churches** via the user-mandated multi-agent plan→grill→decide
-> orchestration (inputs incl. a stable-persona manifest; see the plan's Phase 1 block).
+> **Phases 0 + 1 are COMPLETE + deployed** (`fbaaaed` on main): 6-status contact model, booking
+> outcome statuses w/ status-gated metrics, 35-study curriculum, gender tags, dropdown fixes, AND the
+> 2-church seed consolidation (Newport News 75 / Virginia Beach 54; Joseph + Simon Peter as the 2 BLs;
+> ex-BLs are VB Team Leaders keeping branch2/3/4 logins; all 6 statuses in both churches; persona
+> manifest at `docs/qa/stable-personas.md`). WebKit e2e project is blocked by a pre-existing
+> Secure-cookie-on-http limitation (chip task_17530de7); chromium/mobile/visual e2e green.
+> **NEXT: Phase 2 — Dashboard rework** (church toggle + set-default, current-month KPIs, Your Group
+> section replacing Quick Access, two top-10 leaderboards; see the plan's Phase 2 block).
 > The DESKTOP FREEZE IS LIFTED (plan Decision 3) and frontend-to-main deploys are user-authorized —
 > the permission classifier may still demand a fresh in-chat "yes" each session.
 
