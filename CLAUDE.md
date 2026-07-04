@@ -99,6 +99,10 @@ this repo — keep it current.
   Verify by screenshot, not just rects.
 
 ## Contacts (Loop 9 redesign)
+- **"Branches" on a contact = their up-to-3 PREACHING PARTNERS (`preachingPartnerIds`)** — the people
+  who invited/preach to them (the contact becomes their "fruit") — **NOT the org-tree/church branch**
+  (user, 2026-07-04). Main branch = `preachingPartnerIds[0]` (purple highlight). The church lives in
+  `groupName` and is a separate concept everywhere contacts are displayed/searched/filtered.
 - `ViewMode = 'grid' | 'kanban' | 'table'`; `src/components/contacts/ContactsTable.tsx` +
   `src/lib/utils/contact-helpers.ts`. Default Table ≥lg / Grid below (localStorage-persisted).
 - Deep-link filters `?stage / ?type / ?q / ?view / ?id` sync to the URL via **`history.replaceState`**, NOT

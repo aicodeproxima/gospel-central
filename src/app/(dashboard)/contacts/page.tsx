@@ -60,6 +60,7 @@ import {
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
 import { prefixMatch } from '@/lib/utils/text-match';
+import { useCustomEntitiesStore, isBackendManagedId } from '@/lib/stores/custom-entities-store';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { contactsHelp } from '@/components/shared/pageHelp';
 import { exportCSV } from '@/lib/utils/csv';
@@ -142,11 +143,17 @@ export default function ContactsPage() {
     return m;
   }, [users]);
 
+  // For resolving custom (localStorage) preaching-partner entities into names.
+  const customEntities = useCustomEntitiesStore((s) => s.entities);
+
   // Phase 5 search index (R4: precompute once per contact, match once per
   // keystroke). Resolves the names the packet's scoped search + leader
   // filters run against: contact / teacher / team leader / group leader /
-  // branch — the TL/GL come from walking the assigned teacher's (or
-  // creator's) parent chain.
+  // branch. TL/GL come from walking the assigned teacher's (or creator's)
+  // parent chain. IMPORTANT SEMANTIC (user, 2026-07-04): a contact's
+  // "Branches" are their up-to-3 PREACHING PARTNERS (preachingPartnerIds —
+  // the people whose "fruit" the contact will become), NOT the org-tree /
+  // church branch. The church (groupName) stays searchable under All fields.
   const searchIndex = useMemo(() => {
     const chainOf = (startId?: string) => {
       let tl = '';
@@ -162,9 +169,28 @@ export default function ContactsPage() {
       }
       return { tl, gl };
     };
+    // Partner ids may be real users, localStorage custom entities, or legacy
+    // free-text names — resolve in that order.
+    const partnerName = (pid: string | null): string => {
+      if (!pid) return '';
+      const u = userById.get(pid);
+      if (u) return `${u.firstName} ${u.lastName}`.trim();
+      const custom = customEntities.find((e) => e.id === pid);
+      if (custom) return custom.name;
+      return isBackendManagedId(pid) ? '' : pid; // unknown backend id → skip; free text → keep
+    };
     const m = new Map<
       string,
-      { contact: string; teacher: string; tl: string; gl: string; branch: string; email: string; phone: string }
+      {
+        contact: string;
+        teacher: string;
+        tl: string;
+        gl: string;
+        branches: string[];
+        church: string;
+        email: string;
+        phone: string;
+      }
     >();
     for (const c of visibleContacts) {
       const teacher = c.assignedTeacherId ? userById.get(c.assignedTeacherId) : undefined;
@@ -174,16 +200,18 @@ export default function ContactsPage() {
         teacher: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
         tl: chain.tl,
         gl: chain.gl,
-        branch: c.groupName || '',
+        branches: (c.preachingPartnerIds ?? []).map(partnerName).filter(Boolean),
+        church: c.groupName || '',
         email: c.email || '',
         phone: c.phone || '',
       });
     }
     return m;
-  }, [visibleContacts, userById]);
+  }, [visibleContacts, userById, customEntities]);
 
   // Leader-name filter options — ONLY names that currently have contacts
-  // (packet requirement).
+  // (packet requirement). "Branches" = preaching-partner names (user
+  // semantic, 2026-07-04).
   const leaderFilterOptions = useMemo(() => {
     const gl = new Set<string>();
     const tl = new Set<string>();
@@ -191,7 +219,7 @@ export default function ContactsPage() {
     for (const f of searchIndex.values()) {
       if (f.gl) gl.add(f.gl);
       if (f.tl) tl.add(f.tl);
-      if (f.branch) br.add(f.branch);
+      for (const b of f.branches) br.add(b);
     }
     const sorted = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
     return { gl: sorted(gl), tl: sorted(tl), branch: sorted(br) };
@@ -344,9 +372,11 @@ export default function ContactsPage() {
       result = result.filter((c) => {
         const f = searchIndex.get(c.id);
         if (!f) return false;
+        // "Branch" = the contact's preaching partners (user semantic); the
+        // church name stays reachable under All fields.
         const fields =
           searchField === 'all'
-            ? [f.contact, f.teacher, f.tl, f.gl, f.branch, f.email, f.phone]
+            ? [f.contact, f.teacher, f.tl, f.gl, ...f.branches, f.church, f.email, f.phone]
             : searchField === 'contact'
               ? [f.contact]
               : searchField === 'teacher'
@@ -355,7 +385,7 @@ export default function ContactsPage() {
                   ? [f.tl]
                   : searchField === 'group_leader'
                     ? [f.gl]
-                    : [f.branch];
+                    : f.branches;
         return fields.some((t) => !!t && prefixMatch(t, search) !== null);
       });
     }
@@ -364,7 +394,8 @@ export default function ContactsPage() {
     // Leader-name filters (exact name match against the resolved chain).
     if (glFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.gl === glFilter);
     if (tlFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.tl === tlFilter);
-    if (branchFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.branch === branchFilter);
+    if (branchFilter !== 'all')
+      result = result.filter((c) => searchIndex.get(c.id)?.branches.includes(branchFilter));
 
     // Sort
     const stageOrder: Record<string, number> = {

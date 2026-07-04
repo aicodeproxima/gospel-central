@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toggleExpanded, isolatePath } from './tree-expansion';
+import { toggleExpanded, isolatePath, expandPath } from './tree-expansion';
 import { UserRole } from '@/lib/types/user';
 import type { OrgNode } from '@/lib/types/group';
 
@@ -63,5 +63,40 @@ describe('isolatePath', () => {
 
   it('empty path → empty set', () => {
     expect(isolatePath([]).size).toBe(0);
+  });
+});
+
+describe('expandPath', () => {
+  it('includes every ancestor AND the target', () => {
+    const s = expandPath(['r', 'a'], 'a1');
+    expect([...s].sort()).toEqual(['a', 'a1', 'r']);
+  });
+
+  it('ancestor-closed invariant holds (target\'s parent present)', () => {
+    const s = expandPath(['r', 'a'], 'a1');
+    expect(s.has('a')).toBe(true); // a1's parent
+    expect(s.has('r')).toBe(true); // a's parent
+  });
+
+  it('empty ancestors + target → Set{target} (root search)', () => {
+    const s = expandPath([], 'r');
+    expect([...s]).toEqual(['r']);
+  });
+
+  it('does not mutate the input array', () => {
+    const ancestors = ['r', 'a'];
+    expandPath(ancestors, 'a1');
+    expect(ancestors).toEqual(['r', 'a']);
+  });
+
+  it('differs from isolatePath exactly by the target id (pin the relationship)', () => {
+    const ancestors = ['r', 'a'];
+    const iso = isolatePath(ancestors);
+    const exp = expandPath(ancestors, 'a1');
+    expect(exp.has('a1')).toBe(true);
+    expect(iso.has('a1')).toBe(false);
+    // every other member is identical between the two sets
+    expect([...exp].filter((id) => id !== 'a1').sort()).toEqual([...iso].sort());
+    expect(exp.size).toBe(iso.size + 1);
   });
 });

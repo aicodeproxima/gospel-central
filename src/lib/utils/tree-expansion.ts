@@ -51,3 +51,13 @@ export function toggleExpanded(
 export function isolatePath(ancestorIds: readonly string[]): Set<string> {
   return new Set(ancestorIds);
 }
+
+/**
+ * Like isolatePath, but the TARGET is included so the found person lands
+ * EXPANDED — their children/contacts are immediately visible (packet: "org
+ * search auto-expands the person's children/fruits"). Ancestor-closed by
+ * construction: ancestors ∪ target forms a root→…→target chain.
+ */
+export function expandPath(ancestorIds: readonly string[], targetId: string): Set<string> {
+  return new Set([...ancestorIds, targetId]);
+}

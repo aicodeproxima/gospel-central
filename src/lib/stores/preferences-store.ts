@@ -87,6 +87,16 @@ interface PreferencesState {
    */
   previousColorTheme: ColorTheme | null;
   previousBackgroundStyle: BackgroundStyle | null;
+  /**
+   * 2026-07 overhaul Phase 6 G1 (packet: Groups > "List view becomes first in
+   * nav toggle + allow per-user default view choice"): which Groups view the
+   * page OPENS in. Default 'list' (the packet promotes list to primary; 3D
+   * stays one tap away). The legacy localStorage key
+   * `gospel-central-tree-view` is migrated into this pref once by the groups
+   * page on mount, then removed. Additive key: no persist-version bump
+   * needed (zustand shallow-merges defaults; no partialize list).
+   */
+  groupsDefaultView: '3d' | 'list';
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -100,6 +110,7 @@ interface PreferencesState {
   setBackgroundConfig: (style: BackgroundStyle, values: Record<string, unknown>) => void;
   resetBackgroundConfig: (style: BackgroundStyle) => void;
   setDashboardChurchId: (areaId: string | null) => void;
+  setGroupsDefaultView: (view: '3d' | 'list') => void;
 }
 
 /**
@@ -150,6 +161,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       backgroundStyle: 'none',
       backgroundConfig: {},
       dashboardChurchId: null,
+      groupsDefaultView: 'list',
       previousColorTheme: null,
       previousBackgroundStyle: null,
 
@@ -201,6 +213,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         set({ backgroundConfig: next });
       },
       setDashboardChurchId: (areaId) => set({ dashboardChurchId: areaId }),
+      setGroupsDefaultView: (view) => set({ groupsDefaultView: view }),
     }),
     {
       name: 'gospel-central-preferences',

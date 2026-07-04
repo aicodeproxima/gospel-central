@@ -11,6 +11,8 @@ export interface LiveNodeMetrics {
   currentlyStudying: number; // contacts with a session in last 30 days
   totalStudies: number; // sum of totalSessions of all contacts under this node
   bearingFruit: number; // number of baptized contacts (from teacher metrics)
+  totalMembers: number; // users in the subtree, excluding the node itself
+  totalContacts: number; // contacts assigned to anyone in the subtree (node included)
 }
 
 /** Collect all user IDs in this node's subtree, including the node itself. */
@@ -51,7 +53,7 @@ export function filterRecentlyStudying(contacts: Contact[]): Contact[] {
 }
 
 /**
- * Compute all three live metrics for a given org tree node.
+ * Compute all live metrics for a given org tree node.
  */
 export function computeNodeMetrics(
   node: OrgNode,
@@ -67,9 +69,14 @@ export function computeNodeMetrics(
     .filter((m) => subtreeIds.has(m.userId))
     .reduce((sum, m) => sum + (m.baptizedSinceStudying || 0), 0);
 
+  const totalMembers = subtreeIds.size - 1; // exclude the node itself
+  const totalContacts = subtreeContacts.length;
+
   return {
     currentlyStudying: recent.length,
     totalStudies,
     bearingFruit,
+    totalMembers,
+    totalContacts,
   };
 }

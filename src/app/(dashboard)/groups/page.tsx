@@ -22,7 +22,7 @@ import { ContactDetailDialog } from '@/components/groups/ContactDetailDialog';
 import { usersApi } from '@/lib/api/users';
 import type { Contact, User } from '@/lib/types';
 import type { SearchEntry } from '@/lib/utils/tree-search';
-import { toggleExpanded, isolatePath } from '@/lib/utils/tree-expansion';
+import { toggleExpanded, expandPath } from '@/lib/utils/tree-expansion';
 
 // 3D scene is heavy — load it lazily so it doesn't bloat the initial bundle.
 const Tree3D = dynamic(() => import('@/components/groups/Tree3D').then((m) => m.Tree3D), {
@@ -86,7 +86,7 @@ export default function GroupsPage() {
   const [loadError, setLoadError] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<Map<string, ContactFilter>>(new Map());
-  const [viewMode, setViewMode] = useState<'3d' | 'list'>('3d');
+  const [viewMode, setViewMode] = useState<'3d' | 'list'>('list');
   const [focusRequest, setFocusRequest] = useState<FocusRequest>({ kind: 'none' });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -95,6 +95,8 @@ export default function GroupsPage() {
   const [addUserOpen, setAddUserOpen] = useState(false);
   const currentUser = useAuthStore((s) => s.user);
   const showAddUser = !!currentUser && canCreateUsers(currentUser.role);
+  const groupsDefaultView = usePreferencesStore((s) => s.groupsDefaultView);
+  const setGroupsDefaultView = usePreferencesStore((s) => s.setGroupsDefaultView);
 
   // Edge-to-edge canvas: the floating toolbar sits OVER the 3D canvas on ALL
   // breakpoints (user's edge-to-edge call, 2026-06-10) — the tree renders
@@ -127,17 +129,26 @@ export default function GroupsPage() {
     setTimeout(() => setFocusRequest(next), 50);
   };
 
-  // Load preferred view mode
+  // Load preferred view mode. ONE-TIME migration: legacy localStorage keys
+  // (per-browser) get folded into the per-user `groupsDefaultView` pref and
+  // then removed, so the pref becomes the single source of truth going
+  // forward. Runs before reading the pref so a legacy value wins on its
+  // first mount, exactly once.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('gospel-central-tree-view') ?? localStorage.getItem('diamond-tree-view');
-    if (stored === 'list' || stored === '3d') setViewMode(stored);
+    const legacy = localStorage.getItem('gospel-central-tree-view') ?? localStorage.getItem('diamond-tree-view');
+    if (legacy === 'list' || legacy === '3d') {
+      setGroupsDefaultView(legacy);
+      setViewMode(legacy);
+      localStorage.removeItem('gospel-central-tree-view');
+      localStorage.removeItem('diamond-tree-view');
+    } else {
+      setViewMode(groupsDefaultView);
+    }
+    // Intentionally mount-only: the pref is re-applied explicitly by the
+    // toggle's onClick, not by reacting to store changes from elsewhere.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('gospel-central-tree-view', viewMode);
-  }, [viewMode]);
 
   // F: the LIST view has no camera — when a search/jump sets the external focus,
   // scroll that node to center so the user can see where the result landed.
@@ -290,19 +301,28 @@ export default function GroupsPage() {
     [contacts, selectedContactId],
   );
 
+  // Shared "open the contact detail dialog for this id" mechanism — reused by
+  // the Metrics and Pipeline tabs (packet: clicking a contact fruit/row on
+  // those tabs should open the same ContactDetailDialog the 3D tree/list use).
+  // Reuses the exact selectedContactId state the dialog already derives from.
+  const openContactById = useCallback((contactId: string) => {
+    setSelectedContactId(contactId);
+  }, []);
+
   const handleJumpSelect = (sel: JumpSelection) => {
     if (!nodeIndex.has(sel.id)) return;
-    // Isolate to ONLY the target's ancestor path; target stays collapsed so the
-    // snap-to-person view isn't fighting a large subtree layout.
-    setExpandedIds(isolatePath(sel.ancestorIds));
+    // Expand the target's ancestor path AND the target itself, so the found
+    // person lands expanded (their children/contact fruits visible) instead
+    // of collapsed.
+    setExpandedIds(expandPath(sel.ancestorIds, sel.id));
     setFilters(new Map());
     requestFocus({ kind: 'node', id: sel.id });
   };
 
   const handleSearchSelect = (entry: SearchEntry) => {
-    // Isolate to ONLY the target's ancestor path — Search now matches Jump:
-    // ancestors expanded, target itself collapsed, other branches cleared.
-    setExpandedIds(isolatePath(entry.ancestorIds));
+    // Expand the target's ancestor path AND the target itself — Search now
+    // matches Jump: ancestors + target expanded, other branches cleared.
+    setExpandedIds(expandPath(entry.ancestorIds, entry.id));
     setFilters(new Map());
     // Center tightly on the searched PERSON (was 'subtree', which framed the
     // whole descendant box and left the person off to one side).
@@ -397,15 +417,31 @@ export default function GroupsPage() {
         )}
       </TabsContent>
 
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
+      {/* pt-28/sm:pt-24 clear the toolbar's single-row height (>=xl, >=1280px).
+          Between sm and xl (~640-900px is the packet-reported trouble zone)
+          the toolbar's title block is hidden and its action buttons collapse
+          into an overflow menu, but the search bar + view toggle + overflow
+          button + tabs row can still wrap across more lines than at >=xl,
+          growing taller than the fixed pt-24 offset accounts for — the
+          "teacher-performance header blocked by toolbar" bug. Bumping the
+          mid-width steps here (page-side only; toolbar classes untouched)
+          gives the wrapped toolbar room without affecting >=xl (pt-24) or
+          the <sm phone layout (pt-28, single column, dropdown menu). */}
+      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 md:pt-32 lg:pt-28 xl:pt-24">
         <div className="mx-auto max-w-6xl">
-          <TeacherMetricsCards metrics={metrics} users={getUserNames(orgTree)} highlightId={externalFocusId} />
+          <TeacherMetricsCards
+            metrics={metrics}
+            users={getUserNames(orgTree)}
+            highlightId={externalFocusId}
+            contacts={contacts}
+            onContactSelect={openContactById}
+          />
         </div>
       </TabsContent>
 
       <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
         <div className="mx-auto max-w-6xl">
-          <StudentPipeline contacts={contacts} />
+          <StudentPipeline contacts={contacts} users={users} onContactSelect={openContactById} />
         </div>
       </TabsContent>
 
@@ -429,18 +465,7 @@ export default function GroupsPage() {
             <div className="flex items-center rounded-full p-0.5">
               <button
                 type="button"
-                onClick={() => setViewMode('3d')}
-                aria-label={t('groups.3d')}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                  viewMode === '3d' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Box className="h-3.5 w-3.5" />
-                <span className="hidden xl:inline">{t('groups.3d')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
+                onClick={() => { setViewMode('list'); setGroupsDefaultView('list'); }}
                 aria-label={t('groups.list')}
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
@@ -448,6 +473,17 @@ export default function GroupsPage() {
               >
                 <List className="h-3.5 w-3.5" />
                 <span className="hidden xl:inline">{t('groups.list')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewMode('3d'); setGroupsDefaultView('3d'); }}
+                aria-label={t('groups.3d')}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  viewMode === '3d' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Box className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline">{t('groups.3d')}</span>
               </button>
             </div>
             {/* DESKTOP (>=xl): inline action buttons — unchanged */}
