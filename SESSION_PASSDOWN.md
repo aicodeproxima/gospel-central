@@ -116,12 +116,30 @@
 >   artifacts) → deploy → prod-verify dropdowns at ≥1280 across Select/Popover/DropdownMenu/Combobox/
 >   PredictiveInput/BookingSearchBar. Then update ledger.
 >
-> **NEXT: Phase 6 G3 is BLOCKED on assets** — the 5 "Branch Rail" node design assets are NOT in the
-> repo (`Assets/` = dropdown-team playwright logs only; `Organization Tree Ideas/` gone). Ask the user
-> to point at them OR approve deriving from the plan text + Decision-12. G3 also does: tree-layout gap
-> constants + collision tests, connector z-order (scene layer, NEVER CSS z-index in drei Html),
-> contacts-under-ANY-role (buildOrgTree + seed a 15-contact persona + org-tree.test case) → mostly
-> Fable inline (R3), opus prototype-first, ultracode judge.
+> **PHASE 6 COMPLETE — G3 SHIPPED + PROD-VERIFIED** (`83b9fd5` node design, `e8776a4` counter-zoom
+> re-fix + baselines; deployed, HEAD==origin/main==prod). Asset gate resolved by USER APPROVAL to derive
+> the node design from the plan text + Decision-12 (no asset files existed). Branch Rail cards for all
+> roles in BOTH views via new `src/components/groups/node-colors.ts` (role rail HEX + a HEX map paralleling
+> PIPELINE_STAGE_CONFIG + derived BL variant); leaders carry totals strips ("N members · N contacts") +
+> metric icons; contact leaves colored by 6-status + render under ANY role; connectors behind nodes via
+> scene render order (NEVER CSS z-index in drei Html); tightened gap constants + collision tests; +15-contact
+> & overseer-with-contact personas. Opus TL prototype → 3× opus judge panel → sonnet role conversion (its
+> mandatory fixes: WCAG-safe labels, overseer totals, ≥44px metric hit-area). Suite 478/7 todo. **VERIFIED
+> ON PROD `e8776a4`:** /groups list-first; expand-all → all 5 roles + contacts-under-any-role; totals strips
+> render; status colors correct (Elisha red/Needs-Help, Repentant-Thief green/Baptized, Jacob
+> yellow/Potential, Barak grey/First-Study); E4 dropdown surface clean (`select-portal` no zoom, Role
+> options on-screen). **NOTE:** G3 had RE-INTRODUCED the base-ui portal counter-zoom (twice-killed now);
+> `e8776a4` removed it again + baked a guardrail comment into globals.css:903 — do NOT reintroduce it.
+> NOT re-verified on prod: 3D view (WebGL GPU caution — list view covers the same OrgNode DOM); the
+> concurrent session verified 3D + es-275px on a deployed preview (identical code+seed).
+>
+> **NEXT: Phase 7 — Settings** (Alerts page: `relatedUserIds` on AuditLogEntry at every push site + per-type
+> toggles + Sidebar/MobileNav red badge vs `alertsLastSeenAt`; **v4 prefs migration = force Marble +
+> 'default'→'basic' rename, NON-DELEGABLE Fable inline w/ blob unit tests**; feedback form UI-only;
+> **regenerate the FULL Playwright visual baseline set once — Marble default changes every page**). Then
+> **Phase 8 Reports/Admin** (audit-export per-row timestamps, exceljs multi-sheet export, teacher/member
+> performance reports + anomaly flags, GL+ export gate everywhere, BookingType close-out grep sweep) →
+> final overhaul ultracode gate (correctness/permissions/packet-completeness) + docs sweep + full e2e.
 >
 > **Phase 6 G1/G2 detail below (ROUTING REFERENCE — G1/G2 are DONE; kept for G3 + context): G1 quick wins** (list-view
 > first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
