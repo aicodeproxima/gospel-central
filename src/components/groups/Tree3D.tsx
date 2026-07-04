@@ -11,7 +11,7 @@ import {
   UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { UserRole, ROLE_LABELS, PIPELINE_STAGE_CONFIG } from '@/lib/types';
+import { UserRole, ROLE_LABELS, PIPELINE_STAGE_CONFIG, PIPELINE_STAGE_HEX } from '@/lib/types';
 import type { Contact, OrgNode as OrgNodeType } from '@/lib/types';
 import type { TeacherMetrics } from '@/lib/types/user';
 import {
@@ -19,33 +19,16 @@ import {
   filterRecentlyStudying,
   getContactsForSubtree,
 } from '@/lib/utils/org-metrics';
-import { layoutTree, NODE_SCALE } from '@/lib/utils/tree-layout';
+import { layoutTree, NODE_SCALE, NODE_WORLD_TOP, NODE_WORLD_DROP } from '@/lib/utils/tree-layout';
 import { clampCamToDollyRange } from '@/lib/utils/camera';
 import { topBandBounds, fitBboxIntoBand, type FrameBand } from '@/lib/utils/tree-focus';
 import { pickAvatarForUser } from '@/lib/avatars';
 import { WebGLGuard } from '@/components/shared/WebGLGuard';
 import { useTranslation } from '@/lib/i18n';
 import { GrapesBearingFruitIcon, PersonCurrentlyStudyingIcon } from './GroupMetricIcons';
+import { ROLE_HEX, ROLE_RGB } from './node-colors';
 
 type ContactFilter = null | 'studying' | 'total' | 'fruit';
-
-const ROLE_RGB: Record<UserRole, [number, number, number]> = {
-  member: [0.4, 0.4, 0.45],
-  team_leader: [0.2, 0.75, 0.45], // green
-  group_leader: [0.65, 0.35, 0.95], // purple
-  branch_leader: [0.95, 0.55, 0.2], // orange
-  overseer: [0.95, 0.3, 0.3], // red
-  dev: [0.95, 0.7, 0.15], // amber
-};
-
-const ROLE_HEX: Record<UserRole, string> = {
-  member: '#6b7280',
-  team_leader: '#22c55e',
-  group_leader: '#a855f7',
-  branch_leader: '#f97316',
-  overseer: '#ef4444',
-  dev: '#f59e0b',
-};
 
 const METRIC_ROLES = new Set<UserRole>([
   UserRole.MEMBER,
@@ -53,6 +36,21 @@ const METRIC_ROLES = new Set<UserRole>([
   UserRole.GROUP_LEADER,
   UserRole.BRANCH_LEADER,
 ]);
+
+/** Roles that show the leader "totals strip" (members · contacts) on the card —
+ *  a superset drawn from METRIC_ROLES plus overseer, which gets NO icon row but
+ *  DOES get the summary strip (judge Decision 12). */
+const TOTALS_ROLES = new Set<UserRole>([
+  UserRole.TEAM_LEADER,
+  UserRole.GROUP_LEADER,
+  UserRole.BRANCH_LEADER,
+  UserRole.OVERSEER,
+]);
+
+/** Overseer + Branch Leader get a distinct top band on the card (Decision 12 —
+ *  Branch Leader derives the Overseer's org structure, so both share the
+ *  "structural" visual treatment vs. the plain rail other roles get). */
+const BANNER_ROLES = new Set<UserRole>([UserRole.OVERSEER, UserRole.BRANCH_LEADER]);
 
 // NODE_SCALE (the enlarged-node factor, 2026-06-19) is imported from
 // tree-layout.ts so the layout gaps and these node sizes share ONE constant and
@@ -160,15 +158,25 @@ function NodeCardInner({
   compact,
   cardDistanceFactor,
 }: NodeCardProps) {
-  const { tRole, tStage } = useTranslation();
+  const { t, tRole } = useTranslation();
   const showMetrics = METRIC_ROLES.has(node.role);
+  const showTotals = TOTALS_ROLES.has(node.role);
+  // Metrics computation gate widens to cover totals-only roles (overseer) —
+  // METRIC_ROLES membership itself (icon row gating) is untouched (judge HIGH:
+  // decouple "can compute metrics" from "show the icon row").
   const metrics = useMemo(
-    () => (showMetrics ? computeNodeMetrics(node, contacts, teacherMetrics) : null),
-    [node, contacts, teacherMetrics, showMetrics],
+    () => (showMetrics || showTotals ? computeNodeMetrics(node, contacts, teacherMetrics) : null),
+    [node, contacts, teacherMetrics, showMetrics, showTotals],
   );
 
   const color = ROLE_RGB[node.role];
   const hex = ROLE_HEX[node.role];
+  const showBanner = BANNER_ROLES.has(node.role);
+
+  // Branch Rail — now applies to ALL roles (converted from the team_leader-only
+  // prototype). Kept as a pure in-component derivation (never a prop) for memo
+  // safety, per the judge panel's pin.
+  const isBranchRail = true;
 
   return (
     <group
@@ -199,9 +207,34 @@ function NodeCardInner({
       >
         <div
           data-tree-card
-          className="rounded-md border border-white/20 bg-card/95 backdrop-blur px-3 py-2 text-left shadow-xl"
-          style={{ borderTopColor: hex, borderTopWidth: 3 }}
+          className={cn(
+            'relative rounded-md border border-white/20 bg-card/95 backdrop-blur py-2 text-left shadow-xl',
+            // Branch Rail: extra left padding so content clears the inset rail.
+            'pl-4 pr-3',
+          )}
         >
+          {/* Overseer / Branch Leader banner band — DOM order FIRST so the
+              rail (below) renders on top of it. No text; must not add height
+              that would shrink the header button below its 44px compact
+              hit-target (it's absolutely positioned, so it never does). */}
+          {showBanner && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 rounded-t-md"
+              style={{
+                height: 10,
+                backgroundColor: `${hex}40`,
+                borderBottom: `1px solid ${hex}`,
+              }}
+            />
+          )}
+          {isBranchRail && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 w-1 rounded-l-md"
+              style={{ backgroundColor: hex }}
+            />
+          )}
           <button
             type="button"
             onClick={() => {
@@ -224,14 +257,30 @@ function NodeCardInner({
             )}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold truncate text-foreground">{node.name}</div>
-              <div className="text-[10px] text-muted-foreground">{tRole(node.role)}</div>
+              {/* Role label is theme-safe: only the rail carries the role
+                  color now (judge HIGH — sky/red text on the marble white
+                  card failed WCAG contrast). */}
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {tRole(node.role)}
+              </div>
               {node.groupName && (
                 <div className="text-[10px] text-muted-foreground">{node.groupName}</div>
               )}
             </div>
           </button>
+          {/* Leader totals strip — team_leader/group_leader/branch_leader/overseer
+              only (not member, not dev). */}
+          {showTotals && metrics && (
+            <div className="mt-1 text-[10px] text-muted-foreground">
+              {metrics.totalMembers} {t('groups.totalsMembers')} · {metrics.totalContacts}{' '}
+              {t('groups.totalsContacts')}
+            </div>
+          )}
+          {/* Metric icon row stays gated on showMetrics — overseer/dev show NO
+              icon row even though overseer now computes metrics for the strip
+              above. */}
           {showMetrics && metrics && (
-            <div className="mt-2 flex items-center gap-1 justify-end">
+            <div className="mt-2 flex items-center gap-1.5 justify-end">
               <MetricIcon
                 Icon={PersonCurrentlyStudyingIcon}
                 value={metrics.currentlyStudying}
@@ -285,7 +334,7 @@ function MetricIcon({
         onClick();
       }}
       className={cn(
-        'flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] transition-all cursor-pointer',
+        'flex items-center gap-0.5 rounded min-h-[30px] min-w-[32px] justify-center px-1.5 py-1 text-[9px] transition-all cursor-pointer',
         active ? 'bg-primary/20 ring-1 ring-primary' : 'hover:bg-accent',
       )}
     >
@@ -319,6 +368,9 @@ function ContactLeaf3DInner({
 }: ContactLeaf3DProps) {
   const { tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
+  // STATIC status color — never animate emissive, so the disc stays idle
+  // under frameloop="demand" (no per-frame invalidation).
+  const stageHex = PIPELINE_STAGE_HEX[contact.pipelineStage];
   return (
     <group
       position={[x, y, 0]}
@@ -332,8 +384,8 @@ function ContactLeaf3DInner({
         <cylinderGeometry args={[0.7, 0.7, 0.15, 16]} />
         <meshStandardMaterial
           color="#1f2937"
-          emissive="#4b5563"
-          emissiveIntensity={0.3}
+          emissive={stageHex}
+          emissiveIntensity={0.35}
           metalness={0.4}
           roughness={0.5}
         />
@@ -352,9 +404,15 @@ function ContactLeaf3DInner({
             e.stopPropagation();
             onOpen();
           }}
-          className="flex w-full items-center gap-2 rounded-md border border-dashed border-white/30 bg-card/95 backdrop-blur px-3 py-2 text-left hover:border-primary/60 cursor-pointer shadow-xl"
+          className="relative flex w-full items-center gap-2 rounded-md border border-dashed border-white/30 bg-card/95 backdrop-blur pl-4 pr-3 py-2 text-left hover:border-primary/60 cursor-pointer shadow-xl"
           title="Click to view details"
         >
+          {/* Status rail — same treatment as the leader-card role rail. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-1 rounded-l-md"
+            style={{ backgroundColor: stageHex }}
+          />
           <UserCircle2 className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold truncate text-foreground">
@@ -1053,7 +1111,13 @@ function SceneContent({
       {/* Distant starfield — floating particles in the void */}
       <Stars radius={120} depth={60} count={1500} factor={3} saturation={0} fade speed={0.3} />
 
-      {/* Edges (connector beams) — run from below the parent card to above the child platform */}
+      {/* Edges (connector beams) — run from below the parent card to above the
+          child platform. Drawn at EDGE_Z, a scene-space plane BEHIND the nodes
+          (platform boxes extend ±~1.2 in z; the billboarded avatars sit at
+          z=0), so depth-testing makes the beams pass behind avatars/platforms
+          instead of slicing through them — the packet's "connector lines
+          behind nodes" fix, solved in the SCENE layer, never with CSS z-index
+          on drei <Html>. */}
       {layout.edges.map((edge, i) => {
         const from = nodePositions.get(edge.from);
         const to = nodePositions.get(edge.to);
@@ -1061,16 +1125,16 @@ function SceneContent({
         // Parent card bottom is at y - 2.6, child platform top is at y + 0.15
         const startY = from[1] - 2.6;
         const endY = to[1] + 0.25;
-        const mid: [number, number, number] = [(from[0] + to[0]) / 2, (startY + endY) / 2, 0];
+        const mid: [number, number, number] = [(from[0] + to[0]) / 2, (startY + endY) / 2, EDGE_Z];
         const fromNode = layout.nodes.find((n) => n.id === edge.from);
         const color = fromNode ? ROLE_HEX[fromNode.node.role] : '#6366f1';
         return (
           <Line
             key={`${edge.from}-${edge.to}-${i}`}
             points={[
-              [from[0], startY, 0],
+              [from[0], startY, EDGE_Z],
               mid,
-              [to[0], endY, 0],
+              [to[0], endY, EDGE_Z],
             ]}
             color={color}
             lineWidth={1.5}
@@ -1224,7 +1288,11 @@ const ROOT_TOP_BIAS = 0.34;
 // like today's card. This replaces the old fixed-px + zoom-cap approach (which
 // fought overlap by limiting zoom-out — scaling removes the problem at the root).
 const DESKTOP_CARD_PX = 176;
-const DESKTOP_CARD_WORLD_WIDTH = 5.4 * NODE_SCALE; // base 5.4; ×NODE_SCALE stays < the scaled HORIZONTAL_GAP (10.5) → never overlaps
+const DESKTOP_CARD_WORLD_WIDTH = 5.4 * NODE_SCALE; // base 5.4 stays < HORIZONTAL_GAP base (6.2, G3-tightened) → never overlaps
+
+// Connector beams draw on this scene-space z-plane, behind the platforms
+// (boxes span z ±~1.2) and the z=0 billboarded avatars.
+const EDGE_Z = -1.6;
 // The card's RENDERED world width (the distanceFactor param above is 5.4, but the
 // card renders ~2.6 wu wide per live measurement). Used only to pad the focus bbox
 // so side cards don't clip when a branch fills the viewport edge-to-edge. LIVE-TUNABLE.
@@ -1247,8 +1315,10 @@ const DESKTOP_CARD_RENDER_WIDTH = 2.6 * NODE_SCALE;
 // every viewport/DPR. 4.8 < HORIZONTAL_GAP(7) ⇒ siblings never overlap anywhere.
 const CARD_BASE_PX = 156;
 const CARD_WORLD_WIDTH = 4.8 * NODE_SCALE;
-const AVATAR_WORLD_TOP = 2.1 * NODE_SCALE;
-const CARD_WORLD_DROP = 4.0 * NODE_SCALE;
+// Node world extents — SINGLE SOURCE in tree-layout.ts (imported above) so the
+// layout's collision math and this file's camera-framing pads can never drift.
+const AVATAR_WORLD_TOP = NODE_WORLD_TOP;
+const CARD_WORLD_DROP = NODE_WORLD_DROP;
 
 /**
  * Desktop node-EXPAND fit tuning, overridable LIVE via

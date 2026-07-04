@@ -33,6 +33,21 @@ export const PIPELINE_STAGE_CONFIG: Record<PipelineStage, { label: string; color
   [PipelineStage.BAPTIZED]: { label: 'Baptized', color: 'bg-green-400', order: 5 },
 };
 
+/**
+ * Hex mirrors of the PIPELINE_STAGE_CONFIG Tailwind classes above — needed
+ * wherever a stage color must be set as an inline style (e.g. the R3F
+ * contact-leaf disc material, or a border-left rail color) rather than via
+ * a className. Keep these in lockstep with PIPELINE_STAGE_CONFIG.color.
+ */
+export const PIPELINE_STAGE_HEX: Record<PipelineStage, string> = {
+  [PipelineStage.FIRST_STUDY]: '#9ca3af',
+  [PipelineStage.UNBAPTIZED]: '#6b7280',
+  [PipelineStage.POTENTIAL]: '#facc15',
+  [PipelineStage.BAPTISM_READY]: '#60a5fa',
+  [PipelineStage.NEEDS_HELP]: '#ef4444',
+  [PipelineStage.BAPTIZED]: '#4ade80',
+};
+
 export interface Contact {
   id: string;
   firstName: string;

@@ -198,6 +198,8 @@ export const translations: Record<string, Record<string, string>> = {
     'groups.teacherMetrics': 'Teacher Metrics',
     'groups.studentPipeline': 'Student Pipeline',
     'groups.dragHint': 'Drag to pan • Scroll or pinch to zoom',
+    'groups.totalsMembers': 'members',
+    'groups.totalsContacts': 'contacts',
 
     // ── Reports page ────────────────────────────────────────────
     'page.reports.title': 'Reports & Audit Log',
@@ -599,6 +601,8 @@ export const translations: Record<string, Record<string, string>> = {
     'groups.teacherMetrics': 'Métricas de Maestros',
     'groups.studentPipeline': 'Pipeline de Estudiantes',
     'groups.dragHint': 'Arrastra para mover • Desplaza o pellizca para zoom',
+    'groups.totalsMembers': 'miembros',
+    'groups.totalsContacts': 'contactos',
 
     // ── Reports page ────────────────────────────────────────────
     'page.reports.title': 'Informes y Registro de Auditoría',

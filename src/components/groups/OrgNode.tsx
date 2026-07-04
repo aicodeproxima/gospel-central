@@ -9,7 +9,7 @@ import {
   UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ROLE_LABELS, UserRole, PIPELINE_STAGE_CONFIG } from '@/lib/types';
+import { ROLE_LABELS, UserRole, PIPELINE_STAGE_CONFIG, PIPELINE_STAGE_HEX } from '@/lib/types';
 import type { Contact, OrgNode as OrgNodeType } from '@/lib/types';
 import type { TeacherMetrics } from '@/lib/types/user';
 import { Badge } from '@/components/ui/badge';
@@ -19,16 +19,9 @@ import {
   getContactsForSubtree,
   filterRecentlyStudying,
 } from '@/lib/utils/org-metrics';
+import { useTranslation } from '@/lib/i18n';
 import { GrapesBearingFruitIcon, PersonCurrentlyStudyingIcon } from './GroupMetricIcons';
-
-const ROLE_COLORS: Record<UserRole, string> = {
-  member: 'bg-gray-500',
-  team_leader: 'bg-green-500',
-  group_leader: 'bg-purple-500',
-  branch_leader: 'bg-orange-500',
-  overseer: 'bg-red-500',
-  dev: 'bg-amber-500',
-};
+import { ROLE_BG, ROLE_HEX } from './node-colors';
 
 // Members AND all leader roles get icons. Overseer & admins do not.
 // (Teacher used to be its own role but is a tag in v1; tag-bearing
@@ -38,6 +31,16 @@ const METRIC_ROLES = new Set<UserRole>([
   UserRole.TEAM_LEADER,
   UserRole.GROUP_LEADER,
   UserRole.BRANCH_LEADER,
+]);
+
+// Leader roles that show the "members · contacts" totals strip — mirrors
+// Tree3D's TOTALS_ROLES (overseer computes metrics for the strip but still
+// shows no icon row).
+const TOTALS_ROLES = new Set<UserRole>([
+  UserRole.TEAM_LEADER,
+  UserRole.GROUP_LEADER,
+  UserRole.BRANCH_LEADER,
+  UserRole.OVERSEER,
 ]);
 
 export type ContactFilter = null | 'studying' | 'total' | 'fruit';
@@ -70,12 +73,17 @@ export function OrgNodeComponent({
   const expanded = expandedIds.has(node.id);
   const hasChildren = node.children.length > 0;
   const showMetrics = METRIC_ROLES.has(node.role);
+  const showTotals = TOTALS_ROLES.has(node.role);
   const activeFilter = filters.get(node.id) || null;
   const router = useRouter();
+  const { t } = useTranslation();
 
+  // Computation gate widens to totals-only roles (overseer); the icon ROW
+  // stays gated on showMetrics — mirrors Tree3D (judge: decouple the gates).
   const metrics = useMemo(
-    () => (showMetrics ? computeNodeMetrics(node, contacts, teacherMetrics) : null),
-    [node, contacts, teacherMetrics, showMetrics],
+    () =>
+      showMetrics || showTotals ? computeNodeMetrics(node, contacts, teacherMetrics) : null,
+    [node, contacts, teacherMetrics, showMetrics, showTotals],
   );
 
   // Contacts OWNED directly by this node (not its descendants)
@@ -123,9 +131,14 @@ export function OrgNodeComponent({
         <Card
           className={cn(
             'transition-all hover:shadow-md',
+            // Branch Rail (list-view port): a border-left rail — NOT an
+            // absolute inset div — so it composes with the connector elbows
+            // and nesting indentation already living on the left.
+            'border-l-[3px]',
             hasSomethingToExpand && 'hover:-translate-y-0.5',
             node.id === highlightId && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
+          style={{ borderLeftColor: ROLE_HEX[node.role] }}
         >
           <CardContent className="flex items-center gap-3 p-3">
             <button
@@ -147,7 +160,7 @@ export function OrgNodeComponent({
               <div
                 className={cn(
                   'flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-white text-xs sm:text-sm font-bold',
-                  ROLE_COLORS[node.role],
+                  ROLE_BG[node.role],
                 )}
               >
                 {node.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
@@ -173,6 +186,14 @@ export function OrgNodeComponent({
                 {/* >=sm group line — unchanged */}
                 {node.groupName && (
                   <p className="hidden sm:block text-xs text-muted-foreground">{node.groupName}</p>
+                )}
+                {/* Leader totals strip — TL/GL/BL/Overseer (not member/dev),
+                    mirrors the Tree3D card strip. */}
+                {showTotals && metrics && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {metrics.totalMembers} {t('groups.totalsMembers')} · {metrics.totalContacts}{' '}
+                    {t('groups.totalsContacts')}
+                  </p>
                 )}
               </div>
             </button>
@@ -320,8 +341,12 @@ function ContactLeaf({ contact, onEdit }: { contact: Contact; onEdit: () => void
         title="Double-click to edit"
         className={cn(
           'w-full flex items-center gap-2.5 rounded-md border border-dashed border-border/60 bg-card/40 p-2 text-left',
+          // Status rail (list-view port) — same border-left treatment as the
+          // role rail on user rows, colored by pipeline stage.
+          'border-l-[3px]',
           'hover:bg-accent/40 hover:border-primary/40 transition-colors cursor-pointer',
         )}
+        style={{ borderLeftColor: PIPELINE_STAGE_HEX[contact.pipelineStage] }}
       >
         <UserCircle2 className="h-4 w-4 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
