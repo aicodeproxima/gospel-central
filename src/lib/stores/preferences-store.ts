@@ -75,6 +75,18 @@ interface PreferencesState {
    * there is no partialize list to keep in sync).
    */
   dashboardChurchId: string | null;
+  /**
+   * Toggle-to-revert support (2026-07 UX request): clicking the ALREADY-
+   * ACTIVE color theme swatch a second time reverts to whatever was
+   * selected immediately before it, rather than doing nothing. These track
+   * one step of history per axis — not a full undo stack — and swap on
+   * every revert (so repeated clicks on the same two swatches alternate
+   * cleanly between them). `null` = no prior value known yet (first-ever
+   * selection); reverting is then a no-op. Additive keys: no persist-version
+   * bump needed (no partialize list to keep in sync).
+   */
+  previousColorTheme: ColorTheme | null;
+  previousBackgroundStyle: BackgroundStyle | null;
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -138,10 +150,22 @@ export const usePreferencesStore = create<PreferencesState>()(
       backgroundStyle: 'none',
       backgroundConfig: {},
       dashboardChurchId: null,
+      previousColorTheme: null,
+      previousBackgroundStyle: null,
 
       setColorTheme: (theme) => {
+        const current = get().colorTheme;
+        // Clicking the already-active swatch again reverts to whatever was
+        // selected before it, instead of doing nothing.
+        if (theme === current) {
+          const prev = get().previousColorTheme;
+          if (prev === null || prev === current) return; // nothing to revert to
+          applyThemeToDOM(prev);
+          set({ colorTheme: prev, previousColorTheme: current });
+          return;
+        }
         applyThemeToDOM(theme);
-        set({ colorTheme: theme });
+        set({ colorTheme: theme, previousColorTheme: current });
       },
       setLanguage: (lang) => set({ language: lang }),
       setCalendarDefaultView: (view) => set({ calendarDefaultView: view }),
@@ -150,8 +174,19 @@ export const usePreferencesStore = create<PreferencesState>()(
         set({ notifications: { ...get().notifications, [key]: value } }),
       setProfilePhoto: (base64) => set({ profilePhotoBase64: base64 }),
       setBackgroundStyle: (style) => {
+        const current = get().backgroundStyle;
+        // Same toggle-to-revert behavior as setColorTheme, including when the
+        // active swatch is "None" — clicking it again restores the prior
+        // animated background rather than being a permanent one-way switch.
+        if (style === current) {
+          const prev = get().previousBackgroundStyle;
+          if (prev === null || prev === current) return;
+          applyBackgroundToDOM(prev);
+          set({ backgroundStyle: prev, previousBackgroundStyle: current });
+          return;
+        }
         applyBackgroundToDOM(style);
-        set({ backgroundStyle: style });
+        set({ backgroundStyle: style, previousBackgroundStyle: current });
       },
       setBackgroundConfig: (style, values) =>
         set({
