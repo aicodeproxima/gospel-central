@@ -2,24 +2,53 @@
 
 > **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond`, historical/QA docs, and this file's siblings named `*diamond*`/`MOBILE_AUDIT_PROGRESS.md` keep the old name (records). **Do NOT re-introduce "Diamond" as the app's display name.**
 
-> **OVERHAUL IN PROGRESS (2026-07-03):** the app is mid-way through the user's full overhaul packet
-> ("Gospel Central Overhaul and Deliverables - Final"). **Approved plan:**
-> `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` (13 locked decisions + phase specs +
-> the anti-hallucination/drift/context-rot protocol — READ IT before any overhaul work).
-> **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root, untracked, append-only — the resume point).
-> **Phases 0 + 1 are COMPLETE + deployed** (`fbaaaed` on main): 6-status contact model, booking
-> outcome statuses w/ status-gated metrics, 35-study curriculum, gender tags, dropdown fixes, AND the
-> 2-church seed consolidation (Newport News 75 / Virginia Beach 54; Joseph + Simon Peter as the 2 BLs;
-> ex-BLs are VB Team Leaders keeping branch2/3/4 logins; all 6 statuses in both churches; persona
-> manifest at `docs/qa/stable-personas.md`). WebKit e2e project is blocked by a pre-existing
-> Secure-cookie-on-http limitation (chip task_17530de7); chromium/mobile/visual e2e green.
-> **Phase 2 (dashboard) is COMPLETE + deployed** (`0bb8145`): church toggle + set-default, Completed-
-> only current-month KPIs, Your Group (GL+-gated member export), two leaderboards — executed under
-> the plan's MODEL-ROUTING protocol (sonnet built the volume, Fable reviewed/gated/deployed; tier
-> record in the ledger). **NEXT: Phase 3 — Calendar** (booking-card redesign with the prop-contract
-> spec, status controls Fable-inline, day-view alignment on opus; see the plan's routing table).
-> The DESKTOP FREEZE IS LIFTED (plan Decision 3) and frontend-to-main deploys are user-authorized —
-> the permission classifier may still demand a fresh in-chat "yes" each session.
+> **OVERHAUL IN PROGRESS (2026-07-03, session 1 ending — cold-start here):** the app is mid-way
+> through the user's full overhaul packet ("Gospel Central Overhaul and Deliverables - Final").
+> **Approved plan:** `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` — 13 locked
+> decisions, phase specs, the anti-hallucination/drift/context-rot protocol (rules 1–15), AND the
+> **MODEL-ROUTING & DELEGATION PROTOCOL** (D1–D8 + per-item routing table: Fable 5 orchestrates
+> inline and NEVER delegates permissions/store-shapes/seed-identities/dependency-adds/git/deploys;
+> sonnet does spec'd volume work; opus the hard components; haiku read-only sweeps; 4 marked
+> ultracode gates). READ THE PLAN + LEDGER BEFORE ANY EDIT; re-read the routing ROW before any
+> dispatch (D6) — never dispatch from memory.
+> **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root, untracked, append-only — THE resume point;
+> per-phase tier records live there).
+>
+> **DONE + DEPLOYED (verify prod SHA vs `git rev-parse origin/main`, don't trust this list blindly):**
+> - **Phase 0** foundation: 6-status contact model, booking outcome statuses w/ status-gated metrics
+>   (PATCH /bookings/:id/status; side-effects on the →completed edge; auto-promotion first_study→
+>   unbaptized @2 completed), 35-study curriculum (`src/lib/curriculum.ts`), User.gender, Combobox/
+>   Select dropdown fixes, i18n en/es parity test.
+> - **Phase 1** seed = 2 churches (NN 75 / VB 54; Joseph + Simon Peter BLs; ex-BLs = VB TLs keeping
+>   branch2/3/4 logins; all 6 statuses in BOTH churches; persona manifest `docs/qa/stable-personas.md`).
+> - **Phase 2** dashboard: church toggle + set-default (`dashboardChurchId` pref), Completed-only
+>   month KPIs, Your Group = DIRECT relationships only (directReports; members see team-mates;
+>   GL+-gated CSV/TXT member export via `canExportMemberList`), leaderboards. Refinements: fruit
+>   board = top 10 by count, LAST 30 DAYS, APP-WIDE (no hierarchy/church scoping), ties earliest-
+>   first; Baptisms KPI = current MONTH (church-scoped). Seeded baptisms are 2024-dated → prod
+>   correctly shows 0 baptisms/empty fruit board until real in-window fruit.
+> - Calendar legend: "Baptized Persecuted" removed.
+>
+> **NEXT: Phase 3 — Calendar** (routing table rows): BookingCard rewrite is NOT a pure re-key — the
+> D1 prompt must carry the PROP CONTRACT (parents resolve teacher gender + contact live-baptism and
+> pass e.g. `teacherGender`/`contactBaptized` down; DayView/WeekView/AgendaView in scope; AgendaView
+> has a named NEVER-REBUILD DON'T); status controls in the detail dialog = Fable inline
+> (canSetBookingStatus exists; `bookingsApi.setBookingStatus()` ready); day-view column alignment →
+> opus; gender editability (Settings profile + admin EditUserDialog) → sonnet; legend rewrite to
+> 2 colors + baptism border + 4 statuses.
+>
+> **Session-2 operational notes:** DESKTOP FREEZE LIFTED (verify 3 widths: ≥1280 / 412×915 /
+> 275×596@5.24). Frontend-to-main deploys are user-authorized but the permission classifier demands
+> a fresh in-chat "yes" EACH session — ask once, then proceed. Deploy flow: commit on
+> feat/mobile-opt-main → checkout main → merge --ff-only → `git push origin main` ON ITS OWN LINE
+> (bash-guard H4 false-positives on chained pushes) → checkout back → poll /version.json for the
+> SHA. If the poll times out, run `npx vercel ls gospel-central --scope aicodeproximas-projects` —
+> the GitHub→Vercel webhook has silently DROPPED a push before (fix: empty retrigger commit).
+> Local `npm run build` rewrites src/lib/version.ts → `git checkout -- src/lib/version.ts` before
+> committing. WebKit e2e project: pre-existing Secure-cookie-on-http blocker (chip task_17530de7);
+> gate on chromium+mobile+visual. base-ui Selects need REAL pointer clicks in automation (synthetic
+> .click() no-ops). Suite at session end: 424 pass / 7 todo; branch ~60 commits ahead of its origin
+> counterpart (intentional — prod = origin/main).
 
 > This is the action-oriented handoff. `HANDOFF.md` is the authoritative packet (Mike + new devs); `MOBILE_AUDIT_PROGRESS.md` is the durable historical ledger. Where any doc disagrees with code, **code wins** (`src/lib/api/*`, `src/mocks/handlers.ts`). Trust `git` + live browser over any SHA/claim written here.
 

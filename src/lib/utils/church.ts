@@ -184,54 +184,105 @@ export function topTeachersByCompletedStudies(
 }
 
 /**
- * topTeachersByFruit — ranks teachers by "fruit this month": contacts whose
- * `pipelineStage` is currently 'baptized' AND whose timeline contains a
- * `stage_change` entry that (a) mentions 'Baptized' in its `details` text and
- * (b) falls inside the current calendar month of `now`.
+ * baptismsThisMonth — church-scoped contacts baptized during the current
+ * calendar month of `now` (KPI card; user decision 2026-07-03: month, not
+ * year). Uses the same baptism-event heuristic as topTeachersByFruit: the
+ * contact's CURRENT stage is 'baptized' AND a stage_change timeline entry
+ * mentioning 'Baptized' falls inside the month — an old baptism does not
+ * count just because the stage is still baptized.
+ */
+export function baptismsThisMonth(
+  contacts: Contact[],
+  churchUserIds: Set<string>,
+  now: Date,
+): Contact[] {
+  return contacts.filter((c) => {
+    if (c.pipelineStage !== 'baptized') return false;
+    if (!contactBelongsToChurch(c, churchUserIds)) return false;
+    return (c.timeline ?? []).some(
+      (entry) =>
+        entry.action === 'stage_change' &&
+        entry.details.includes('Baptized') &&
+        isInCurrentMonth(new Date(entry.date), now),
+    );
+  });
+}
+
+const THIRTY_DAYS_MS = 30 * 86400000;
+
+/** True when `date` falls inside the rolling last-30-days window ending at `now`. */
+export function isInLast30Days(date: Date, now: Date): boolean {
+  const t = date.getTime();
+  return t >= now.getTime() - THIRTY_DAYS_MS && t <= now.getTime();
+}
+
+/**
+ * topTeachersByFruit — the top users who bore the MOST fruit in the LAST 30
+ * DAYS, app-wide, REGARDLESS of their hierarchical group / church / subtree
+ * (user decision 2026-07-03). "Fruit" = a contact whose `pipelineStage` is
+ * currently 'baptized' AND whose timeline contains a `stage_change` entry
+ * that (a) mentions 'Baptized' in its `details` text and (b) falls inside
+ * the rolling 30-day window ending at `now`.
  *
  * Timeline heuristic: the seed (and the live handler) record a baptism as a
  * TimelineEntry with `action: 'stage_change'` and
  * `details: 'Pipeline stage changed to Baptized'` (the human label for
  * PipelineStage.BAPTIZED). There's no dedicated "baptism" action, so we treat
  * any stage_change entry whose details contain the substring 'Baptized' as
- * the baptism event and use ITS date for the "this month" window — a
- * contact's CURRENT stage can be baptized while the actual baptism happened
- * in an earlier month, which should NOT count as "fruit this month".
+ * the baptism event and use ITS date for the window — a contact's CURRENT
+ * stage can be baptized while the actual baptism happened earlier, which
+ * should NOT count as recent fruit.
  *
- * Each qualifying contact is attributed to its `assignedTeacherId`. Contacts
- * without an assigned teacher, or whose teacher is not in `churchUserIds`
- * (i.e. not a member of this church), are skipped. Ties break by name
- * ascending. Returns at most `limit`.
+ * Each qualifying contact is attributed to its `assignedTeacherId`; contacts
+ * without one (or with a dangling id) are skipped. Ordering: fruit count
+ * DESCENDING, then EARLIEST fruit first (so when everyone has one fruit the
+ * list reads chronologically, first fruit at the top), then name ascending.
+ * Returns at most `limit`.
  */
 export function topTeachersByFruit(
   contacts: Contact[],
   users: User[],
-  churchUserIds: Set<string>,
   now: Date,
   limit = 10,
 ): { user: User; count: number }[] {
   const usersById = new Map(users.map((u) => [u.id, u] as const));
-  const counts = new Map<string, number>();
+  const tally = new Map<string, { count: number; earliest: number }>();
   for (const contact of contacts) {
     if (contact.pipelineStage !== 'baptized') continue;
     const teacherId = contact.assignedTeacherId;
-    if (!teacherId || !churchUserIds.has(teacherId)) continue;
-    const baptizedThisMonth = (contact.timeline ?? []).some(
-      (entry) =>
-        entry.action === 'stage_change' &&
-        entry.details.includes('Baptized') &&
-        isInCurrentMonth(new Date(entry.date), now),
-    );
-    if (!baptizedThisMonth) continue;
-    counts.set(teacherId, (counts.get(teacherId) ?? 0) + 1);
+    if (!teacherId || !usersById.has(teacherId)) continue;
+    const fruitDates = (contact.timeline ?? [])
+      .filter(
+        (entry) =>
+          entry.action === 'stage_change' &&
+          entry.details.includes('Baptized') &&
+          isInLast30Days(new Date(entry.date), now),
+      )
+      .map((entry) => new Date(entry.date).getTime());
+    if (fruitDates.length === 0) continue;
+    const fruitAt = Math.min(...fruitDates);
+    const prev = tally.get(teacherId);
+    if (prev) {
+      prev.count += 1;
+      prev.earliest = Math.min(prev.earliest, fruitAt);
+    } else {
+      tally.set(teacherId, { count: 1, earliest: fruitAt });
+    }
   }
-  const entries: { user: User; count: number }[] = [];
-  for (const [teacherId, count] of counts) {
+  const entries: { user: User; count: number; earliest: number }[] = [];
+  for (const [teacherId, { count, earliest }] of tally) {
     const user = usersById.get(teacherId);
     if (!user) continue;
-    entries.push({ user, count });
+    entries.push({ user, count, earliest });
   }
-  return sortByCountThenName(entries).slice(0, limit);
+  entries.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    if (a.earliest !== b.earliest) return a.earliest - b.earliest;
+    const nameA = `${a.user.firstName} ${a.user.lastName}`.trim();
+    const nameB = `${b.user.firstName} ${b.user.lastName}`.trim();
+    return nameA.localeCompare(nameB);
+  });
+  return entries.slice(0, limit).map(({ user, count }) => ({ user, count }));
 }
 
 /**

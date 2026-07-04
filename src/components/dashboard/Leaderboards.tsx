@@ -16,6 +16,7 @@ import { useTranslation } from '@/lib/i18n';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import {
   bibleStudiesThisMonth,
+  isInLast30Days,
   topTeachersByCompletedStudies,
   topTeachersByFruit,
 } from '@/lib/utils/church';
@@ -34,24 +35,16 @@ interface LeaderboardsProps {
   contacts: Contact[];
   users: User[];
   areaId: string;
-  churchUserIds: Set<string>;
   now: Date;
 }
 
 type OpenBoard = { kind: 'studies' | 'fruit'; userId: string } | null;
-
-function isInCurrentMonth(date: Date, now: Date): boolean {
-  return (
-    date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
-  );
-}
 
 export function Leaderboards({
   bookings,
   contacts,
   users,
   areaId,
-  churchUserIds,
   now,
 }: LeaderboardsProps) {
   const { t } = useTranslation();
@@ -62,9 +55,11 @@ export function Leaderboards({
     () => topTeachersByCompletedStudies(bookings, users, areaId, now),
     [bookings, users, areaId, now],
   );
+  // Fruit is app-wide by design (user decision): last 30 days, regardless of
+  // the church toggle or any hierarchical grouping.
   const topFruit = useMemo(
-    () => topTeachersByFruit(contacts, users, churchUserIds, now),
-    [contacts, users, churchUserIds, now],
+    () => topTeachersByFruit(contacts, users, now),
+    [contacts, users, now],
   );
 
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u] as const)), [users]);
@@ -80,6 +75,7 @@ export function Leaderboards({
 
   const openFruit = useMemo(() => {
     if (!open || open.kind !== 'fruit') return [];
+    // Mirrors topTeachersByFruit's window: rolling last 30 days.
     return contacts.filter((c) => {
       if (c.assignedTeacherId !== open.userId) return false;
       if (c.pipelineStage !== 'baptized') return false;
@@ -87,7 +83,7 @@ export function Leaderboards({
         (entry) =>
           entry.action === 'stage_change' &&
           entry.details.includes('Baptized') &&
-          isInCurrentMonth(new Date(entry.date), now),
+          isInLast30Days(new Date(entry.date), now),
       );
     });
   }, [open, contacts, now]);

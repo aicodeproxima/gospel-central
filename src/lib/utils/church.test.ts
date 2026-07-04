@@ -7,6 +7,7 @@ import {
   upcomingStudies,
   topTeachersByCompletedStudies,
   topTeachersByFruit,
+  baptismsThisMonth,
   buildYourGroup,
 } from './church';
 import { BookingType } from '../types/booking';
@@ -329,73 +330,41 @@ describe('topTeachersByCompletedStudies', () => {
   });
 });
 
-describe('topTeachersByFruit', () => {
-  test('counts baptized contacts with a stage_change "Baptized" entry this month, attributed to teacher', () => {
-    const users = [makeUser({ id: 't1', firstName: 'Bob' })];
+describe('baptismsThisMonth (KPI: current calendar month, church-scoped)', () => {
+  const baptized = (id: string, teacherId: string, date: string): Contact =>
+    makeContact({
+      id,
+      pipelineStage: PipelineStage.BAPTIZED,
+      assignedTeacherId: teacherId,
+      timeline: [stageChange(date, 'Pipeline stage changed to Baptized')],
+    });
+
+  test('counts only baptisms whose stage-change falls in the current month', () => {
     const church = new Set(['t1']);
     const contacts = [
-      makeContact({
-        id: 'c1',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't1',
-        timeline: [stageChange('2026-07-10T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
+      baptized('c-in', 't1', '2026-07-01T00:00:00'),   // first of month ✓
+      baptized('c-prior', 't1', '2026-06-28T00:00:00'), // prior month ✗
+      baptized('c-next', 't1', '2026-08-01T00:00:00'),  // next month ✗
     ];
-    const result = topTeachersByFruit(contacts, users, church, NOW, 10);
-    expect(result).toEqual([{ user: users[0], count: 1 }]);
+    expect(baptismsThisMonth(contacts, church, NOW).map((c) => c.id)).toEqual(['c-in']);
   });
 
-  test('boundary: first day of month counts, next-month first day does not', () => {
-    const users = [makeUser({ id: 't1' })];
+  test('an old baptism does NOT count just because the stage is still baptized', () => {
     const church = new Set(['t1']);
-    const contacts = [
-      makeContact({
-        id: 'c-in',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't1',
-        timeline: [stageChange('2026-07-01T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
-      makeContact({
-        id: 'c-out',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't1',
-        timeline: [stageChange('2026-08-01T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
-    ];
-    const result = topTeachersByFruit(contacts, users, church, NOW, 10);
-    expect(result).toEqual([{ user: users[0], count: 1 }]);
+    const contacts = [baptized('c-old', 't1', '2025-01-10T00:00:00')];
+    expect(baptismsThisMonth(contacts, church, NOW)).toEqual([]);
   });
 
-  test('skips contacts without an assignedTeacherId', () => {
-    const users = [makeUser({ id: 't1' })];
-    const church = new Set(['t1']);
+  test('church-scoped: contacts of another church\'s teachers are excluded', () => {
+    const church = new Set(['t-mine']);
     const contacts = [
-      makeContact({
-        id: 'c1',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: undefined,
-        timeline: [stageChange('2026-07-10T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
+      baptized('c-mine', 't-mine', '2026-07-10T00:00:00'),
+      baptized('c-other', 't-other', '2026-07-10T00:00:00'),
     ];
-    expect(topTeachersByFruit(contacts, users, church, NOW, 10)).toEqual([]);
+    expect(baptismsThisMonth(contacts, church, NOW).map((c) => c.id)).toEqual(['c-mine']);
   });
 
-  test('skips contacts whose teacher is not in churchUserIds', () => {
-    const users = [makeUser({ id: 't1' })];
-    const church = new Set(['someone-else']);
-    const contacts = [
-      makeContact({
-        id: 'c1',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't1',
-        timeline: [stageChange('2026-07-10T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
-    ];
-    expect(topTeachersByFruit(contacts, users, church, NOW, 10)).toEqual([]);
-  });
-
-  test('non-baptized pipelineStage never counts, even with a matching timeline entry', () => {
-    const users = [makeUser({ id: 't1' })];
+  test('non-baptized stages never count', () => {
     const church = new Set(['t1']);
     const contacts = [
       makeContact({
@@ -405,48 +374,113 @@ describe('topTeachersByFruit', () => {
         timeline: [stageChange('2026-07-10T00:00:00', 'Pipeline stage changed to Baptized')],
       }),
     ];
-    expect(topTeachersByFruit(contacts, users, church, NOW, 10)).toEqual([]);
+    expect(baptismsThisMonth(contacts, church, NOW)).toEqual([]);
+  });
+});
+
+describe('topTeachersByFruit (last 30 days, app-wide, count desc then earliest-first)', () => {
+  const fruit = (id: string, teacherId: string | undefined, date: string): Contact =>
+    makeContact({
+      id,
+      pipelineStage: PipelineStage.BAPTIZED,
+      assignedTeacherId: teacherId,
+      timeline: [stageChange(date, 'Pipeline stage changed to Baptized')],
+    });
+
+  test('counts baptized contacts with a stage_change "Baptized" entry in the last 30 days', () => {
+    const users = [makeUser({ id: 't1', firstName: 'Bob' })];
+    const result = topTeachersByFruit([fruit('c1', 't1', '2026-07-10T00:00:00')], users, NOW, 10);
+    expect(result).toEqual([{ user: users[0], count: 1 }]);
   });
 
-  test('teacher missing from users list is skipped', () => {
-    const users: User[] = [];
-    const church = new Set(['t1']);
+  test('rolling 30-day window: 29 days ago counts, 31 days ago does not, the future does not', () => {
+    const users = [makeUser({ id: 't1' })];
+    const contacts = [
+      fruit('c-in', 't1', '2026-06-16T12:00:00'), // 29 days before NOW ✓
+      fruit('c-old', 't1', '2026-06-14T12:00:00'), // 31 days before NOW ✗
+      fruit('c-future', 't1', '2026-07-16T12:00:00'), // after NOW ✗
+    ];
+    const result = topTeachersByFruit(contacts, users, NOW, 10);
+    expect(result).toEqual([{ user: users[0], count: 1 }]);
+  });
+
+  test('NO hierarchy/church scoping: teachers from anywhere in the org rank together', () => {
+    const users = [
+      makeUser({ id: 't-nn', firstName: 'Nn', locationId: 'area-newport-news' }),
+      makeUser({ id: 't-vb', firstName: 'Vb', locationId: 'area-virginia-beach' }),
+    ];
+    const contacts = [
+      fruit('c1', 't-nn', '2026-07-05T00:00:00'),
+      fruit('c2', 't-vb', '2026-07-03T00:00:00'),
+    ];
+    const result = topTeachersByFruit(contacts, users, NOW, 10);
+    expect(result.map((r) => r.user.id)).toEqual(['t-vb', 't-nn']); // both present; earliest first
+  });
+
+  test('skips contacts without an assignedTeacherId or with a dangling teacher id', () => {
+    const users = [makeUser({ id: 't1' })];
+    expect(topTeachersByFruit([fruit('c1', undefined, '2026-07-10T00:00:00')], users, NOW, 10)).toEqual([]);
+    expect(topTeachersByFruit([fruit('c1', 'ghost', '2026-07-10T00:00:00')], users, NOW, 10)).toEqual([]);
+  });
+
+  test('non-baptized pipelineStage never counts, even with a matching timeline entry', () => {
+    const users = [makeUser({ id: 't1' })];
     const contacts = [
       makeContact({
         id: 'c1',
-        pipelineStage: PipelineStage.BAPTIZED,
+        pipelineStage: PipelineStage.BAPTISM_READY,
         assignedTeacherId: 't1',
         timeline: [stageChange('2026-07-10T00:00:00', 'Pipeline stage changed to Baptized')],
       }),
     ];
-    expect(topTeachersByFruit(contacts, users, church, NOW, 10)).toEqual([]);
+    expect(topTeachersByFruit(contacts, users, NOW, 10)).toEqual([]);
   });
 
-  test('sorts by count desc then name asc and respects limit', () => {
+  test('most fruit ranks first: count desc beats recency', () => {
+    const users = [
+      makeUser({ id: 'one', firstName: 'Early' }),
+      makeUser({ id: 'two', firstName: 'Prolific' }),
+    ];
+    const contacts = [
+      fruit('c1', 'one', '2026-06-20T00:00:00'), // earliest fruit, but only 1
+      fruit('c2', 'two', '2026-07-01T00:00:00'),
+      fruit('c3', 'two', '2026-07-10T00:00:00'), // 2 fruit → ranks first
+    ];
+    const result = topTeachersByFruit(contacts, users, NOW, 10);
+    expect(result.map((r) => ({ id: r.user.id, count: r.count }))).toEqual([
+      { id: 'two', count: 2 },
+      { id: 'one', count: 1 },
+    ]);
+  });
+
+  test('when everyone has one fruit, the list reads earliest → latest', () => {
+    const users = [
+      makeUser({ id: 'a', firstName: 'Zeta' }),
+      makeUser({ id: 'b', firstName: 'Alpha' }),
+      makeUser({ id: 'c', firstName: 'Midway' }),
+    ];
+    const contacts = [
+      fruit('c1', 'a', '2026-07-12T00:00:00'), // latest
+      fruit('c2', 'b', '2026-06-20T00:00:00'), // earliest
+      fruit('c3', 'c', '2026-07-01T00:00:00'), // middle
+    ];
+    const result = topTeachersByFruit(contacts, users, NOW, 10);
+    // NOT name order (Alpha/Midway/Zeta) — chronological by earliest fruit.
+    expect(result.map((r) => r.user.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  test('respects limit after sorting', () => {
     const users = [
       makeUser({ id: 't1', firstName: 'Zack' }),
       makeUser({ id: 't2', firstName: 'Amy' }),
     ];
-    const church = new Set(['t1', 't2']);
     const contacts = [
-      makeContact({
-        id: 'c1',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't1',
-        timeline: [stageChange('2026-07-05T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
-      makeContact({
-        id: 'c2',
-        pipelineStage: PipelineStage.BAPTIZED,
-        assignedTeacherId: 't2',
-        timeline: [stageChange('2026-07-06T00:00:00', 'Pipeline stage changed to Baptized')],
-      }),
+      fruit('c1', 't1', '2026-07-05T00:00:00'), // earlier → ranks first on the tie
+      fruit('c2', 't2', '2026-07-06T00:00:00'),
     ];
-    const result = topTeachersByFruit(contacts, users, church, NOW, 1);
+    const result = topTeachersByFruit(contacts, users, NOW, 1);
     expect(result.length).toBe(1);
-    // t1 and t2 tie at count 1 -> name asc breaks the tie: "Amy" (t2) before "Zack" (t1).
-    expect(result[0].user.id).toBe('t2');
-    expect(result[0].count).toBe(1);
+    expect(result[0].user.id).toBe('t1');
   });
 });
 
@@ -587,7 +621,7 @@ describe('real scenario data — cross-helper sanity', () => {
       topTeachersByCompletedStudies(scenarioBookings, scenarioUsers, 'area-newport-news', now),
     ).toBeInstanceOf(Array);
     expect(
-      topTeachersByFruit(scenarioContacts, scenarioUsers, nnIds, now),
+      topTeachersByFruit(scenarioContacts, scenarioUsers, now),
     ).toBeInstanceOf(Array);
   });
 });

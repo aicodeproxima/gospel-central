@@ -39,7 +39,7 @@ import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
 import {
   getChurchUserIds,
-  contactBelongsToChurch,
+  baptismsThisMonth,
   contactsStudyingThisMonth,
   bibleStudiesThisMonth,
   upcomingStudies,
@@ -49,7 +49,6 @@ import { Leaderboards } from '@/components/dashboard/Leaderboards';
 import {
   BOOKING_TYPE_CONFIG,
   PIPELINE_STAGE_CONFIG,
-  PipelineStage,
 } from '@/lib/types';
 import type { Booking, Contact as ContactType, Area, User } from '@/lib/types';
 import { format, startOfMonth } from 'date-fns';
@@ -166,11 +165,11 @@ export default function DashboardPage() {
     [bookings, selectedAreaId],
   );
 
+  // Current calendar month only (user decision 2026-07-03: month, not year);
+  // church-scoped like the other KPI cards.
   const baptisms = useMemo(
-    () =>
-      contacts.filter(
-        (c) => c.pipelineStage === PipelineStage.BAPTIZED && contactBelongsToChurch(c, churchUserIds),
-      ),
+    () => baptismsThisMonth(contacts, churchUserIds, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [contacts, churchUserIds],
   );
 
@@ -204,7 +203,7 @@ export default function DashboardPage() {
     },
     {
       key: 'baptisms',
-      label: t('dash.baptismsThisYear'),
+      label: t('dash.baptismsThisMonth'),
       value: String(baptisms.length),
       icon: TrendingUp,
       trend: baptisms.length > 0 ? t('dash.keepGoing') : t('dash.prayForFruit'),
@@ -472,7 +471,7 @@ export default function DashboardPage() {
         <DialogContent className="max-h-[85vh] overflow-hidden flex flex-col sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-400" /> {t('dash.baptismsThisYear')}
+              <Sparkles className="h-5 w-5 text-amber-400" /> {t('dash.baptismsThisMonth')}
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
               {baptisms.length} {t('dash.contactsBaptized')}
@@ -513,14 +512,14 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Leaderboards */}
+      {/* Leaderboards (studies follow the church toggle; fruit is app-wide,
+          last 30 days, regardless of hierarchy — user decision) */}
       {selectedAreaId && (
         <Leaderboards
           bookings={bookings}
           contacts={contacts}
           users={users}
           areaId={selectedAreaId}
-          churchUserIds={churchUserIds}
           now={now}
         />
       )}

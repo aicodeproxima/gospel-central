@@ -108,7 +108,7 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.upcomingBookings': 'Upcoming Bookings',
     'dash.activeContacts': 'Active Contacts',
     'dash.sessionsThisMonth': 'Sessions This Month',
-    'dash.baptismsThisYear': 'Baptisms This Year',
+    'dash.baptismsThisMonth': 'Baptisms This Month',
     'dash.keepGoing': 'Keep going!',
     'dash.prayForFruit': 'Pray for fruit',
     'dash.thisWeek': 'this week',
@@ -143,9 +143,9 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.exportTxt': 'Export TXT',
     'dash.leaderboards': 'Leaderboards',
     'dash.topStudies': 'Top 10 — Bible Studies This Month',
-    'dash.topFruit': 'Top 10 — Fruit This Month',
+    'dash.topFruit': 'Top 10 — Fruit (Last 30 Days)',
     'dash.noStudiesYet': 'No completed studies yet this month',
-    'dash.noFruitYet': 'No fruit recorded this month',
+    'dash.noFruitYet': 'No fruit recorded in the last 30 days',
 
     // ── Calendar page ───────────────────────────────────────────
     'page.calendar.title': 'Calendar',
@@ -494,7 +494,7 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.upcomingBookings': 'Reservas Próximas',
     'dash.activeContacts': 'Contactos Activos',
     'dash.sessionsThisMonth': 'Sesiones Este Mes',
-    'dash.baptismsThisYear': 'Bautismos Este Año',
+    'dash.baptismsThisMonth': 'Bautismos Este Mes',
     'dash.keepGoing': '¡Sigue adelante!',
     'dash.prayForFruit': 'Ora por fruto',
     'dash.thisWeek': 'esta semana',
@@ -529,9 +529,9 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.exportTxt': 'Exportar TXT',
     'dash.leaderboards': 'Tablas de Líderes',
     'dash.topStudies': 'Top 10 — Estudios Bíblicos Este Mes',
-    'dash.topFruit': 'Top 10 — Fruto Este Mes',
+    'dash.topFruit': 'Top 10 — Fruto (Últimos 30 Días)',
     'dash.noStudiesYet': 'Aún no hay estudios completados este mes',
-    'dash.noFruitYet': 'No hay fruto registrado este mes',
+    'dash.noFruitYet': 'No hay fruto registrado en los últimos 30 días',
 
     // ── Calendar page ───────────────────────────────────────────
     'page.calendar.title': 'Calendario',
