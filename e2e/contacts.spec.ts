@@ -47,7 +47,15 @@ test.describe('List B — contacts', () => {
     await expect(del).toHaveCount(0); // the guard: never when all are selected
   });
 
-  test('bulk Delete actually removes the selected contacts (everyone)', async ({ page }) => {
+  test('bulk Delete actually removes the selected contacts (org-wide actor)', async ({ page }) => {
+    // Decision 10 (2026-07): bulk delete gates per row on manageable scope, so
+    // a Branch Leader can't delete an out-of-branch contact. This test proves
+    // the delete MECHANISM (success toast + removal), so it runs as an
+    // org-wide actor who can delete any row (the per-row scope skip logic is
+    // covered by the permission matrix + refuter suite).
+    await loginAs(page, 'admin');
+    await page.goto('/contacts');
+    await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /^select$/i }).first().click();
     await page.locator('input[type="checkbox"]').first().check();
     page.once('dialog', (d) => d.accept()); // window.confirm("Delete N selected contacts?")
@@ -63,5 +71,46 @@ test.describe('List B — contacts', () => {
     await page.waitForTimeout(300);
     // list still shows contacts
     await expect(page.getByText(/ethiopian eunuch|samaritan woman|adam/i).first()).toBeVisible();
+  });
+});
+
+/**
+ * Decision 10 permission regression (Phase-5 refuter gate): a Member must not
+ * reach an EDITABLE contact form for a contact they didn't create — including
+ * via the ?edit= deep-link, which previously opened the ungated ContactForm
+ * for ANY contact id. member3 (Ananias) is a plain member+teacher.
+ */
+test.describe('List B — contacts permission boundary (Decision 10)', () => {
+  test('a member deep-linking ?edit= to another owner\'s contact gets NO write form', async ({ page }) => {
+    // Discover a contact id the member can at least see, as admin first.
+    await loginAs(page, 'admin');
+    await page.goto('/contacts');
+    await page.waitForLoadState('networkidle');
+    const someId = await page.evaluate(async () => {
+      const res = await fetch('/api/contacts', {
+        headers: (() => {
+          for (const k of Object.keys(localStorage)) {
+            try { const v = JSON.parse(localStorage.getItem(k) || 'null'); if (v?.state?.token) return { authorization: `Bearer ${v.state.token}` }; } catch { /* */ }
+          }
+          return {} as Record<string, string>;
+        })(),
+      });
+      const all = await res.json();
+      // pick a contact NOT created by / assigned to member3 (u-mem-3)
+      const c = all.find((x: { createdBy?: string; assignedTeacherId?: string }) => x.createdBy !== 'u-mem-3' && x.assignedTeacherId !== 'u-mem-3');
+      return c?.id ?? all[0]?.id ?? null;
+    });
+    expect(someId, 'seed has a non-member3 contact').toBeTruthy();
+
+    // Now as member3, hit the edit deep-link for that contact.
+    await loginAs(page, 'member3');
+    await page.goto(`/contacts?edit=${someId}`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+
+    // The write form must NOT be reachable: no "Save Changes" button anywhere.
+    await expect(page.getByRole('button', { name: /save changes/i })).toHaveCount(0);
+    // If any dialog opened, it must be the read-only fallback (no Delete either).
+    await expect(page.getByRole('button', { name: /^delete$/i })).toHaveCount(0);
   });
 });

@@ -27,12 +27,14 @@ import {
   canDeactivateGroup,
   canDeactivateUser,
   canEditBooking,
+  canDeleteContact,
   canEditContact,
   canEditSystemConfig,
   canEditUser,
   canEditUserField,
   canExportImport,
   canExportMemberList,
+  canManageRetention,
   canExportReports,
   canManageArea,
   canManageBlockedSlot,
@@ -615,16 +617,67 @@ describe('canCreateContact', () => {
   });
 });
 
-describe('canEditContact', () => {
+describe('canEditContact (Decision 10: creator-only for members, manageable scope for TL+)', () => {
   const cMemberA = mkContact('cA', memberA.id);
-  test('owner edits own', () => {
+
+  test('creator edits own', () => {
     expect(canEditContact(memberA, cMemberA)).toBe(true);
   });
   test(`Member cannot edit others' contacts`, () => {
     expect(canEditContact(memberB, cMemberA)).toBe(false);
   });
-  test('Branch Leader+ edits any contact', () => {
-    expect(canEditContact(branchB, cMemberA)).toBe(true);
+  test('Member who is only the ASSIGNED TEACHER (not creator) is view-only', () => {
+    // Decision 10: members edit/delete their own creations only. Study-field
+    // updates land via booking completion, not direct contact edits.
+    const assignedNotCreator = {
+      ...mkContact('cX', memberA.id),
+      assignedTeacherId: memberB.id,
+    } as unknown as Contact;
+    expect(canEditContact(memberB, assignedNotCreator)).toBe(false);
+    expect(canViewContact(memberB, assignedNotCreator)).toBe(true); // view-only
+  });
+  test('Team Leader edits contacts reachable via creator OR assigned teacher in scope', () => {
+    expect(canEditContact(teamA, cMemberA, [memberA.id])).toBe(true);
+    expect(canEditContact(teamA, cMemberA, [])).toBe(false);
+    // Unassigned contact created by a subtree member is still manageable.
+    const unassigned = {
+      ...mkContact('cU', memberA.id),
+      assignedTeacherId: undefined,
+    } as unknown as Contact;
+    expect(canEditContact(teamA, unassigned, [memberA.id])).toBe(true);
+  });
+  test('Branch Leader manages ONLY their manageable scope — cross-branch is denied', () => {
+    // Decision 10 + the manageable-scope split: BL writes stay inside their
+    // own branch; org-wide contact writes are Overseer/Dev only.
+    expect(canEditContact(branchB, cMemberA, [])).toBe(false);
+    expect(canEditContact(branchA, cMemberA, [memberA.id])).toBe(true);
+  });
+  test('Overseer / Dev edit any contact', () => {
+    expect(canEditContact(overseer, cMemberA)).toBe(true);
+    expect(canEditContact(dev1, cMemberA)).toBe(true);
+  });
+});
+
+describe('canManageRetention (Phase 5: GL+ extend/delete-now on converted contacts)', () => {
+  test('GL and up only', () => {
+    expect(canManageRetention(memberA)).toBe(false);
+    expect(canManageRetention(teamA)).toBe(false);
+    expect(canManageRetention(groupA)).toBe(true);
+    expect(canManageRetention(branchA)).toBe(true);
+    expect(canManageRetention(overseer)).toBe(true);
+    expect(canManageRetention(dev1)).toBe(true);
+  });
+});
+
+describe('canDeleteContact (Decision 10: delete follows the edit gate)', () => {
+  const cMemberA = mkContact('cA', memberA.id);
+  test('mirrors canEditContact across the matrix', () => {
+    expect(canDeleteContact(memberA, cMemberA)).toBe(true);
+    expect(canDeleteContact(memberB, cMemberA)).toBe(false);
+    expect(canDeleteContact(teamA, cMemberA, [memberA.id])).toBe(true);
+    expect(canDeleteContact(teamA, cMemberA, [])).toBe(false);
+    expect(canDeleteContact(branchB, cMemberA, [])).toBe(false);
+    expect(canDeleteContact(overseer, cMemberA)).toBe(true);
   });
 });
 
@@ -636,15 +689,23 @@ describe('canConvertContact', () => {
   test('Team Leader can convert if scope matches', () => {
     expect(canConvertContact(teamA, cMemberA, [memberA.id])).toBe(true);
   });
-  test('Branch Leader+ always can', () => {
-    expect(canConvertContact(branchB, cMemberA)).toBe(true);
+  test('Branch Leader converts only inside their manageable scope (Decision 10)', () => {
+    // Cross-branch conversion moved to Overseer/Dev with the manageable-scope
+    // split — a BL with no reach into the contact's chain is denied.
+    expect(canConvertContact(branchB, cMemberA, [])).toBe(false);
+    expect(canConvertContact(branchA, cMemberA, [memberA.id])).toBe(true);
+    expect(canConvertContact(overseer, cMemberA)).toBe(true);
   });
 });
 
 describe('canReassignContact', () => {
   const cMemberA = mkContact('cA', memberA.id);
-  test('combined edit + create rights', () => {
-    expect(canReassignContact(branchB, cMemberA, memberB.id)).toBe(true);
+  test('combined edit + create rights (Decision 10 scope)', () => {
+    // BL out-of-scope: edit half fails → deny. In-scope BL with reach over
+    // both the contact's chain and the new owner: allow. Overseer: allow.
+    expect(canReassignContact(branchB, cMemberA, memberB.id, [])).toBe(false);
+    expect(canReassignContact(branchA, cMemberA, memberB.id, [memberA.id, memberB.id])).toBe(true);
+    expect(canReassignContact(overseer, cMemberA, memberB.id)).toBe(true);
     expect(canReassignContact(memberA, cMemberA, memberB.id)).toBe(false);
   });
 });

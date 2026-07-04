@@ -25,6 +25,7 @@
 import { describe, expect, test } from 'vitest';
 import { scenarioUsers } from './scenario-church-week';
 import {
+  buildManageableScope,
   buildVisibilityScope,
   canChangeRole,
   canCreateArea,
@@ -229,24 +230,33 @@ describe('per-user smoke — cross-user invariants hold across the matrix', () =
     }
   });
 
-  test('Admin-tier viewers (kind:"all") pass canEditContact regardless of contact ownership', () => {
-    // Defends against a subtle bug class: if a helper forgets to short-
-    // circuit isAdminTier before doing `subtreeUserIds.includes(...)`,
-    // admin-tier viewers (whose userIds is empty by sentinel) would
-    // incorrectly fail the includes check and lose access.
-    const viewers = ['u-michael', 'u-overseer-gabriel', 'u-branch-1'];
+  test('Overseer/Dev (kind:"all") pass canEditContact regardless of contact ownership; BL is manageable-scope (Decision 10)', () => {
+    // Defends against a subtle bug class: if the helper forgets to short-
+    // circuit the org-wide tier before doing `subtreeUserIds.includes(...)`,
+    // Overseer/Dev (whose userIds is empty by sentinel) would incorrectly
+    // fail the includes check and lose access.
     const arbitraryContact = {
       id: 'c-test',
       assignedTeacherId: 'u-team-15',
       createdBy: 'u-team-15',
     } as never;
-    for (const vid of viewers) {
+    for (const vid of ['u-michael', 'u-overseer-gabriel']) {
       const viewer = allUsers.find((u) => u.id === vid)!;
-      const subtree = buildVisibilityScope(viewer, allUsers).userIds;
-      // Even with empty subtree (kind:'all' sentinel), admin-tier should
-      // be allowed to edit any contact via the early-return.
+      const subtree = buildManageableScope(viewer, allUsers).userIds;
       expect(canEditContact(viewer, arbitraryContact, subtree), `${vid}: canEditContact should pass`).toBe(true);
     }
+    // Decision 10 (2026-07): a Branch Leader's contact WRITES are bounded by
+    // their MANAGEABLE scope. u-team-15 is a Virginia Beach chain — the
+    // Newport News BL (Joseph) must be denied, the VB BL (Simon Peter)
+    // allowed via his own subtree.
+    const nnBl = allUsers.find((u) => u.id === 'u-branch-1')!;
+    const vbBl = allUsers.find((u) => u.id === 'u-branch-5')!;
+    const nnScope = buildManageableScope(nnBl, allUsers).userIds;
+    const vbScope = buildManageableScope(vbBl, allUsers).userIds;
+    expect(nnScope.includes('u-team-15'), 'seed sanity: team15 not under NN BL').toBe(false);
+    expect(vbScope.includes('u-team-15'), 'seed sanity: team15 under VB BL').toBe(true);
+    expect(canEditContact(nnBl, arbitraryContact, nnScope), 'NN BL cross-branch edit denied').toBe(false);
+    expect(canEditContact(vbBl, arbitraryContact, vbScope), 'VB BL in-branch edit allowed').toBe(true);
   });
 
   test('Every Group Leader has at least one descendant team', () => {

@@ -61,6 +61,9 @@ export interface Contact {
    *  group-leader's discretion). The read handlers flag records past this date;
    *  no background job exists in the mock. */
   retainUntil?: string;
+  /** Derived ON READ by GET /contacts when retainUntil has lapsed — never
+   *  stored. UI badges the record and offers GL+ delete/extend. */
+  retentionExpired?: boolean;
   /** Chronological history of interactions and stage changes. */
   timeline?: TimelineEntry[];
   createdBy: string;

@@ -41,6 +41,7 @@ import {
   type User,
 } from '@/lib/types';
 import {
+  buildManageableScope,
   buildVisibilityScope,
   canViewContact,
 } from '@/lib/utils/permissions';
@@ -106,6 +107,13 @@ export function ContactsAdminTab() {
 
   const scope = useMemo(
     () => buildVisibilityScope(viewer ?? null, users),
+    [viewer, users],
+  );
+  // Decision 10 (2026-07): the detail dialog's WRITE gates (convert /
+  // reassign / edit) take the MANAGEABLE scope — a Branch Leader reads all
+  // branches but writes only inside their own.
+  const manageScope = useMemo(
+    () => buildManageableScope(viewer ?? null, users),
     [viewer, users],
   );
 
@@ -518,7 +526,7 @@ export function ContactsAdminTab() {
         allContacts={contacts}
         onSave={handleSave}
         viewer={viewer}
-        subtreeUserIds={scope.userIds}
+        subtreeUserIds={manageScope.userIds}
         onConvert={handleConvert}
       />
     </div>

@@ -3,24 +3,14 @@
 import { memo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  BOOKING_TYPE_CONFIG,
-  PIPELINE_STAGE_CONFIG,
-} from '@/lib/types';
+import { PIPELINE_STAGE_CONFIG } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
-import { Phone, Mail, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { getAssignedTeacher, stepLabel } from '@/lib/utils/contact-helpers';
-
-function initialsOf(firstName?: string, lastName?: string): string {
-  const a = (firstName || '').trim();
-  const b = (lastName || '').trim();
-  const first = a ? a[0]! : '';
-  const second = b ? b[0]! : '';
-  return `${first}${second}`.toUpperCase() || '•';
-}
+import { getAssignedTeacher, initialsOf, stepLabel } from '@/lib/utils/contact-helpers';
+import { prefixMatch } from '@/lib/utils/text-match';
+import { HighlightedText } from '@/components/shared/HighlightedText';
 
 interface ContactCardProps {
   contact: Contact;
@@ -32,6 +22,8 @@ interface ContactCardProps {
   onToggleSelect?: () => void;
   /** Compact mode for kanban columns */
   compact?: boolean;
+  /** Search query to highlight within the contact's name (deep-link/search UX). */
+  query?: string;
 }
 
 function ContactCardInner({
@@ -42,24 +34,22 @@ function ContactCardInner({
   selected,
   onToggleSelect,
   compact,
+  query,
 }: ContactCardProps) {
-  const { t, tStage, tBookingType } = useTranslation();
-  const typeConfig = BOOKING_TYPE_CONFIG[contact.type];
+  const { t, tStage } = useTranslation();
   const stageConfig = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
-
-  const resolvePartnerName = (id: string | null | undefined) => {
-    if (!id) return null;
-    const user = users.find((u) => u.id === id);
-    if (user) return `${user.firstName} ${user.lastName}`.trim();
-    return null;
-  };
-
-  const partnerNames = (contact.preachingPartnerIds || [])
-    .map(resolvePartnerName)
-    .filter((n): n is string => !!n);
 
   const teacher = getAssignedTeacher(users, contact);
   const step = stepLabel(contact);
+  const fullName = `${contact.firstName} ${contact.lastName}`.trim();
+
+  // Branches: reuse whatever branch/group display the card has today
+  // (contact.groupName). First branch gets the "main branch" purple highlight
+  // per the packet; there is currently only ever one branch value available
+  // to the card (no branches[] list on Contact), so the list is length <= 1.
+  const branches = contact.groupName ? [contact.groupName] : [];
+
+  const nameRanges = query ? prefixMatch(fullName, query) : null;
 
   const handleClick = () => {
     if (selectMode && onToggleSelect) {
@@ -68,6 +58,12 @@ function ContactCardInner({
       onClick();
     }
   };
+
+  const nameNode = nameRanges ? (
+    <HighlightedText text={fullName} ranges={nameRanges} />
+  ) : (
+    fullName
+  );
 
   if (compact) {
     return (
@@ -89,9 +85,7 @@ function ContactCardInner({
             />
           )}
           <div className={cn('h-2 w-2 rounded-full shrink-0', stageConfig.color)} />
-          <span className="text-sm font-medium truncate">
-            {contact.firstName} {contact.lastName}
-          </span>
+          <span className="text-sm font-medium truncate">{nameNode}</span>
           {contact.currentlyStudying && (
             <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
           )}
@@ -111,178 +105,105 @@ function ContactCardInner({
       )}
       onClick={handleClick}
     >
-      <CardContent className="p-4 max-sm:p-3">
-        {/* MOBILE (<xl): compact vertical card. The NAME is the hero (it was
-            squeezed to nothing in the 2-col horizontal layout) and the type
-            chip wraps instead of clipping at the card's right edge. */}
-        <div className="sm:hidden flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5">
-            {selectMode && (
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={onToggleSelect}
-                onClick={(e) => e.stopPropagation()}
-                className="h-4 w-4 rounded accent-primary shrink-0"
-              />
-            )}
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-              {initialsOf(contact.firstName, contact.lastName)}
-            </div>
-            <span className="ml-auto text-[10px] font-medium text-muted-foreground shrink-0">
-              {contact.totalSessions}s
-            </span>
-          </div>
-          <h3 className="text-xs font-semibold leading-tight line-clamp-2 break-words">
-            {contact.firstName} {contact.lastName}
-          </h3>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('h-2 w-2 rounded-full shrink-0', stageConfig.color)} />
-            <span className="text-[10px] text-muted-foreground truncate">{tStage(contact.pipelineStage)}</span>
-            {contact.currentlyStudying && (
-              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title={t('misc.active')} />
-            )}
-          </div>
-          {teacher && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
-              <GraduationCap className="h-2.5 w-2.5 shrink-0" />
-              <span className="truncate">
-                {teacher.firstName} {teacher.lastName}
-              </span>
-            </div>
-          )}
-          <Badge
-            variant="outline"
-            className={cn(
-              typeConfig.bgColor,
-              typeConfig.color,
-              'h-auto max-w-full self-start whitespace-normal break-words py-0.5 text-[8px] leading-tight',
-            )}
-          >
-            {tBookingType(contact.type)}
-          </Badge>
-          {contact.phone && (
-            <a
-              href={`tel:${contact.phone}`}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground truncate touch-manipulation"
-            >
-              <Phone className="h-2.5 w-2.5 shrink-0" />
-              <span className="truncate">{contact.phone}</span>
-            </a>
-          )}
-        </div>
-
-        {/* >=sm: original horizontal card (tablet + desktop) — unchanged. */}
-        <div className="hidden sm:block">
-        <div className="flex items-start gap-3">
+      <CardContent className="p-3 grid gap-2">
+        {/* Top row: avatar / name / study count */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 min-w-0">
           {selectMode && (
             <input
               type="checkbox"
               checked={selected}
               onChange={onToggleSelect}
               onClick={(e) => e.stopPropagation()}
-              className="mt-1 h-4 w-4 rounded accent-primary shrink-0"
+              className="h-4 w-4 rounded accent-primary shrink-0 self-start"
             />
           )}
-
-          {/* Initials avatar */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-bold">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
             {initialsOf(contact.firstName, contact.lastName)}
           </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold truncate">
-                  {contact.firstName} {contact.lastName}
-                </h3>
-                {/* Clickable phone/email — min-w-0 + truncate so a long email
-                    can't push the card past 320px on phone */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 min-w-0">
-                  {contact.phone && (
-                    <a
-                      href={`tel:${contact.phone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors touch-manipulation"
-                    >
-                      <Phone className="h-3 w-3 shrink-0" />
-                      {contact.phone}
-                    </a>
-                  )}
-                  {contact.email && (
-                    <a
-                      href={`mailto:${contact.email}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors truncate max-w-full min-w-0 touch-manipulation"
-                    >
-                      <Mail className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{contact.email}</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  typeConfig.bgColor,
-                  typeConfig.color,
-                  'text-[9px] shrink-0',
-                )}
-              >
-                {tBookingType(contact.type)}
-              </Badge>
-            </div>
-
-            {/* Stage + active indicator */}
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <div className={cn('h-2 w-2 rounded-full', stageConfig.color)} />
-                <span className="text-xs text-muted-foreground">{tStage(contact.pipelineStage)}</span>
-              </div>
-              {contact.currentlyStudying && (
-                <Badge variant="outline" className="text-[9px] border-green-500/40 text-green-500 gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                  {t('misc.active')}
-                </Badge>
-              )}
-              {step && (
-                <Badge variant="outline" className="text-[9px] text-muted-foreground">
-                  {step}
-                </Badge>
-              )}
-            </div>
-
-            {/* Assigned teacher */}
-            {teacher && (
-              <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <GraduationCap className="h-3 w-3 shrink-0" />
-                <span className="truncate">
-                  {teacher.firstName} {teacher.lastName}
-                </span>
-              </div>
-            )}
-
-            {/* Partners + last session + sessions */}
-            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-1 truncate">
-                {partnerNames.length > 0 && (
-                  <span className="truncate">
-                    {partnerNames.slice(0, 2).join(', ')}
-                    {partnerNames.length > 2 && ` +${partnerNames.length - 2}`}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {contact.lastSessionDate && (
-                  <span>{format(parseISO(contact.lastSessionDate), 'MMM d')}</span>
-                )}
-                <span className="font-medium">{contact.totalSessions} sessions</span>
-              </div>
-            </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+              Name
+            </p>
+            <h3 className="mt-0.5 text-sm font-bold leading-tight truncate">{nameNode}</h3>
+          </div>
+          <div className="flex flex-col items-end justify-self-end leading-none">
+            <span className="text-sm font-bold">{contact.totalSessions}</span>
+            <span className="text-[9px] font-bold uppercase text-muted-foreground">
+              Studies
+            </span>
           </div>
         </div>
+
+        {/* Status */}
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+            Status
+          </p>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', stageConfig.color)} />
+            <span className="text-xs font-semibold truncate">{tStage(contact.pipelineStage)}</span>
+            {contact.currentlyStudying && (
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0"
+                title={t('misc.active')}
+              />
+            )}
+          </div>
         </div>
+
+        {/* Teacher / Step quick-fields */}
+        <div className="grid grid-cols-2 gap-1.5 min-w-0">
+          <div className="min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+              Teacher
+            </p>
+            <p className="mt-1 text-xs font-semibold truncate">
+              {teacher ? `${teacher.firstName} ${teacher.lastName}` : contact.groupName || '—'}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+              Step
+            </p>
+            <p className="mt-1 text-xs font-semibold truncate">{step || '—'}</p>
+          </div>
+        </div>
+
+        {/* Branches */}
+        {branches.length > 0 && (
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+              Branches
+            </p>
+            <div className="mt-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
+              {branches.map((branch, i) => (
+                <span
+                  key={`${branch}-${i}`}
+                  className={cn(
+                    'truncate text-xs font-semibold',
+                    i === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground',
+                  )}
+                >
+                  {branch}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Retention */}
+        {contact.retentionExpired ? (
+          <Badge
+            variant="outline"
+            className="w-fit border-red-500/40 bg-red-500/10 text-red-500 text-[9px]"
+          >
+            Retention expired
+          </Badge>
+        ) : contact.retainUntil ? (
+          <p className="text-[10px] text-muted-foreground">
+            Retained until {format(parseISO(contact.retainUntil), 'MMM d, yyyy')}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

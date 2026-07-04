@@ -1412,7 +1412,16 @@ export const handlers = [
     const sort = url.searchParams.get('sort') || 'name';
     const sortDir = url.searchParams.get('sortDir') || 'asc';
 
-    let filtered = [...contactsState];
+    // Phase 5 retention: flag converted contacts whose retainUntil window
+    // has lapsed — computed ON READ (the mock has no background job). The
+    // record itself is kept until a GL+ deletes it or the real backend's
+    // retention job runs; the flag lets the UI badge it and prompt cleanup.
+    const nowMs = Date.now();
+    let filtered = contactsState.map((c) =>
+      c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
+        ? { ...c, retentionExpired: true }
+        : c,
+    );
     if (search) filtered = filtered.filter((c) =>
       `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''}`.toLowerCase().includes(search),
     );
@@ -1619,6 +1628,10 @@ export const handlers = [
       ...contact,
       convertedToUserId: newUser.id,
       status: 'converted',
+      // Phase 5 (packet): timed data retention after conversion — the contact
+      // record is kept ~6 months (GL+ can extend or delete sooner), then
+      // flagged expired on read (no background job in the mock).
+      retainUntil: new Date(Date.parse(now) + 183 * 24 * 60 * 60 * 1000).toISOString(),
       updatedAt: now,
     } as typeof contactsState[number];
     contactsState[cidx] = updatedContact;

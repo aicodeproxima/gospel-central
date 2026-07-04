@@ -469,6 +469,10 @@ export function canViewContact(
   if (contact.assignedTeacherId === viewer.id) return true;
   if (contact.createdBy === viewer.id) return true;
   if (contact.assignedTeacherId && subtreeUserIds.includes(contact.assignedTeacherId)) return true;
+  // Decision 10 (2026-07): a contact CREATED by someone in the leader's
+  // subtree is theirs to see even before a teacher is assigned — previously
+  // unassigned member-created contacts were invisible to their own leader.
+  if (subtreeUserIds.includes(contact.createdBy)) return true;
   return false;
 }
 
@@ -484,17 +488,44 @@ export function canCreateContact(
   return subtreeUserIds.includes(ownerUserId);
 }
 
+/**
+ * Decision 10 (2026-07 overhaul, WRITE gate — pass buildManageableScope
+ * userIds, NOT the visibility scope):
+ *   - Members create contacts and edit/delete ONLY their own creations.
+ *     Being the assigned teacher is no longer sufficient — study-field
+ *     updates flow through booking completion server-side, and everything
+ *     else on someone else's contact is view-only for a member.
+ *   - Team Leaders and above change any contact in their MANAGEABLE scope
+ *     (reachable via the contact's creator OR its assigned teacher). A
+ *     Branch Leader's manageable scope is their own branch — cross-branch
+ *     contact writes are Overseer/Dev only (same split that fixed the BL
+ *     cross-branch user-edit bug).
+ *   - Bulk-delete uses the same gate per row (canDeleteContact).
+ */
 export function canEditContact(
   viewer: User,
   contact: Contact,
   subtreeUserIds: string[] = [],
 ): boolean {
   if (!viewer || !contact) return false;
-  if (viewer.id === contact.assignedTeacherId) return true;
-  if (isAdminTier(viewer)) return true;
-  if (!isLeader(viewer)) return false;
-  return contact.assignedTeacherId !== undefined &&
-    subtreeUserIds.includes(contact.assignedTeacherId);
+  if (viewer.role === UserRole.OVERSEER || viewer.role === UserRole.DEV) return true;
+  if (!isLeader(viewer)) return contact.createdBy === viewer.id;
+  if (contact.createdBy === viewer.id) return true;
+  return (
+    subtreeUserIds.includes(contact.createdBy) ||
+    (contact.assignedTeacherId !== undefined &&
+      subtreeUserIds.includes(contact.assignedTeacherId))
+  );
+}
+
+/** Decision 10: delete follows the exact edit gate (kept as its own helper so
+ *  the matrix can diverge later without touching call sites). */
+export function canDeleteContact(
+  viewer: User,
+  contact: Contact,
+  subtreeUserIds: string[] = [],
+): boolean {
+  return canEditContact(viewer, contact, subtreeUserIds);
 }
 
 export function canReassignContact(
@@ -575,6 +606,17 @@ export function canExportReports(viewerOrRole: User | UserRole): boolean {
  * canExportImport to this same GL+ tier.
  */
 export function canExportMemberList(viewerOrRole: User | UserRole): boolean {
+  const role = typeof viewerOrRole === 'string' ? viewerOrRole : viewerOrRole?.role;
+  if (!role) return false;
+  return getRoleLevel(role) >= getRoleLevel(UserRole.GROUP_LEADER);
+}
+
+/**
+ * Phase 5 retention (packet: "timed data retention after conversion — ~6
+ * months or group leader's discretion"): who may EXTEND a converted contact's
+ * retainUntil window or delete the record early. Group Leader and up.
+ */
+export function canManageRetention(viewerOrRole: User | UserRole): boolean {
   const role = typeof viewerOrRole === 'string' ? viewerOrRole : viewerOrRole?.role;
   if (!role) return false;
   return getRoleLevel(role) >= getRoleLevel(UserRole.GROUP_LEADER);

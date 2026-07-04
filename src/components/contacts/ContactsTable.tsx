@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PIPELINE_STAGE_CONFIG, BOOKING_TYPE_CONFIG } from '@/lib/types';
+import { PIPELINE_STAGE_CONFIG } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -84,7 +84,7 @@ function ContactsTableInner({
   onDelete,
   canEdit,
 }: ContactsTableProps) {
-  const { t, tStage, tBookingType } = useTranslation();
+  const { t, tStage } = useTranslation();
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -110,7 +110,6 @@ function ContactsTableInner({
         <TableBody>
           {contacts.map((c) => {
             const stage = PIPELINE_STAGE_CONFIG[c.pipelineStage];
-            const type = BOOKING_TYPE_CONFIG[c.type];
             const teacher = getAssignedTeacher(users, c);
             const step = stepLabel(c);
             const editable = canEdit(c);
@@ -151,7 +150,11 @@ function ContactsTableInner({
                           />
                         )}
                       </div>
-                      <span className={cn('text-[10px]', type.color)}>{tBookingType(c.type)}</span>
+                      {c.groupName && (
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          {c.groupName}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </TableCell>
@@ -167,10 +170,17 @@ function ContactsTableInner({
                 </TableCell>
                 {/* Stage */}
                 <TableCell>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <span className={cn('h-2 w-2 rounded-full', stage.color)} />
-                    <span className="text-xs">{tStage(c.pipelineStage)}</span>
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                      <span className={cn('h-2 w-2 rounded-full', stage.color)} />
+                      <span className="text-xs">{tStage(c.pipelineStage)}</span>
+                    </span>
+                    {c.retentionExpired && (
+                      <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[9px] font-medium text-red-500 whitespace-nowrap">
+                        Retention expired
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 {/* Progress */}
                 <TableCell className="max-xl:hidden text-xs text-muted-foreground">

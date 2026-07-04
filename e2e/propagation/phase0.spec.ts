@@ -39,14 +39,18 @@ test('Z0 + START fingerprint', async ({ page }) => {
     z0: { method: 'contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)', verdict: 'PENDING', evidence: {} as Record<string, unknown> },
   };
 
-  await loginAs(page, 'branch1');
+  // Decision 10 (2026-07): contact WRITES are manageable-scope-bounded, so a
+  // Branch Leader can't bulk-edit an arbitrary (out-of-branch) contact. This
+  // Z0 fingerprint exercises the stage-change CASCADE (not permission scope —
+  // that's permissions.spec + the matrix), so it runs as an org-wide actor.
+  await loginAs(page, 'admin');
   await page.goto('/contacts');
   await page.waitForLoadState('networkidle');
 
   // clock + actor re-assert
-  const ca = await assertClockActor(page, 'branch_leader');
+  const ca = await assertClockActor(page, 'dev');
   expect(ca.clock, 'pinned clock active at observation').toBe(MOCK_DATE);
-  expect(ca.role, 'actor pinned (branch1 = branch_leader)').toBe('branch_leader');
+  expect(ca.role, 'actor pinned (admin = dev)').toBe('dev');
 
   fp.seedCounts = await seedCounts(page);
 

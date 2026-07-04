@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { scenarioUsers, scenarioContacts } from './scenario-church-week';
 import {
+  buildManageableScope,
   buildVisibilityScope,
   canChangeRole,
   canCreateUser,
@@ -249,10 +250,22 @@ describe('Critical #23 — Cross-branch matrix verification', () => {
     expect(canChangeRole(joseph, virginiaBeachMember, UserRole.DEV)).toBe(false);
   });
 
-  test('Joseph CAN edit a Virginia Beach-owned contact per universal rule #1', () => {
-    if (!virginiaBeachContact) return; // soft-skip if no eligible contact
-    const subtree = buildVisibilityScope(joseph, allUsers).userIds;
-    expect(canEditContact(joseph, virginiaBeachContact as Contact, subtree)).toBe(true);
+  test('Joseph CANNOT edit a Virginia Beach-owned contact; Simon Peter CAN (Decision 10 manageable scope)', () => {
+    // 2026-07 overhaul Decision 10: contact WRITES for BLs are bounded by
+    // buildManageableScope (own branch), same split that fixed the BL
+    // cross-branch user-edit bug. Hard fixture (the old soft-skip on a
+    // seeded VB contact silently skipped for months).
+    const vbContact = (virginiaBeachContact ?? {
+      id: 'c-vb-fixture',
+      firstName: 'VB',
+      lastName: 'Fixture',
+      assignedTeacherId: virginiaBeachTeamL.id,
+      createdBy: virginiaBeachTeamL.id,
+    }) as Contact;
+    const josephScope = buildManageableScope(joseph, allUsers).userIds;
+    const simonScope = buildManageableScope(simonPeter, allUsers).userIds;
+    expect(canEditContact(joseph, vbContact, josephScope)).toBe(false);
+    expect(canEditContact(simonPeter, vbContact, simonScope)).toBe(true);
   });
 
   test('Joseph CAN manage tags on a Virginia Beach member (NOT self)', () => {

@@ -138,19 +138,34 @@ Default seeded global blocked slots (apply to all 5 branches):
 
 ### Contacts
 
-Visibility scope follows the leader's subtree, plus the contact's
-explicit assigned-owner / assigned-team / assigned-group fields.
+Visibility (READ) scope follows the leader's subtree — reachable via the
+contact's **creator or assigned teacher** — plus the contact's explicit
+assigned-owner / assigned-team / assigned-group fields. Branch Leaders and
+above read all branches.
+
+**Writes follow Decision 10 (2026-07 overhaul)** and take the MANAGEABLE
+scope (`buildManageableScope`), not the visibility scope:
+
+- Members create contacts, and edit/delete **only their own creations**.
+  Being the assigned teacher is view-only for a member — study fields are
+  updated by the booking-completion flow, not direct edits.
+- Team Leaders and above change any contact **in their manageable scope**
+  (creator OR assigned teacher reachable in their own subtree). A Branch
+  Leader's manageable scope is their own branch — cross-branch contact
+  writes are Overseer/Dev only.
+- Bulk-delete applies the same gate per selected row.
 
 | Action | Member | Team L | Group L | Branch L | Overseer | Dev |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
-| View | own + assigned-to-me | team | group | all branches | all | all |
+| View | own-created + assigned-to-me | team | group | all branches | all | all |
 | Create (owner = self) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Create (assign to other user) | ❌ | within team | within group | any branch | all | all |
-| Edit (own) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Edit (others') | ❌ | within team | within group | any branch | all | all |
-| Reassign owner | ❌ | within team | within group | any branch | all | all |
-| Deactivate / Restore | own only | team | group | any branch | all | all |
-| Convert contact → user account | ❌ | within team | within group | any branch | all | all |
+| Edit / Delete (own creations) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Edit / Delete (others') | ❌ | within team | within group | **own branch only** | all | all |
+| Bulk-delete | own rows only | rows in team | rows in group | rows in own branch | all | all |
+| Reassign owner | ❌ | within team | within group | own branch | all | all |
+| Convert contact → user account | ❌ | within team | within group | own branch | all | all |
+| CSV export (Decision 13) | ❌ | ❌ | ✓ | ✓ | ✓ | ✓ |
 
 ### Bookings (calendar)
 
@@ -254,9 +269,10 @@ canManageRoom(viewer, room)
 
 canManageBlockedSlot(viewer, slot)     // create/edit/delete
 
-canViewContact(viewer, contact)
+canViewContact(viewer, contact)        // READ scope (visibility subtree; creator OR assigned teacher)
 canCreateContact(viewer, ownerUserId)
-canEditContact(viewer, contact)
+canEditContact(viewer, contact)        // Decision 10 WRITE gate — pass buildManageableScope userIds
+canDeleteContact(viewer, contact)      // Decision 10: delete == edit gate (bulk-delete applies per row)
 canReassignContact(viewer, contact, newOwnerId)
 canConvertContact(viewer, contact)
 

@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { PredictiveInput } from '@/components/shared/PredictiveInput';
 import { StepSubjectPicker } from '@/components/shared/StepSubjectPicker';
+import { Combobox } from '@/components/shared/Combobox';
 import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
 import {
   PipelineStage,
@@ -29,7 +30,22 @@ import {
   ROLE_LABELS,
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
-import { canConvertContact, canReassignContact, assignableRoles } from '@/lib/utils/permissions';
+import {
+  canConvertContact,
+  canReassignContact,
+  canEditContact,
+  canDeleteContact,
+  canManageRetention,
+  assignableRoles,
+} from '@/lib/utils/permissions';
+import {
+  CURRICULUM,
+  FOUNDATION_STUDIES,
+  GROWTH_STUDIES,
+  FOUNDATION_BLUE,
+  GROWTH_PURPLE,
+  type CurriculumStudy,
+} from '@/lib/curriculum';
 import type { ConvertContactPayload } from '@/lib/api/contacts';
 import {
   Pencil,
@@ -44,6 +60,7 @@ import {
   FileText,
   GraduationCap,
   Calendar,
+  Clock,
   User as UserIcon,
   Plus,
   UserPlus,
@@ -154,9 +171,13 @@ export function ContactDetailDialog({
               <ViewMode
                 contact={contact}
                 users={users}
+                viewer={viewer}
+                subtreeUserIds={subtreeUserIds}
                 onEdit={() => setMode('edit')}
                 onConvert={canShowConvert ? () => setMode('convert') : undefined}
                 onClose={onClose}
+                onSave={onSave}
+                onDelete={onDelete}
               />
             </motion.div>
           )}
@@ -219,18 +240,39 @@ export function ContactDetailDialog({
 function ViewMode({
   contact,
   users,
+  viewer,
+  subtreeUserIds = [],
   onEdit,
   onConvert,
   onClose,
+  onSave,
+  onDelete,
 }: {
   contact: Contact;
   users: User[];
+  viewer?: User;
+  subtreeUserIds?: string[];
   onEdit: () => void;
   onConvert?: () => void;
   onClose: () => void;
+  onSave: (id: string, data: Partial<Contact>) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
 }) {
   const { t, tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
+
+  // Decision 10 write gate — every in-view write affordance (status badge,
+  // curriculum checklist toggles, retention actions) requires the viewer to
+  // pass canEditContact against the MANAGEABLE-scope ids the parents pass in
+  // `subtreeUserIds`. When `viewer` is absent (the groups page passes none),
+  // canEdit is false → all write affordances stay hidden (existing behavior).
+  const canEdit = !!viewer && canEditContact(viewer, contact, subtreeUserIds);
+  const canDelete = !!viewer && canDeleteContact(viewer, contact, subtreeUserIds);
+  const canRetention = !!viewer && canManageRetention(viewer) && canEdit;
+
+  // Inflight guard shared by the status control + checklist toggles so a
+  // rapid double-tap can't fire two overlapping saves for the same field.
+  const [savingField, setSavingField] = useState<string | null>(null);
 
   const resolvePartnerName = (id: string | null | undefined) => {
     if (!id) return null;
@@ -247,6 +289,104 @@ function ViewMode({
     const u = users.find((x) => x.id === contact.assignedTeacherId);
     return u ? `${u.firstName} ${u.lastName}`.trim() : null;
   })();
+
+  // Requirement 2: derive Group Leader + Team Leader from the contact's chain.
+  // Resolve the assigned teacher, then walk parentId upward collecting the
+  // first TEAM_LEADER and first GROUP_LEADER encountered. Display-only — no
+  // stored fields. Em-dash when unresolvable.
+  const { groupLeaderName, teamLeaderName } = useMemo(() => {
+    const byId = new Map(users.map((u) => [u.id, u]));
+    let teamLeader: User | undefined;
+    let groupLeader: User | undefined;
+    const seen = new Set<string>();
+    let cur: User | undefined = contact.assignedTeacherId
+      ? byId.get(contact.assignedTeacherId)
+      : undefined;
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      if (!teamLeader && cur.role === UserRole.TEAM_LEADER) teamLeader = cur;
+      if (!groupLeader && cur.role === UserRole.GROUP_LEADER) groupLeader = cur;
+      if (teamLeader && groupLeader) break;
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+    const nameOf = (u?: User) => (u ? `${u.firstName} ${u.lastName}`.trim() : '—');
+    return { groupLeaderName: nameOf(groupLeader), teamLeaderName: nameOf(teamLeader) };
+  }, [users, contact.assignedTeacherId]);
+
+  // Requirement 3: change the contact's status by writing pipelineStage via
+  // the existing save path (same single-field patch the kanban board uses).
+  const handleStageSelect = async (next: PipelineStage) => {
+    if (!canEdit || next === contact.pipelineStage || savingField) return;
+    setSavingField('pipelineStage');
+    try {
+      await onSave(contact.id, { pipelineStage: next });
+      toast.success('Status updated');
+    } catch {
+      toast.error('Failed to update status');
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  // Requirement 4: toggle a curriculum study into/out of subjectsStudied by
+  // its exact title, persisting the whole array via the existing onSave path
+  // (single-field patch — matches how EditMode + the kanban save).
+  const studied = useMemo(
+    () => new Set(contact.subjectsStudied ?? []),
+    [contact.subjectsStudied],
+  );
+  const handleToggleStudy = async (study: CurriculumStudy) => {
+    if (!canEdit || savingField) return;
+    const has = studied.has(study.title);
+    const next = has
+      ? (contact.subjectsStudied ?? []).filter((s) => s !== study.title)
+      : [...(contact.subjectsStudied ?? []), study.title];
+    setSavingField(`study:${study.number}`);
+    try {
+      await onSave(contact.id, { subjectsStudied: next });
+    } catch {
+      toast.error('Failed to update study');
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  // Requirement 6: retention actions (GL+ only, edit-gated).
+  const handleExtendRetention = async () => {
+    if (!canRetention || savingField) return;
+    // Extend 6 months from the CURRENT retainUntil if it's still in the
+    // future, otherwise from now — so an already-expired window resets to a
+    // full 6-month runway rather than staying in the past.
+    const base = (() => {
+      if (contact.retainUntil) {
+        const cur = parseISO(contact.retainUntil);
+        if (cur.getTime() > Date.now()) return cur;
+      }
+      return new Date();
+    })();
+    const extended = new Date(base);
+    extended.setMonth(extended.getMonth() + 6);
+    setSavingField('retainUntil');
+    try {
+      await onSave(contact.id, { retainUntil: extended.toISOString() });
+      toast.success('Retention extended 6 months');
+    } catch {
+      toast.error('Failed to extend retention');
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  const handleDeleteNow = async () => {
+    if (!onDelete || !canDelete) return;
+    if (!confirm(`Delete contact "${contact.firstName} ${contact.lastName}"? This cannot be undone.`)) return;
+    try {
+      await onDelete(contact.id);
+      toast.success('Contact deleted');
+    } catch {
+      toast.error('Failed to delete');
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -282,10 +422,60 @@ function ViewMode({
           value={contact.phone || <span className="text-muted-foreground italic">Not provided</span>}
         />
         <Row icon={Tag} label="Group" value={contact.groupName || '—'} />
+        {/* Requirement 2: derived read-only Group Leader + Team Leader rows,
+            walked up from the assigned teacher's parentId chain. Em-dash when
+            unresolvable. No new stored fields. */}
+        <Row icon={UsersIcon} label="Group Leader" value={groupLeaderName} />
+        <Row icon={UsersIcon} label="Team Leader" value={teamLeaderName} />
         <Row
           icon={UserIcon}
           label="Teacher"
           value={teacherName || <span className="text-muted-foreground italic">Unassigned</span>}
+        />
+        {/* Requirement 3: status control — the 6 statuses as color-coded
+            badges. Selecting one writes pipelineStage via the existing save
+            path. Edit-gated (Decision 10); view-only viewers see the current
+            status highlighted with no click handlers. */}
+        <Row
+          icon={Tag}
+          label="Status"
+          value={
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.entries(PIPELINE_STAGE_CONFIG) as [PipelineStage, typeof PIPELINE_STAGE_CONFIG[PipelineStage]][]).map(
+                  ([key, cfg]) => {
+                    const active = key === contact.pipelineStage;
+                    const busy = savingField === 'pipelineStage';
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        disabled={!canEdit || busy}
+                        onClick={canEdit ? () => handleStageSelect(key) : undefined}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                          active
+                            ? 'border-transparent bg-accent text-foreground ring-2 ring-primary'
+                            : 'border-border text-muted-foreground',
+                          canEdit && !active && 'hover:bg-accent hover:text-foreground cursor-pointer',
+                          (!canEdit || busy) && 'cursor-default',
+                          busy && 'opacity-60',
+                        )}
+                      >
+                        <span className={cn('h-2 w-2 rounded-full', cfg.color)} />
+                        {cfg.label}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+              {/* Existing auto-promotion note (first_study → unbaptized is
+                  server-side, one-way, after 2 studies). */}
+              <p className="text-[11px] text-muted-foreground">
+                First Study auto-promotes to Unbaptized after 2 completed studies (server-side).
+              </p>
+            </div>
+          }
         />
         <Row
           icon={GraduationCap}
@@ -301,26 +491,22 @@ function ViewMode({
             )
           }
         />
+        {/* Requirement 4: full 35-study curriculum checklist replaces the flat
+            subjects list. Foundation 1–12 tinted FOUNDATION_BLUE, Growth 13–35
+            GROWTH_PURPLE (FIXED hexes — theme-independent by design). Completed
+            items filled (white text), incomplete outlined (muted). Clicking an
+            item toggles it into/out of subjectsStudied by exact title —
+            EDIT-GATED; view-only renders without click handlers. */}
         <Row
           icon={BookOpenIcon}
           label="Subjects Studied"
           value={
-            contact.subjectsStudied && contact.subjectsStudied.length > 0 ? (
-              <div>
-                <div className="mb-1.5 text-sm text-muted-foreground">
-                  {contact.subjectsStudied.length} subjects
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {contact.subjectsStudied.map((s) => (
-                    <Badge key={s} variant="outline" className="h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-xs font-normal leading-snug">
-                      {s}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <span className="text-muted-foreground italic">None yet</span>
-            )
+            <CurriculumChecklist
+              studied={studied}
+              canEdit={canEdit}
+              savingField={savingField}
+              onToggle={handleToggleStudy}
+            />
           }
         />
         <Row
@@ -330,7 +516,16 @@ function ViewMode({
             partners.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {partners.map((p, i) => (
-                  <Badge key={i} variant="outline" className="h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-sm leading-snug">
+                  <Badge
+                    key={i}
+                    variant="outline"
+                    className={cn(
+                      'h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-sm leading-snug',
+                      // Requirement 1: the FIRST partner is the Main Branch —
+                      // fixed purple, theme-independent. No visible label change.
+                      i === 0 && 'text-purple-600 dark:text-purple-400 font-semibold',
+                    )}
+                  >
                     {p}
                   </Badge>
                 ))}
@@ -359,6 +554,61 @@ function ViewMode({
             icon={FileText}
             label="Notes"
             value={<div className="whitespace-pre-wrap text-base">{contact.notes}</div>}
+          />
+        )}
+        {/* Requirement 6 (Phase 5): retention. When retainUntil exists, show
+            "Retained until <date>" plus a red "Retention expired" badge when
+            the server flagged retentionExpired. GL+ viewers who can also edit
+            (canManageRetention && canEdit) get Extend / Delete-now actions. */}
+        {contact.retainUntil && (
+          <Row
+            icon={Clock}
+            label="Retention"
+            value={
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base">
+                    Retained until {format(parseISO(contact.retainUntil), 'MMM d, yyyy')}
+                  </span>
+                  {contact.retentionExpired && (
+                    <Badge className="border-transparent bg-red-500 text-white text-xs">
+                      Retention expired
+                    </Badge>
+                  )}
+                </div>
+                {canRetention && (
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={savingField === 'retainUntil'}
+                      onClick={handleExtendRetention}
+                      className="gap-1.5 h-9"
+                    >
+                      {savingField === 'retainUntil' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Clock className="h-3.5 w-3.5" />
+                      )}
+                      Extend 6 months
+                    </Button>
+                    {onDelete && canDelete && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDeleteNow}
+                        className="gap-1.5 h-9"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete now
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            }
           />
         )}
       </div>
@@ -421,14 +671,20 @@ function ViewMode({
             Already converted
           </Badge>
         )}
-        <Button
-          type="button"
-          onClick={onEdit}
-          className="flex-1 min-w-[100px] gap-2 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black"
-        >
-          <Pencil className="h-5 w-5" />
-          Edit
-        </Button>
+        {/* Requirement 7 (Decision 10): entering edit mode is a write
+            affordance — gated on canEditContact. When `viewer` is absent (the
+            groups page passes none) canEdit is false → Edit stays hidden,
+            preserving the existing no-viewer read-only behavior. */}
+        {canEdit && (
+          <Button
+            type="button"
+            onClick={onEdit}
+            className="flex-1 min-w-[100px] gap-2 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black"
+          >
+            <Pencil className="h-5 w-5" />
+            Edit
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -555,6 +811,101 @@ function ConvertMode({
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
           Convert
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Curriculum checklist (Requirement 4) — the full 35-study list as a toggleable
+// checklist. Foundation 1–12 (FOUNDATION_BLUE) + Growth 13–35 (GROWTH_PURPLE);
+// the section hexes are FIXED / theme-independent by design. Completed items
+// are filled with the section color + near-white text; incomplete items are
+// outlined + muted. Clicking toggles a study into/out of subjectsStudied by its
+// exact title — EDIT-GATED (canEdit); view-only renders as static rows.
+// ---------------------------------------------------------------------------
+function CurriculumChecklist({
+  studied,
+  canEdit,
+  savingField,
+  onToggle,
+}: {
+  studied: Set<string>;
+  canEdit: boolean;
+  savingField: string | null;
+  onToggle: (study: CurriculumStudy) => void;
+}) {
+  const doneCount = CURRICULUM.filter((s) => studied.has(s.title)).length;
+
+  const renderSection = (
+    heading: string,
+    color: string,
+    studies: CurriculumStudy[],
+  ) => (
+    <div className="space-y-1.5">
+      <div className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+        {heading}
+      </div>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        {studies.map((study) => {
+          const complete = studied.has(study.title);
+          const busy = savingField === `study:${study.number}`;
+          const commonClasses = cn(
+            'flex min-h-[44px] w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs leading-snug transition-colors md:min-h-0 md:py-1',
+            complete
+              ? 'border-transparent text-white'
+              : 'border-border text-muted-foreground',
+            canEdit && 'cursor-pointer',
+            busy && 'opacity-60',
+          );
+          // Completed items fill with the FIXED section hex (readable near-white
+          // text). Incomplete items stay transparent/outlined.
+          const style = complete ? { backgroundColor: color } : undefined;
+          const inner = (
+            <>
+              <span
+                className={cn(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                  complete ? 'border-white/70 bg-white/20' : 'border-current',
+                )}
+              >
+                {complete && <Check className="h-3 w-3" />}
+              </span>
+              <span className="min-w-0 flex-1 break-words">
+                <span className="tabular-nums opacity-80">{study.number}.</span> {study.title}
+              </span>
+            </>
+          );
+          return canEdit ? (
+            <button
+              key={study.number}
+              type="button"
+              disabled={busy}
+              onClick={() => onToggle(study)}
+              className={commonClasses}
+              style={style}
+            >
+              {inner}
+            </button>
+          ) : (
+            <div key={study.number} className={commonClasses} style={style}>
+              {inner}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-muted-foreground">
+        {doneCount} / {CURRICULUM.length} studies completed
+      </div>
+      {/* Constrained height so the 35-item list scrolls within the dialog. */}
+      <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+        {renderSection('Foundation', FOUNDATION_BLUE, FOUNDATION_STUDIES)}
+        {renderSection('Growth', GROWTH_PURPLE, GROWTH_STUDIES)}
       </div>
     </div>
   );
@@ -841,44 +1192,38 @@ function EditMode({
       </div>
 
       {/* F1: Assigned Teacher (owner) — reassignment, gated by canReassignContact.
-          Hidden when the viewer has no valid reassign targets (e.g. a Member). */}
+          Hidden when the viewer has no valid reassign targets (e.g. a Member).
+          Requirement 5: was a misplaced SELECT dropdown — now an inline
+          predictive Combobox (same picker the BookingWizard uses). */}
       {canReassign && (
         <div className="space-y-2">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <GraduationCap className="h-3 w-3" /> Assigned Teacher
           </Label>
-          <Select value={assignedTeacherId} onValueChange={(v) => v && setAssignedTeacherId(v)}>
-            <SelectTrigger>
-              <span>
-                {reassignOptions.find((o) => o.id === assignedTeacherId)?.label || 'Unassigned'}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              {reassignOptions.map((o) => (
-                <SelectItem key={o.id} value={o.id}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            options={reassignOptions.map((o) => ({ id: o.id, label: o.label }))}
+            value={assignedTeacherId || null}
+            onChange={setAssignedTeacherId}
+            placeholder="Search teachers…"
+            emptyMessage="No teachers"
+          />
         </div>
       )}
 
-      {/* Status */}
+      {/* Status — Requirement 5: converted from a misplaced SELECT dropdown to
+          an inline predictive Combobox (matches the assigned-teacher picker). */}
       <div className="space-y-2">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
-        <Select value={status} onValueChange={(v) => v && setStatus(v as PipelineStage)}>
-          <SelectTrigger>
-            <span>{PIPELINE_STAGE_CONFIG[status]?.label || 'Select status'}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(PIPELINE_STAGE_CONFIG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>
-                {v.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          options={Object.entries(PIPELINE_STAGE_CONFIG).map(([k, v]) => ({
+            id: k,
+            label: v.label,
+          }))}
+          value={status}
+          onChange={(v) => setStatus(v as PipelineStage)}
+          placeholder="Search statuses…"
+          emptyMessage="No statuses"
+        />
       </div>
 
       {/* Branches (formerly "Preaching Partners" — label-only rename; the

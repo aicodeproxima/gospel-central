@@ -45,18 +45,21 @@ import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import {
+  buildManageableScope,
   buildVisibilityScope,
-  canCreateContact,
+  canDeleteContact,
   canEditContact,
   canExportImport,
+  canExportMemberList,
   canViewContact,
 } from '@/lib/utils/permissions';
 import {
-  BOOKING_TYPE_CONFIG,
   PIPELINE_STAGE_CONFIG,
   PipelineStage,
+  UserRole,
 } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
+import { prefixMatch } from '@/lib/utils/text-match';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { contactsHelp } from '@/components/shared/pageHelp';
 import { exportCSV } from '@/lib/utils/csv';
@@ -69,8 +72,19 @@ import toast from 'react-hot-toast';
 type ViewMode = 'grid' | 'kanban' | 'table';
 type SortKey = ContactSortKey;
 
+/** Phase 5 scoped search: which resolved name the prefix matcher runs against. */
+type SearchField = 'all' | 'contact' | 'teacher' | 'team_leader' | 'group_leader' | 'branch';
+const SEARCH_FIELD_LABELS: Record<SearchField, string> = {
+  all: 'All fields',
+  contact: 'Contact',
+  teacher: 'Teacher',
+  team_leader: 'Team Leader',
+  group_leader: 'Group Leader',
+  branch: 'Branch',
+};
+
 export default function ContactsPage() {
-  const { t, tStage, tBookingType } = useTranslation();
+  const { t, tStage } = useTranslation();
   // CONT-1 / CONT-2: viewer + visibility scope so the contacts list, the
   // header buttons, and the per-card actions are all role-gated. Members
   // see only their own + assigned-to-me; Team / Group leaders see their
@@ -93,6 +107,23 @@ export default function ContactsPage() {
     () => buildVisibilityScope(viewer, users),
     [viewer, users],
   );
+  // Decision 10 (2026-07): WRITE gates take the MANAGEABLE scope — a Branch
+  // Leader reads all branches but edits/deletes only inside their own.
+  const manageScope = useMemo(
+    () => buildManageableScope(viewer, users),
+    [viewer, users],
+  );
+
+  // CONT-4 / Decision 10: per-row WRITE gate (manageable scope, not
+  // visibility) — passed into ContactCard / Kanban / dialogs / the ?edit=
+  // deep-link so action affordances only appear when the viewer can act on
+  // the row. Declared here (before the URL-init effect) so that effect can
+  // gate the deep-link on it.
+  const canEditAny = useCallback(
+    (contact: Contact) =>
+      !!viewer && canEditContact(viewer, contact, manageScope.userIds),
+    [viewer, manageScope.userIds],
+  );
 
   // CONT-1: scope-filtered list — every downstream useMemo (filtered, stage
   // counts, kanban) runs against this so a Member never even sees Branch
@@ -105,10 +136,78 @@ export default function ContactsPage() {
     [contacts, viewer, scope.userIds],
   );
 
-  // Filters
+  const userById = useMemo(() => {
+    const m = new Map<string, User>();
+    users.forEach((u) => m.set(u.id, u));
+    return m;
+  }, [users]);
+
+  // Phase 5 search index (R4: precompute once per contact, match once per
+  // keystroke). Resolves the names the packet's scoped search + leader
+  // filters run against: contact / teacher / team leader / group leader /
+  // branch — the TL/GL come from walking the assigned teacher's (or
+  // creator's) parent chain.
+  const searchIndex = useMemo(() => {
+    const chainOf = (startId?: string) => {
+      let tl = '';
+      let gl = '';
+      const seen = new Set<string>();
+      let cur = startId ? userById.get(startId) : undefined;
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        const name = `${cur.firstName} ${cur.lastName}`.trim();
+        if (!tl && cur.role === UserRole.TEAM_LEADER) tl = name;
+        if (!gl && cur.role === UserRole.GROUP_LEADER) gl = name;
+        cur = cur.parentId ? userById.get(cur.parentId) : undefined;
+      }
+      return { tl, gl };
+    };
+    const m = new Map<
+      string,
+      { contact: string; teacher: string; tl: string; gl: string; branch: string; email: string; phone: string }
+    >();
+    for (const c of visibleContacts) {
+      const teacher = c.assignedTeacherId ? userById.get(c.assignedTeacherId) : undefined;
+      const chain = chainOf(c.assignedTeacherId ?? c.createdBy);
+      m.set(c.id, {
+        contact: `${c.firstName} ${c.lastName}`.trim(),
+        teacher: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
+        tl: chain.tl,
+        gl: chain.gl,
+        branch: c.groupName || '',
+        email: c.email || '',
+        phone: c.phone || '',
+      });
+    }
+    return m;
+  }, [visibleContacts, userById]);
+
+  // Leader-name filter options — ONLY names that currently have contacts
+  // (packet requirement).
+  const leaderFilterOptions = useMemo(() => {
+    const gl = new Set<string>();
+    const tl = new Set<string>();
+    const br = new Set<string>();
+    for (const f of searchIndex.values()) {
+      if (f.gl) gl.add(f.gl);
+      if (f.tl) tl.add(f.tl);
+      if (f.branch) br.add(f.branch);
+    }
+    const sorted = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
+    return { gl: sorted(gl), tl: sorted(tl), branch: sorted(br) };
+  }, [searchIndex]);
+
+  // Filters. Phase 5 (packet): search is PREFIX-matching (Outlook-style,
+  // matched letters highlighted on cards) and can be scoped to one field;
+  // the old booking-type filter is replaced by the 6-status dropdown
+  // (Decision 2 — it drives the same stageFilter as the pills); plus
+  // leader-name filters listing only names that currently have contacts.
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [searchField, setSearchField] = useState<SearchField>('all');
   const [stageFilter, setStageFilter] = useState('all');
+  const [glFilter, setGlFilter] = useState('all');
+  const [tlFilter, setTlFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
 
   // Views — table (desktop) / grid / kanban. Default: table on >=lg, grid below;
@@ -186,23 +285,35 @@ export default function ContactsPage() {
     const sp = searchParams;
     const stage = sp.get('stage');
     if (stage && (stage === 'all' || stage in PIPELINE_STAGE_CONFIG)) setStageFilter(stage);
+    // Legacy ?type= deep-links: the booking-type filter is gone (Decision 2);
+    // accept the param only when it names one of the 6 statuses.
     const type = sp.get('type');
-    if (type) setTypeFilter(type);
+    if (type && type in PIPELINE_STAGE_CONFIG) setStageFilter(type);
     const q = sp.get('q');
     if (q) setSearch(q);
     const view = sp.get('view');
     if (view === 'grid' || view === 'kanban' || view === 'table') setViewMode(view);
     const id = sp.get('id');
-    if (id && contacts.some((c) => c.id === id)) setViewingContactId(id);
+    // Only honor ?id= for contacts the viewer may actually SEE.
+    if (id && visibleContacts.some((c) => c.id === id)) setViewingContactId(id);
     const editId = sp.get('edit');
     if (editId) {
-      const target = contacts.find((c) => c.id === editId);
-      if (target) {
+      // SECURITY (Decision 10): the ?edit= deep-link must apply the SAME
+      // write gate as every other edit opener — resolve against
+      // visibleContacts and require canEditAny, else fall back to the
+      // read-only detail dialog (or nothing). Without this a member could
+      // open the fully-editable ContactForm for ANY contact via a crafted
+      // URL ( contact ids are discoverable). Found by the Phase-5 permission
+      // refuters.
+      const target = visibleContacts.find((c) => c.id === editId);
+      if (target && canEditAny(target)) {
         setEditing(target);
         setFormOpen(true);
+      } else if (target) {
+        setViewingContactId(target.id); // view-only fallback
       }
     }
-  }, [searchParams, contacts]);
+  }, [searchParams, visibleContacts, canEditAny]);
 
   // Mirror the active filters into the URL (shareable) via history.replaceState
   // — lighter than router.replace (no soft-navigation / re-render) and reliably
@@ -212,7 +323,6 @@ export default function ContactsPage() {
     if (!didInitFromUrl.current) return;
     const params = new URLSearchParams();
     if (stageFilter !== 'all') params.set('stage', stageFilter);
-    if (typeFilter !== 'all') params.set('type', typeFilter);
     if (search.trim()) params.set('q', search.trim());
     const qs = params.toString();
     const tmr = setTimeout(() => {
@@ -220,25 +330,41 @@ export default function ContactsPage() {
       window.history.replaceState(window.history.state, '', url);
     }, 300);
     return () => clearTimeout(tmr);
-  }, [stageFilter, typeFilter, search, pathname]);
+  }, [stageFilter, search, pathname]);
 
   // Client-side filtering + sorting (all data is in memory from MSW)
   const filtered = useMemo(() => {
     let result = visibleContacts;
-    if (search) {
-      const q = search.toLowerCase();
-      // CONT-7: predicate now also matches against notes + currentSubject so
-      // imported records with metadata in those fields are findable.
-      result = result.filter((c) =>
-        `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''} ${c.notes || ''} ${c.currentSubject || ''}`
-          .toLowerCase()
-          .includes(q),
-      );
+    if (search.trim()) {
+      // Phase 5 (packet): PREFIX matching, Outlook-style — "D" matches only
+      // D-initial words. Scoped by the field dropdown; 'all' spans
+      // contact/teacher/TL/GL/branch plus email/phone (CONT-7: keeps
+      // imported records findable — notes/subject substring search dropped
+      // by the packet's prefix-matching spec).
+      result = result.filter((c) => {
+        const f = searchIndex.get(c.id);
+        if (!f) return false;
+        const fields =
+          searchField === 'all'
+            ? [f.contact, f.teacher, f.tl, f.gl, f.branch, f.email, f.phone]
+            : searchField === 'contact'
+              ? [f.contact]
+              : searchField === 'teacher'
+                ? [f.teacher]
+                : searchField === 'team_leader'
+                  ? [f.tl]
+                  : searchField === 'group_leader'
+                    ? [f.gl]
+                    : [f.branch];
+        return fields.some((t) => !!t && prefixMatch(t, search) !== null);
+      });
     }
-    const effectiveType = typeFilter.startsWith('all') ? '' : typeFilter;
     const effectiveStage = stageFilter.startsWith('all') ? '' : stageFilter;
-    if (effectiveType) result = result.filter((c) => c.type === effectiveType);
     if (effectiveStage) result = result.filter((c) => c.pipelineStage === effectiveStage);
+    // Leader-name filters (exact name match against the resolved chain).
+    if (glFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.gl === glFilter);
+    if (tlFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.tl === tlFilter);
+    if (branchFilter !== 'all') result = result.filter((c) => searchIndex.get(c.id)?.branch === branchFilter);
 
     // Sort
     const stageOrder: Record<string, number> = {
@@ -254,7 +380,7 @@ export default function ContactsPage() {
     });
 
     return result;
-  }, [visibleContacts, search, typeFilter, stageFilter, sortKey]);
+  }, [visibleContacts, search, searchField, stageFilter, glFilter, tlFilter, branchFilter, sortKey, searchIndex]);
 
   // Pipeline stage counts (from in-scope contacts; CONT-1: don't leak
   // out-of-scope counts via the chip totals).
@@ -267,18 +393,23 @@ export default function ContactsPage() {
 
   // CONT-4: per-row edit gate — passed into ContactCard / Kanban / dialogs
   // so action affordances only appear when the viewer can act on the row.
-  const canEditAny = useCallback(
-    (contact: Contact) =>
-      !!viewer && canEditContact(viewer, contact, scope.userIds),
-    [viewer, scope.userIds],
-  );
+  // (canEditAny is declared up near the scope memos so the URL-deep-link
+  // effect can gate ?edit= on it — see above.)
 
-  const hasFilters = search || typeFilter !== 'all' || stageFilter !== 'all';
+  const hasFilters =
+    search ||
+    stageFilter !== 'all' ||
+    glFilter !== 'all' ||
+    tlFilter !== 'all' ||
+    branchFilter !== 'all';
 
   const clearFilters = () => {
     setSearch('');
-    setTypeFilter('all');
+    setSearchField('all');
     setStageFilter('all');
+    setGlFilter('all');
+    setTlFilter('all');
+    setBranchFilter('all');
   };
 
   // ── Contact actions ────────────────────────────────────────────
@@ -358,12 +489,36 @@ export default function ContactsPage() {
   const selectAll = () => setSelectedIds(new Set(filtered.map((c) => c.id)));
   const deselectAll = () => setSelectedIds(new Set());
 
+  // Decision 10: bulk actions apply the per-row WRITE gate — rows outside
+  // the viewer's manageable scope are skipped with an explanation instead
+  // of silently written (the selection UI may hold mixed rows after a
+  // filter change, so the gate lives on the ACTION, not just the checkbox).
+  const splitByWritable = useCallback(
+    (ids: string[]) => {
+      const writable: string[] = [];
+      let skipped = 0;
+      for (const id of ids) {
+        const c = contacts.find((x) => x.id === id);
+        if (c && viewer && canDeleteContact(viewer, c, manageScope.userIds)) writable.push(id);
+        else skipped++;
+      }
+      return { writable, skipped };
+    },
+    [contacts, viewer, manageScope.userIds],
+  );
+
   const handleBulkStageChange = async (newStage: string) => {
-    const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) =>
+    const { writable, skipped } = splitByWritable(Array.from(selectedIds));
+    if (writable.length === 0) {
+      toast.error('None of the selected contacts are in your manageable scope');
+      return;
+    }
+    await Promise.all(writable.map((id) =>
       contactsApi.updateContact(id, { pipelineStage: newStage as PipelineStage }),
     ));
-    toast.success(`${ids.length} contacts updated`);
+    toast.success(
+      `${writable.length} contacts updated${skipped ? ` — ${skipped} skipped (outside your scope)` : ''}`,
+    );
     await refetchContacts();
     setSelectedIds(new Set());
   };
@@ -374,15 +529,24 @@ export default function ContactsPage() {
   };
 
   const handleBulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    if (!window.confirm(`Delete ${ids.length} selected contact${ids.length > 1 ? 's' : ''}?`)) return;
-    await Promise.all(ids.map((id) => contactsApi.deleteContact(id)));
+    const { writable, skipped } = splitByWritable(Array.from(selectedIds));
+    if (writable.length === 0) {
+      if (selectedIds.size > 0) toast.error('None of the selected contacts are in your manageable scope');
+      return;
+    }
+    if (!window.confirm(
+      `Delete ${writable.length} selected contact${writable.length > 1 ? 's' : ''}?` +
+      (skipped ? ` (${skipped} outside your scope will be skipped.)` : ''),
+    )) return;
+    await Promise.all(writable.map((id) => contactsApi.deleteContact(id)));
     // Optimistic local removal — GET /contacts still returns soft-deleted
     // (status:'inactive') rows, so a refetch would resurrect them; mirror the
     // single-delete pattern (handleFormDelete / handleDetailDelete).
-    setContacts((prev) => prev.filter((c) => !selectedIds.has(c.id)));
-    toast.success(`${ids.length} contact${ids.length > 1 ? 's' : ''} deleted`);
+    const deleted = new Set(writable);
+    setContacts((prev) => prev.filter((c) => !deleted.has(c.id)));
+    toast.success(
+      `${writable.length} contact${writable.length > 1 ? 's' : ''} deleted${skipped ? ` — ${skipped} skipped (outside your scope)` : ''}`,
+    );
     setSelectedIds(new Set());
   };
 
@@ -448,18 +612,25 @@ export default function ContactsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {canExportImport(viewer) && (
+                  <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                    <Upload className="h-4 w-4" /> {t('btn.import')}
+                  </DropdownMenuItem>
+                )}
+                {/* Decision 13: EXPORT is GL+ with no exceptions (the
+                    per-group canExportImport flag no longer grants it
+                    below Group Leader). Import keeps its own gate. */}
+                {!!viewer && canExportMemberList(viewer) && (
                   <>
-                    <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                      <Upload className="h-4 w-4" /> {t('btn.import')}
-                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => doExport(filtered)}>
                       <Download className="h-4 w-4" /> Export current view
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => doExport(visibleContacts)}>
                       <Download className="h-4 w-4" /> Export all I can see
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                   </>
+                )}
+                {((canExportImport(viewer) || (!!viewer && canExportMemberList(viewer)))) && (
+                  <DropdownMenuSeparator />
                 )}
                 <DropdownMenuItem
                   onClick={() => {
@@ -476,38 +647,38 @@ export default function ContactsPage() {
 
           {/* DESKTOP (>=xl): inline buttons — unchanged. */}
           <div className="hidden xl:flex items-center gap-2">
-            {/* Import + export are admin-tier only unless canExportImport's
-                feature flag is enabled. */}
+            {/* Import keeps the canExportImport gate; EXPORT is Decision 13
+                GL+ with no exceptions. */}
             {canExportImport(viewer) && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setImportOpen(true)}
-                  className="gap-1.5"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {t('btn.import')}
-                </Button>
-                {/* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */}
-                <Select
-                  onValueChange={(v) => {
-                    if (v === 'current') doExport(filtered);
-                    else if (v === 'all') doExport(visibleContacts);
-                  }}
-                >
-                  <SelectTrigger className="w-[150px] h-8 text-xs">
-                    <Download className="mr-1.5 h-3.5 w-3.5" />
-                    {/* Action-style select: always show the action label, never
-                        the raw 'current' / 'all' value base-ui would render. */}
-                    <SelectValue>{t('btn.export')}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">Export current view</SelectItem>
-                    <SelectItem value="all">Export all I can see</SelectItem>
-                  </SelectContent>
-                </Select>
-              </>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                className="gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {t('btn.import')}
+              </Button>
+            )}
+            {!!viewer && canExportMemberList(viewer) && (
+              /* EXPORT-1: dual-mode dropdown — current view vs. all-in-scope */
+              <Select
+                onValueChange={(v) => {
+                  if (v === 'current') doExport(filtered);
+                  else if (v === 'all') doExport(visibleContacts);
+                }}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  {/* Action-style select: always show the action label, never
+                      the raw 'current' / 'all' value base-ui would render. */}
+                  <SelectValue>{t('btn.export')}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Export current view</SelectItem>
+                  <SelectItem value="all">Export all I can see</SelectItem>
+                </SelectContent>
+              </Select>
             )}
             <Button
               variant={selectMode ? 'secondary' : 'outline'}
@@ -591,7 +762,7 @@ export default function ContactsPage() {
               ))}
             </SelectContent>
           </Select>
-          {canExportImport(viewer) && (
+          {!!viewer && canExportMemberList(viewer) && (
             <Button variant="outline" size="sm" onClick={handleExportSelected} className="gap-1 h-8 text-xs">
               <Download className="h-3 w-3" /> {t('btn.export')}
             </Button>
@@ -638,19 +809,69 @@ export default function ContactsPage() {
           )}
         </div>
 
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'all')}>
+        {/* Scoped-field search dropdown (packet): constrains what the prefix
+            matcher runs against. */}
+        <Select value={searchField} onValueChange={(v) => setSearchField((v ?? 'all') as SearchField)}>
+          <SelectTrigger className="w-[150px] max-md:flex-1">
+            <SelectValue>{SEARCH_FIELD_LABELS[searchField]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SEARCH_FIELD_LABELS) as SearchField[]).map((k) => (
+              <SelectItem key={k} value={k}>{SEARCH_FIELD_LABELS[k]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Decision 2: the old booking-type filter is replaced by the 6
+            statuses — this dropdown drives the SAME stageFilter as the pills. */}
+        <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? 'all')}>
           <SelectTrigger className="w-[170px] max-md:flex-1">
             <Filter className="mr-1.5 h-3.5 w-3.5" />
             <SelectValue>
-              {typeFilter === 'all'
+              {stageFilter === 'all'
                 ? t('contacts.allTypes')
-                : BOOKING_TYPE_CONFIG[typeFilter as keyof typeof BOOKING_TYPE_CONFIG]?.label ?? typeFilter}
+                : PIPELINE_STAGE_CONFIG[stageFilter as keyof typeof PIPELINE_STAGE_CONFIG]?.label ?? stageFilter}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('contacts.allTypes')}</SelectItem>
-            {Object.entries(BOOKING_TYPE_CONFIG).map(([k, v]) => (
+            {Object.entries(PIPELINE_STAGE_CONFIG).map(([k, v]) => (
               <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Leader-name filters — only names currently having contacts. */}
+        <Select value={glFilter} onValueChange={(v) => setGlFilter(v ?? 'all')}>
+          <SelectTrigger className="w-[170px] max-md:flex-1">
+            <SelectValue>{glFilter === 'all' ? 'All Group Leaders' : glFilter}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Group Leaders</SelectItem>
+            {leaderFilterOptions.gl.map((n) => (
+              <SelectItem key={n} value={n}>{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tlFilter} onValueChange={(v) => setTlFilter(v ?? 'all')}>
+          <SelectTrigger className="w-[170px] max-md:flex-1">
+            <SelectValue>{tlFilter === 'all' ? 'All Team Leaders' : tlFilter}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Team Leaders</SelectItem>
+            {leaderFilterOptions.tl.map((n) => (
+              <SelectItem key={n} value={n}>{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={branchFilter} onValueChange={(v) => setBranchFilter(v ?? 'all')}>
+          <SelectTrigger className="w-[160px] max-md:flex-1">
+            <SelectValue>{branchFilter === 'all' ? 'All Branches' : branchFilter}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Branches</SelectItem>
+            {leaderFilterOptions.branch.map((n) => (
+              <SelectItem key={n} value={n}>{n}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -751,6 +972,14 @@ export default function ContactsPage() {
           onToggleSelect={toggleSelect}
           onCardClick={setViewingContactId}
           onStageChange={async (id, stage) => {
+            // Decision 10: kanban drag is a WRITE — same per-row gate as
+            // edit/delete (a member could otherwise re-stage anyone's
+            // contact by dragging its card).
+            const target = contacts.find((c) => c.id === id);
+            if (!target || !viewer || !canEditContact(viewer, target, manageScope.userIds)) {
+              toast.error('Outside your manageable scope');
+              return;
+            }
             await contactsApi.updateContact(id, { pipelineStage: stage });
             await refetchContacts();
             toast.success('Stage updated');
@@ -775,6 +1004,7 @@ export default function ContactsPage() {
                   selectMode={selectMode}
                   selected={selectedIds.has(contact.id)}
                   onToggleSelect={() => toggleSelect(contact.id)}
+                  query={search}
                 />
               </motion.div>
             ))}
@@ -792,7 +1022,7 @@ export default function ContactsPage() {
         onSave={handleDetailSave}
         onDelete={handleDetailDelete}
         viewer={viewer ?? undefined}
-        subtreeUserIds={scope.userIds}
+        subtreeUserIds={manageScope.userIds}
         onConvert={handleDetailConvert}
       />
 
@@ -805,6 +1035,11 @@ export default function ContactsPage() {
         contact={editing}
         users={users}
         allContacts={contacts}
+        // Decision 10: creating is always allowed (owner = self); editing an
+        // existing contact requires write rights on it. Assignment is bounded
+        // to the viewer's manageable scope ∪ self.
+        canEdit={!editing || canEditAny(editing)}
+        assignableTeacherIds={viewer ? [...manageScope.userIds, viewer.id] : undefined}
       />
 
       {/* Import CSV dialog */}

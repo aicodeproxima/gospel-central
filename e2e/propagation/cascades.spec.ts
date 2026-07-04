@@ -24,11 +24,16 @@ function chipScrape() {
 // ── C1: baptize (bulk stage → Baptized) → card badge + chip counts (same-page);
 //        contact.type must NOT auto-change (R6: PUT /contacts blind body-spread) ──
 test('C1 baptize stage-change → chip counts move, contact.type does NOT (R6)', async ({ page }) => {
-  await loginAs(page, 'branch1');
+  // Decision 10 (2026-07): contact WRITES are bounded by manageable scope —
+  // a Branch Leader can only bulk-edit contacts in their OWN branch. This is
+  // a CASCADE test (chip propagation + type-not-flipped), not a permission
+  // test (those live in permissions.spec + the matrix), so it runs as an
+  // org-wide actor (admin/Dev) to exercise the cascade on any contact.
+  await loginAs(page, 'admin');
   await page.goto('/contacts');
   await page.waitForLoadState('networkidle');
 
-  const ca = await assertClockActor(page, 'branch_leader');
+  const ca = await assertClockActor(page, 'dev');
   expect(ca.clock).toBe(MOCK_DATE);
 
   // capture: chip counts + the visible "type" badges present (Unbaptized Contact etc.)
@@ -57,9 +62,9 @@ test('C1 baptize stage-change → chip counts move, contact.type does NOT (R6)',
   const mustNotOk = typeUnchanged;
   const verdict = expectedOk ? (mustNotOk ? 'PASS' : 'OVER') : 'LEAK';
 
-  await assertClockActor(page, 'branch_leader');
+  await assertClockActor(page, 'dev');
   appendJsonl('propagation.jsonl', {
-    id: 'C1', domain: 'cascade', mutation: 'baptize (stage→Baptized)', actor_role: 'branch1', trigger_surface: '/contacts bulk stage',
+    id: 'C1', domain: 'cascade', mutation: 'baptize (stage→Baptized)', actor_role: 'admin', trigger_surface: '/contacts bulk stage',
     expected_reflections: [
       { site_id: 'contacts.chip.baptized', site: 'stage-chip counts', instance: 'desktop', observe_how: 'DOM chip count', expected_delta: 'Baptized +1', source_citation: 'contacts/page.tsx:261 stageCounts' },
     ],

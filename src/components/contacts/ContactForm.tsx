@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { PredictiveInput } from '@/components/shared/PredictiveInput';
 import { StepSubjectPicker } from '@/components/shared/StepSubjectPicker';
+import { Combobox, type ComboOption } from '@/components/shared/Combobox';
 import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { BookingType, ContactStatus, PipelineStage, PIPELINE_STAGE_CONFIG } from '@/lib/types';
@@ -35,6 +36,21 @@ interface ContactFormProps {
   users: User[];
   /** All contacts (to derive known groups and suggestion lists) */
   allContacts: Contact[];
+  /**
+   * Decision 10 defensive guard: when false, the form is read-only — Save
+   * and Delete are disabled/hidden so an unauthorized opener (e.g. a crafted
+   * ?edit= deep-link) can never trigger a write. Defaults to true for the
+   * create path and back-compat. The opener is expected to gate too (belt +
+   * suspenders — found by the Phase-5 permission refuters).
+   */
+  canEdit?: boolean;
+  /**
+   * Decision 10: user ids (buildManageableScope ∪ self) the viewer may assign
+   * a contact to. When provided, the assigned-teacher predictive field is
+   * constrained to these (plus the current owner). Absent → unconstrained
+   * (back-compat).
+   */
+  assignableTeacherIds?: string[];
 }
 
 export function ContactForm({
@@ -45,6 +61,8 @@ export function ContactForm({
   contact,
   users,
   allContacts,
+  canEdit = true,
+  assignableTeacherIds,
 }: ContactFormProps) {
   const { entities, add: addCustom } = useCustomEntitiesStore();
   // CONT-3: pull viewer so a newly-created contact gets owner=viewer.id
@@ -57,6 +75,7 @@ export function ContactForm({
   const [groupName, setGroupName] = useState('');
   const [status, setStatus] = useState<PipelineStage>(PipelineStage.FIRST_STUDY);
   const [partners, setPartners] = useState<string[]>(['', '', '']);
+  const [assignedTeacherId, setAssignedTeacherId] = useState<string | null>(null);
   const [subjectsStudied, setSubjectsStudied] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -88,9 +107,11 @@ export function ContactForm({
         ]);
         setSubjectsStudied(contact.subjectsStudied || []);
         setNotes(contact.notes || '');
+        setAssignedTeacherId(contact.assignedTeacherId ?? null);
       } else {
         setName(''); setPhone(''); setGroupName(''); setStatus(PipelineStage.FIRST_STUDY);
         setPartners(['', '', '']); setSubjectsStudied([]); setNotes('');
+        setAssignedTeacherId(null);
       }
       setNewGroupMode(false);
       setNewGroupValue('');
@@ -131,6 +152,30 @@ export function ContactForm({
     [partnerOptions],
   );
 
+  // Assigned-teacher predictive field (packet): active users whose tags
+  // include 'teacher' — same filter BookingWizard.tsx uses for its
+  // teacherOptions Combobox — plus user-added custom teacher entities.
+  const assignedTeacherOptions: ComboOption[] = useMemo(() => {
+    // Decision 10: an assignment/reassignment is bounded by the viewer's
+    // manageable scope — a member can't assign a contact to an arbitrary
+    // teacher, and a leader can't reassign org-wide. `assignableTeacherIds`
+    // (from the parent's buildManageableScope, plus self) constrains the
+    // real-user options; the currently-assigned teacher always stays visible
+    // so an in-scope edit never silently drops its owner. Custom (localStorage)
+    // teacher entities the viewer typed themselves stay available.
+    const inScope = (id: string) =>
+      !assignableTeacherIds ||
+      assignableTeacherIds.includes(id) ||
+      id === contact?.assignedTeacherId;
+    const base = users
+      .filter((u) => u.isActive !== false && Array.isArray(u.tags) && u.tags.includes('teacher') && inScope(u.id))
+      .map((u) => ({ id: u.id, label: `${u.firstName} ${u.lastName}`.trim(), sublabel: u.role.replace('_', ' ') }));
+    const custom = entities
+      .filter((e) => e.kind === 'teacher')
+      .map((e) => ({ id: e.id, label: e.name, sublabel: 'Custom teacher' }));
+    return [...base, ...custom];
+  }, [users, entities, assignableTeacherIds, contact?.assignedTeacherId]);
+
   const customSubjects = entities.filter((e) => e.kind === 'other').map((e) => e.name);
 
   // ---------- Submit ----------
@@ -160,6 +205,8 @@ export function ContactForm({
       addCustom('group', newGroupValue.trim());
     }
 
+    // Decision 10 defensive guard: never issue a write from a read-only form.
+    if (!canEdit) return;
     setLoading(true);
     try {
       await onSubmit({
@@ -174,10 +221,11 @@ export function ContactForm({
         // Preserve booking type + status if editing
         type: contact?.type || BookingType.UNBAPTIZED_CONTACT,
         status: contact?.status || ContactStatus.ACTIVE,
-        // CONT-3: owner attribution. Edit preserves the existing owner;
-        // create defaults to the viewer (self-owned). Reassign-to-other
-        // is a future batch.
-        assignedTeacherId: contact?.assignedTeacherId ?? viewer?.id,
+        // CONT-3 + assigned-teacher field (packet): an explicit pick in the
+        // new predictive field wins. If left blank, fall back to the prior
+        // behavior — edit preserves the existing owner, create defaults to
+        // the viewer (self-owned).
+        assignedTeacherId: assignedTeacherId ?? contact?.assignedTeacherId ?? viewer?.id,
         createdBy: contact?.createdBy ?? viewer?.id ?? 'unknown',
       });
       onClose();
@@ -187,7 +235,7 @@ export function ContactForm({
   };
 
   const handleDelete = async () => {
-    if (!contact || !onDelete) return;
+    if (!contact || !onDelete || !canEdit) return;
     if (!confirm(`Delete contact "${contact.firstName} ${contact.lastName}"? This cannot be undone.`)) return;
     setLoading(true);
     try {
@@ -313,6 +361,22 @@ export function ContactForm({
             </div>
           </div>
 
+          {/* Assigned teacher — predictive field (packet). Only offered when
+              a users list is available; sources the same active/'teacher'-tag
+              filter as BookingWizard's teacherOptions Combobox. */}
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Assigned teacher
+            </Label>
+            <Combobox
+              options={assignedTeacherOptions}
+              value={assignedTeacherId}
+              onChange={setAssignedTeacherId}
+              placeholder="Search teachers..."
+              emptyMessage="No teachers found"
+            />
+          </div>
+
           {/* Subjects Studied */}
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -341,11 +405,18 @@ export function ContactForm({
               reachable while the form scrolls in the bottom sheet; pb-safe
               clears the home indicator. Desktop keeps the inline row. */}
           <div className="flex gap-3 pt-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:border-t max-md:border-border max-md:bg-popover max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:pt-3">
-            <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black touch-manipulation">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {contact ? 'Save Changes' : 'Create Contact'}
-            </Button>
-            {contact && onDelete && (
+            {canEdit ? (
+              <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black touch-manipulation">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {contact ? 'Save Changes' : 'Create Contact'}
+              </Button>
+            ) : (
+              /* Decision 10: read-only opener — no write affordances. */
+              <div className="flex-1 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-center text-sm text-muted-foreground">
+                You can view this contact but not edit it.
+              </div>
+            )}
+            {canEdit && contact && onDelete && (
               <Button
                 type="button"
                 variant="destructive"
