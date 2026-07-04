@@ -13,8 +13,9 @@ import {
   genderOf,
   getBookingCardColor,
   getBaptismBorder,
+  bookingStatusI18nKey,
 } from './booking-display';
-import { BookingType, type Booking } from '../types/booking';
+import { BookingStatus, BookingType, type Booking } from '../types/booking';
 import { PipelineStage, ContactStatus, type Contact } from '../types/contact';
 import { scenarioUsers } from '@/mocks/scenario-church-week';
 
@@ -112,5 +113,34 @@ describe('getBaptismBorder (contact LIVE status wins over stored type)', () => {
   test('no linked contact → falls back to the stored type', () => {
     expect(getBaptismBorder(booking({ type: BookingType.BAPTIZED_ZOOM }))).toBe('baptized');
     expect(getBaptismBorder(booking({ type: BookingType.UNBAPTIZED_ZOOM }))).toBe('unbaptized');
+  });
+});
+
+describe('bookingStatusI18nKey (Phase 3: status line labels)', () => {
+  test('study bookings use the study labels; missing status = scheduled default', () => {
+    expect(bookingStatusI18nKey(booking({}))).toBe('bstatus.bible_study');
+    expect(bookingStatusI18nKey(booking({ status: BookingStatus.COMPLETED }))).toBe(
+      'bstatus.completed',
+    );
+    expect(bookingStatusI18nKey(booking({ status: BookingStatus.CANCELLED }))).toBe(
+      'bstatus.cancelled',
+    );
+  });
+
+  test('non-study activities use the neutral variants where they differ', () => {
+    const committee = { type: BookingType.TEAM_ACTIVITIES } as const;
+    expect(bookingStatusI18nKey({ ...committee, status: undefined })).toBe(
+      'bstatus.ns.bible_study', // renders "Scheduled"
+    );
+    expect(bookingStatusI18nKey({ ...committee, status: BookingStatus.COMPLETED })).toBe(
+      'bstatus.ns.completed',
+    );
+    // No neutral variant needed for these — same wording either way.
+    expect(bookingStatusI18nKey({ ...committee, status: BookingStatus.NO_SHOW })).toBe(
+      'bstatus.no_show',
+    );
+    expect(bookingStatusI18nKey({ ...committee, status: BookingStatus.RESCHEDULED })).toBe(
+      'bstatus.rescheduled',
+    );
   });
 });

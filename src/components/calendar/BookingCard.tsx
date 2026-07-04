@@ -3,23 +3,36 @@
 import { motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { BOOKING_TYPE_CONFIG, ACTIVITY_CONFIG, Activity } from '@/lib/types';
+import { ACTIVITY_CONFIG, Activity, BookingStatus, BOOKING_STATUS_CONFIG } from '@/lib/types';
 import type { Booking } from '@/lib/types';
+import type { User } from '@/lib/types/user';
+import type { Contact } from '@/lib/types/contact';
 import { parseISO } from '@/lib/utils/date';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
+import { useTranslation } from '@/lib/i18n';
+import {
+  getBookingCardColor,
+  getBaptismBorder,
+  BAPTISM_BORDER_CLASS,
+  activityGroupOf,
+  bookingStatusI18nKey,
+} from '@/lib/utils/booking-display';
 
 interface BookingCardProps {
   booking: Booking;
   onClick: (booking: Booking) => void;
   absolute?: boolean;
   style?: React.CSSProperties;
+  teacher?: User | null;
+  contact?: Contact | null;
 }
 
 const COMPACT_WIDTH_THRESHOLD = 60; // px — below this, show color block only
 
-export function BookingCard({ booking, onClick, absolute, style }: BookingCardProps) {
-  const config = BOOKING_TYPE_CONFIG[booking.type];
+export function BookingCard({ booking, onClick, absolute, style, teacher, contact }: BookingCardProps) {
+  const cardColor = getBookingCardColor(teacher);
   const { time } = useTimeFormat();
+  const { t } = useTranslation();
   const activityLabel = booking.activity ? ACTIVITY_CONFIG[booking.activity as Activity]?.label : null;
   const ref = useRef<HTMLButtonElement>(null);
   const [compact, setCompact] = useState(false);
@@ -36,15 +49,26 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
   }, []);
 
   const isCancelled = booking.status === 'cancelled';
+  const isBibleStudy = activityGroupOf(booking.type) === 'bible_study';
+  const border = getBaptismBorder(booking, contact);
+  const statusLabel = t(bookingStatusI18nKey(booking));
+  const statusColor = BOOKING_STATUS_CONFIG[booking.status ?? BookingStatus.BIBLE_STUDY].color;
   const start = parseISO(booking.startTime);
   const end = parseISO(booking.endTime);
   const startStr = time(start);
   const endStr = time(end);
   const startHour = startStr;
   const endHour = endStr;
+
+  const contactLine = isBibleStudy && contact ? `C. ${contact.firstName} ${contact.lastName}` : null;
+  const teacherLine = teacher
+    ? `${isBibleStudy ? 'T.' : 'L.'} ${teacher.firstName} ${teacher.lastName}`
+    : null;
+
+  const tooltipTitle = isBibleStudy && contact ? `C. ${contact.firstName} ${contact.lastName}` : booking.title;
   const tooltip = isCancelled
     ? `CANCELLED: ${booking.title}\n${startStr} — ${endStr}\nReason: ${booking.cancelReason || 'No reason given'}`
-    : `${booking.title}\n${startStr} — ${endStr}${activityLabel ? `\n${activityLabel}` : ''}`;
+    : `${tooltipTitle}\n${startStr} — ${endStr}${activityLabel ? `\n${activityLabel}` : ''}\n${statusLabel}`;
 
   return (
     <motion.button
@@ -64,7 +88,8 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
         'touch-manipulation',
         absolute && 'absolute inset-x-1',
         isCancelled ? 'opacity-35 border-dashed' : 'hover:shadow-lg',
-        config.bgColor,
+        cardColor.bgColor,
+        border && BAPTISM_BORDER_CLASS[border],
         compact ? 'px-0.5 py-1' : 'px-2 py-1',
       )}
     >
@@ -79,7 +104,7 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
       )}
       {compact ? (
         // Narrow mode: vertically-rotated start and end times
-        <div className={cn('flex h-full w-full flex-col items-center justify-between py-1 leading-none', config.color)}>
+        <div className={cn('flex h-full w-full flex-col items-center justify-between py-1 leading-none', cardColor.color)}>
           <div
             className="text-[9px] font-bold whitespace-nowrap tracking-tight"
             style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
@@ -96,12 +121,24 @@ export function BookingCard({ booking, onClick, absolute, style }: BookingCardPr
         </div>
       ) : (
         <>
-          <div className={cn('font-semibold truncate', config.color)}>{booking.title}</div>
+          {isBibleStudy ? (
+            <div className={cn('font-semibold truncate', cardColor.color)}>
+              {contactLine ?? booking.title}
+            </div>
+          ) : (
+            <div className={cn('font-semibold truncate', cardColor.color)}>{booking.title}</div>
+          )}
+          {teacherLine && (
+            <div className="truncate text-foreground">{teacherLine}</div>
+          )}
           {activityLabel && (
             <div className="truncate text-[10px] opacity-80">{activityLabel}</div>
           )}
           <div className="truncate text-muted-foreground">
             {startStr} - {endStr}
+          </div>
+          <div className={cn('truncate text-[10px] font-medium', statusColor)}>
+            {statusLabel}
           </div>
         </>
       )}

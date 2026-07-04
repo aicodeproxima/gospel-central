@@ -7,6 +7,8 @@ import { getTimeSlots, format, isSameDay, parseISO } from '@/lib/utils/date';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
+import type { User } from '@/lib/types/user';
+import type { Contact } from '@/lib/types/contact';
 
 interface DayViewProps {
   date: Date;
@@ -14,20 +16,28 @@ interface DayViewProps {
   bookings: Booking[];
   onSlotClick: (roomId: string, date: Date, time24: string) => void;
   onBookingClick: (booking: Booking) => void;
+  userById: Map<string, User>;
+  contactById: Map<string, Contact>;
 }
 
 const START_HOUR = 8;
 const END_HOUR = 23;
 const SLOT_HEIGHT = 48;
 
-export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick }: DayViewProps) {
+export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick, userById, contactById }: DayViewProps) {
   const { clock } = useTimeFormat();
   const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR, clock), [clock]);
 
   // Original desktop column template, unchanged (literal integer count — no
-  // `repeat(var())`, which isn't spec-guaranteed). Used as an inline style so
-  // the ≥1280 render is byte-identical.
+  // `repeat(var())`, which isn't spec-guaranteed). Declared ONCE on the outer
+  // grid; the header row and the body row inherit these exact tracks via
+  // `grid-template-columns: subgrid` so they resolve identically and CANNOT
+  // drift. (Two independent grids each resolve `fr` tracks — and their
+  // subpixel rounding — per-container, so identical template strings still
+  // staggered at fractional widths / during resize. Subgrid fixes that by
+  // construction.) Used as an inline style so the ≥1280 render is byte-identical.
   const gridTemplate = `80px repeat(${rooms.length}, 1fr)`;
+  const subgridColumns = 'subgrid';
   // Inner-board min width: keep the desktop floor at 600px (== the original
   // `min-w-[600px]`) for ≤4 rooms; for more rooms give each ~120px so columns
   // stay tappable, which forces the OUTER container to scroll horizontally on
@@ -71,9 +81,18 @@ export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick }: 
       data-calendar-surface="grid"
       className="max-w-full touch-manipulation overflow-auto overscroll-contain rounded-lg border border-border bg-card md:flex-1 md:min-h-[360px]"
     >
-      <div style={{ minWidth: boardMinWidth }}>
-        {/* Room headers */}
-        <div data-calendar-surface="header" className="sticky top-0 z-20 grid border-b border-border bg-card" style={{ gridTemplateColumns: gridTemplate }}>
+      {/* ONE grid owns the column tracks. The header row and the body row are
+          both full-width subgrid children, so they inherit the SAME resolved
+          tracks and can never drift horizontally. */}
+      <div className="grid" style={{ minWidth: boardMinWidth, gridTemplateColumns: gridTemplate }}>
+        {/* Room headers — a subgrid row spanning every column; sticky-top so it
+            stays pinned during vertical scroll and z-20 keeps it above the
+            hover cards (z-10). */}
+        <div
+          data-calendar-surface="header"
+          className="sticky top-0 z-20 grid border-b border-border bg-card"
+          style={{ gridColumn: '1 / -1', gridTemplateColumns: subgridColumns }}
+        >
           <div className="sticky left-0 z-10 border-r border-border bg-card p-3 text-center max-md:p-1.5">
             <div className="text-sm font-semibold">{format(date, 'EEE')}</div>
             <div className="text-lg font-bold max-md:text-base">{format(date, 'MMM d')}</div>
@@ -87,8 +106,13 @@ export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick }: 
           ))}
         </div>
 
-        {/* Grid — same inline template as the header so columns line up. */}
-        <div className="relative grid" style={{ gridTemplateColumns: gridTemplate }}>
+        {/* Body — a subgrid row spanning every column; inherits the identical
+            tracks from the outer grid, so columns line up with the header by
+            construction. */}
+        <div
+          className="relative grid"
+          style={{ gridColumn: '1 / -1', gridTemplateColumns: subgridColumns }}
+        >
           {/* Time column — sticky-left so it stays put during horizontal scroll */}
           <div className="sticky left-0 z-10 border-r border-border bg-card">
             {timeSlots.map((slot) => (
@@ -135,7 +159,12 @@ export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick }: 
                       className="pointer-events-auto absolute inset-x-1"
                       style={{ top: pos.top, height: pos.height }}
                     >
-                      <BookingCard booking={booking} onClick={onBookingClick} />
+                      <BookingCard
+                        booking={booking}
+                        onClick={onBookingClick}
+                        teacher={booking.teacherId ? userById.get(booking.teacherId) ?? null : null}
+                        contact={booking.contactId ? contactById.get(booking.contactId) ?? null : null}
+                      />
                     </div>
                   );
                 })}

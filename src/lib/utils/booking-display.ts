@@ -94,3 +94,21 @@ export const BAPTISM_BORDER_CLASS: Record<Exclude<BaptismBorder, null>, string> 
   baptized: 'border-t-2 border-t-blue-500',
   unbaptized: 'border-t-2 border-t-red-500',
 };
+
+/**
+ * i18n key for a booking's status line. Bible-study bookings use the study
+ * labels ('bstatus.<status>'); group/team activities use the neutral
+ * non-study variants where they differ ('bstatus.ns.bible_study' = "Scheduled",
+ * 'bstatus.ns.completed' = "Completed"). A missing status is the scheduled
+ * default (legacy 'active' records were re-keyed to bible_study in Phase 0).
+ */
+export function bookingStatusI18nKey(
+  booking: Pick<Booking, 'type' | 'status'>,
+): string {
+  const status = booking.status ?? 'bible_study';
+  if (activityGroupOf(booking.type) !== 'bible_study') {
+    if (status === 'bible_study') return 'bstatus.ns.bible_study';
+    if (status === 'completed') return 'bstatus.ns.completed';
+  }
+  return `bstatus.${status}`;
+}

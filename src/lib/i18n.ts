@@ -84,6 +84,10 @@ export const translations: Record<string, Record<string, string>> = {
     'bstatus.no_show': 'No Show',
     'bstatus.rescheduled': 'Rescheduled',
     'bstatus.cancelled': 'Cancelled',
+    // Non-study activities (group/team) show the neutral labels — a committee
+    // meeting is "Scheduled", not "Bible Study" (BOOKING_STATUS_CONFIG.nonStudyLabel).
+    'bstatus.ns.bible_study': 'Scheduled',
+    'bstatus.ns.completed': 'Completed',
 
     // ── Curriculum sections ─────────────────────────────────────
     'curriculum.foundation': 'Foundation',
@@ -293,6 +297,9 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.role': 'Role',
     'settings.status': 'Status',
     'settings.active': 'Active',
+    'settings.genderTag': 'Brother / Sister',
+    'settings.brother': 'Brother',
+    'settings.sister': 'Sister',
 
     // ── Booking Wizard ──────────────────────────────────────────
     'wizard.newBooking': 'New Booking',
@@ -322,6 +329,8 @@ export const translations: Record<string, Record<string, string>> = {
     'wizard.confirmBooking': 'Confirm booking',
     'wizard.cancelledBooking': 'Cancelled booking',
     'wizard.clickToJump': 'Click any field above to jump to that step.',
+    'wizard.bookingStatus': 'Status',
+    'wizard.statusUpdated': 'Status updated',
     'wizard.activity': 'Activity',
     'wizard.date': 'Date',
     'wizard.room': 'Room',
@@ -470,6 +479,8 @@ export const translations: Record<string, Record<string, string>> = {
     'bstatus.no_show': 'No Asistió',
     'bstatus.rescheduled': 'Reprogramado',
     'bstatus.cancelled': 'Cancelado',
+    'bstatus.ns.bible_study': 'Programado',
+    'bstatus.ns.completed': 'Completado',
 
     // ── Curriculum sections ─────────────────────────────────────
     'curriculum.foundation': 'Fundamento',
@@ -679,6 +690,9 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.role': 'Rol',
     'settings.status': 'Estado',
     'settings.active': 'Activo',
+    'settings.genderTag': 'Hermano / Hermana',
+    'settings.brother': 'Hermano',
+    'settings.sister': 'Hermana',
 
     // ── Booking Wizard ──────────────────────────────────────────
     'wizard.newBooking': 'Nueva Reserva',
@@ -708,6 +722,8 @@ export const translations: Record<string, Record<string, string>> = {
     'wizard.confirmBooking': 'Confirmar reserva',
     'wizard.cancelledBooking': 'Reserva cancelada',
     'wizard.clickToJump': 'Haz clic en cualquier campo para ir a ese paso.',
+    'wizard.bookingStatus': 'Estado',
+    'wizard.statusUpdated': 'Estado actualizado',
     'wizard.activity': 'Actividad',
     'wizard.date': 'Fecha',
     'wizard.room': 'Sala',

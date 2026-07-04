@@ -10,8 +10,10 @@ import {
   startOfMonth,
   endOfMonth,
 } from 'date-fns';
-import { BOOKING_TYPE_CONFIG } from '@/lib/types';
-import type { Booking, Room } from '@/lib/types';
+import { BookingStatus } from '@/lib/types/booking';
+import { BOOKING_STATUS_CONFIG } from '@/lib/types';
+import type { Booking, Room, User, Contact } from '@/lib/types';
+import { getBookingCardColor, bookingStatusI18nKey } from '@/lib/utils/booking-display';
 import { useTranslation } from '@/lib/i18n';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { cn } from '@/lib/utils';
@@ -20,19 +22,22 @@ import { cn } from '@/lib/utils';
  * Mobile (<md) calendar view: a chronological agenda/list of the bookings in
  * the loaded range (day / week / month), grouped by day and sorted by time.
  * Replaces the multi-room time grid on phones, which is unreadable at 412px.
- * Reuses the same booking data + BOOKING_TYPE_CONFIG; tapping a row opens the
- * existing edit modal. The grid (DayView/WeekView/MonthView) stays for ≥md.
+ * Reuses the same booking data (color = teacher's Brother/Sister tag, label =
+ * BookingStatus); tapping a row opens the existing edit modal. The grid
+ * (DayView/WeekView/MonthView) stays for ≥md.
  */
 interface AgendaViewProps {
   bookings: Booking[];
   rooms: Room[];
   date: Date;
   view: 'day' | 'week' | 'month';
+  userById: Map<string, User>;
+  contactById: Map<string, Contact>;
   onBookingClick: (booking: Booking) => void;
 }
 
-export function AgendaView({ bookings, rooms, date, view, onBookingClick }: AgendaViewProps) {
-  const { tBookingType } = useTranslation();
+export function AgendaView({ bookings, rooms, date, view, userById, contactById, onBookingClick }: AgendaViewProps) {
+  const { t } = useTranslation();
   const { time } = useTimeFormat();
 
   const roomName = useMemo(() => {
@@ -96,7 +101,11 @@ export function AgendaView({ bookings, rooms, date, view, onBookingClick }: Agen
           </h3>
           <ul className="space-y-2">
             {group.items.map((b) => {
-              const config = BOOKING_TYPE_CONFIG[b.type];
+              const teacher = b.teacherId ? userById.get(b.teacherId) ?? null : null;
+              const cardColor = getBookingCardColor(teacher);
+              const status = b.status ?? BookingStatus.BIBLE_STUDY;
+              const statusColor = BOOKING_STATUS_CONFIG[status].color;
+              const contact = b.contactId ? contactById.get(b.contactId) ?? null : null;
               const cancelled = b.status === 'cancelled';
               return (
                 <li key={b.id}>
@@ -109,9 +118,9 @@ export function AgendaView({ bookings, rooms, date, view, onBookingClick }: Agen
                       cancelled && 'opacity-60',
                     )}
                   >
-                    {/* type color bar */}
+                    {/* teacher/leader color bar */}
                     <span
-                      className={cn('w-1.5 shrink-0 rounded-full', config?.bgColor)}
+                      className={cn('w-1.5 shrink-0 rounded-full', cardColor.bgColor)}
                       aria-hidden="true"
                     />
                     <span className="min-w-0 flex-1">
@@ -129,17 +138,19 @@ export function AgendaView({ bookings, rooms, date, view, onBookingClick }: Agen
                         </span>
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                        <span className="truncate">{roomName.get(b.roomId) ?? '—'}</span>
-                        <span aria-hidden="true">•</span>
-                        <span className={cn('truncate', config?.color)}>
-                          {tBookingType(b.type)}
-                        </span>
-                        {cancelled && (
+                        {contact && (
                           <>
+                            <span className={cn('truncate', cardColor.color)}>
+                              C. {contact.firstName} {contact.lastName}
+                            </span>
                             <span aria-hidden="true">•</span>
-                            <span className="text-destructive">Cancelled</span>
                           </>
                         )}
+                        <span className="truncate">{roomName.get(b.roomId) ?? '—'}</span>
+                        <span aria-hidden="true">•</span>
+                        <span className={cn('truncate', statusColor)}>
+                          {t(bookingStatusI18nKey(b))}
+                        </span>
                       </span>
                     </span>
                   </button>

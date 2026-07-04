@@ -1850,6 +1850,16 @@ export const handlers = [
         );
       }
     }
+    // Phase 3: gender ('brother' | 'sister') is editable via the generic PUT
+    // (Settings profile + admin EditUserDialog) — validate the value so a
+    // typo'd payload can't corrupt the booking-card color derivation.
+    if (
+      body.gender !== undefined &&
+      body.gender !== 'brother' &&
+      body.gender !== 'sister'
+    ) {
+      return validationError("gender must be 'brother' or 'sister'");
+    }
     // Sanitize body — never let username/id/createdAt or status flags sneak
     // in via the generic PUT (USER-1).
     // §7 SHIM (C-02): strip `tags` so the dedicated /tags endpoint is the

@@ -24,6 +24,7 @@ import {
   UserRole,
   type Area,
   type User,
+  type UserGender,
 } from '@/lib/types';
 import {
   assignableRoles,
@@ -33,6 +34,7 @@ import {
 } from '@/lib/utils/permissions';
 import { usersApi } from '@/lib/api/users';
 import { bookingsApi } from '@/lib/api/bookings';
+import { genderOf } from '@/lib/utils/booking-display';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -74,6 +76,7 @@ export function EditUserDialog({
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone ?? '');
   const [role, setRole] = useState<UserRole>(user.role);
+  const [gender, setGender] = useState<UserGender>(genderOf(user));
   const [parentId, setParentId] = useState<string>(user.parentId ?? '');
   const [locationId, setLocationId] = useState<string>(user.locationId ?? '');
   const [areas, setAreas] = useState<Area[]>([]);
@@ -135,6 +138,7 @@ export function EditUserDialog({
         email: email.trim(),
         phone: phone.trim() || undefined,
         role,
+        gender,
         // Send parent/location ONLY when the viewer may move this user AND the
         // value actually changed — including an empty string to CLEAR it. The
         // old `value || undefined` coalesced '' to undefined, which JSON.stringify
@@ -200,6 +204,19 @@ export function EditUserDialog({
                 Your role can&apos;t grant {ROLE_LABELS[role]}.
               </p>
             )}
+          </div>
+
+          <div>
+            <Label htmlFor="gender">Brother / Sister</Label>
+            <Select value={gender} onValueChange={(v) => setGender(v as UserGender)}>
+              <SelectTrigger id="gender">
+                <SelectValue>{gender === 'sister' ? 'Sister' : 'Brother'}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="brother">Brother</SelectItem>
+                <SelectItem value="sister">Sister</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

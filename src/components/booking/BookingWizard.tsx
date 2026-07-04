@@ -26,8 +26,11 @@ import { contactsApi } from '@/lib/api/contacts';
 import {
   buildVisibilityScope,
   canEditBooking,
+  canSetBookingStatus,
   canViewContact,
 } from '@/lib/utils/permissions';
+import { BOOKING_STATUS_CONFIG, BookingStatus } from '@/lib/types/booking';
+import { bookingStatusI18nKey } from '@/lib/utils/booking-display';
 import {
   ArrowLeft,
   ArrowRight,
@@ -66,6 +69,13 @@ interface WizardProps {
   onDelete?: (id: string) => Promise<void>;
   onCancel?: (id: string, reason: string) => Promise<void>;
   onRestore?: (id: string) => Promise<void>;
+  /** Phase 3: outcome-status transitions (Completed / No Show / Rescheduled /
+   *  back to scheduled). Server re-gates via canSetBookingStatus; metrics move
+   *  on the →completed edge. */
+  onSetStatus?: (
+    id: string,
+    status: 'bible_study' | 'completed' | 'no_show' | 'rescheduled',
+  ) => Promise<void>;
 }
 
 const ACTIVITY_GROUPS: {
@@ -126,7 +136,7 @@ type Step =
   | 'time'
   | 'confirm';
 
-export function BookingWizard({ areas, bookings, users, contacts, blockedSlots = [], onSubmit, onDelete, onCancel, onRestore }: WizardProps) {
+export function BookingWizard({ areas, bookings, users, contacts, blockedSlots = [], onSubmit, onDelete, onCancel, onRestore, onSetStatus }: WizardProps) {
   const { t } = useTranslation();
   const { isBookingModalOpen, closeBookingModal, selectedBooking, bookingSlot } = useBookingStore();
   const { clock } = useTimeFormat();
@@ -888,6 +898,87 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                 <p className="text-xs text-muted-foreground">
                   {t('wizard.clickToJump')}
                 </p>
+
+                {/* Phase 3 (Decision 11): outcome-status controls — visible to
+                    teacher | creator | leader-in-scope via canSetBookingStatus
+                    (the server re-gates the same helper on PATCH). Hidden for
+                    cancelled bookings (cancel/restore is the lifecycle pair)
+                    and during creation. Metrics move ONLY on the →completed
+                    edge server-side. */}
+                {isEdit &&
+                  selectedBooking &&
+                  selectedBooking.status !== 'cancelled' &&
+                  onSetStatus &&
+                  viewer &&
+                  canSetBookingStatus(viewer, selectedBooking, scope.userIds) && (
+                    <div className="space-y-2 rounded-lg border border-border bg-accent/20 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs">{t('wizard.bookingStatus')}</Label>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[11px]',
+                            BOOKING_STATUS_CONFIG[
+                              selectedBooking.status ?? BookingStatus.BIBLE_STUDY
+                            ].color,
+                          )}
+                        >
+                          {t(bookingStatusI18nKey(selectedBooking))}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            BookingStatus.BIBLE_STUDY,
+                            BookingStatus.COMPLETED,
+                            BookingStatus.NO_SHOW,
+                            BookingStatus.RESCHEDULED,
+                          ] as const
+                        )
+                          .filter(
+                            (s) =>
+                              s !==
+                              (selectedBooking.status ?? BookingStatus.BIBLE_STUDY),
+                          )
+                          .map((target) => (
+                            <Button
+                              key={target}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={loading}
+                              onClick={async () => {
+                                setLoading(true);
+                                try {
+                                  await onSetStatus(selectedBooking.id, target);
+                                  toast.success(t('wizard.statusUpdated'));
+                                  closeBookingModal();
+                                } catch (e) {
+                                  toast.error(
+                                    e instanceof Error
+                                      ? e.message
+                                      : 'Failed to update status',
+                                  );
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                              className={cn(
+                                'gap-1.5 touch-manipulation max-md:h-11',
+                                BOOKING_STATUS_CONFIG[target].color,
+                              )}
+                            >
+                              {t(
+                                bookingStatusI18nKey({
+                                  type: selectedBooking.type,
+                                  status: target,
+                                }),
+                              )}
+                            </Button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
 
                 {/* F3: capture an optional edit reason when changing an active
                     booking (mirrors the cancel-reason field; written to the

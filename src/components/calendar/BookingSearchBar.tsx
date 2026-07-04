@@ -14,8 +14,10 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { BOOKING_TYPE_CONFIG, ROLE_LABELS } from '@/lib/types';
+import { BOOKING_STATUS_CONFIG, BookingStatus, ROLE_LABELS } from '@/lib/types';
 import type { Booking, User, Room } from '@/lib/types';
+import { getBookingCardColor, bookingStatusI18nKey } from '@/lib/utils/booking-display';
+import { useTranslation } from '@/lib/i18n';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 /**
@@ -57,6 +59,7 @@ export function BookingSearchBar({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownRect, setDropdownRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const { time } = useTimeFormat();
+  const { t } = useTranslation();
 
   // Build an index of teachers who have at least one booking in the
   // currently loaded bookings list. Keyed by userId so duplicates collapse.
@@ -294,7 +297,8 @@ export function BookingSearchBar({
                     </div>
                   </div>
                   {dayGroup.bookings.map((b) => {
-                    const cfg = BOOKING_TYPE_CONFIG[b.type];
+                    const cardColor = getBookingCardColor(selectedTeacher);
+                    const statusColor = BOOKING_STATUS_CONFIG[b.status ?? BookingStatus.BIBLE_STUDY].color;
                     const room = rooms.find((r) => r.id === b.roomId);
                     const start = parseISO(b.startTime);
                     const end = parseISO(b.endTime);
@@ -309,7 +313,7 @@ export function BookingSearchBar({
                         className={cn(
                           'w-full text-left rounded-md border px-3 py-2 transition-colors touch-manipulation',
                           'hover:bg-accent/70',
-                          cfg?.bgColor,
+                          cardColor.bgColor,
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -340,9 +344,9 @@ export function BookingSearchBar({
                           </div>
                           <Badge
                             variant="outline"
-                            className={cn('shrink-0 text-[10px]', cfg?.color)}
+                            className={cn('shrink-0 text-[10px]', statusColor)}
                           >
-                            {cfg?.label ?? b.type}
+                            {t(bookingStatusI18nKey(b))}
                           </Badge>
                           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                         </div>

@@ -1,5 +1,6 @@
 import { api } from './client';
 import type { User, UserRole } from '../types';
+import type { UserGender } from '@/lib/types/user';
 
 export interface CreateUserPayload {
   username: string;
@@ -25,6 +26,8 @@ export interface UpdateUserPayload {
   groupId?: string;
   /** Home physical location (an Area id) — set when relocating a person. */
   locationId?: string;
+  /** Brother/Sister tag — drives booking-card colors. */
+  gender?: UserGender;
   /** Audit attribution. */
   actorId?: string;
 }

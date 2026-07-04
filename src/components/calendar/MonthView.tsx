@@ -13,18 +13,19 @@ import {
   isSameMonth,
   parseISO,
 } from 'date-fns';
-import { BOOKING_TYPE_CONFIG } from '@/lib/types';
-import type { Booking } from '@/lib/types';
+import { getBookingCardColor } from '@/lib/utils/booking-display';
+import type { Booking, User } from '@/lib/types';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 
 interface MonthViewProps {
   date: Date;
   bookings: Booking[];
+  userById: Map<string, User>;
   onDayClick: (date: Date) => void;
   onBookingClick: (booking: Booking) => void;
 }
 
-export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthViewProps) {
+export function MonthView({ date, bookings, userById, onDayClick, onBookingClick }: MonthViewProps) {
   const today = new Date();
   const { time } = useTimeFormat();
 
@@ -87,7 +88,8 @@ export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthV
               </div>
               <div className="space-y-0.5">
                 {dayBookings.slice(0, chipLimitDesktop).map((booking, i) => {
-                  const config = BOOKING_TYPE_CONFIG[booking.type];
+                  const teacher = booking.teacherId ? userById.get(booking.teacherId) ?? null : null;
+                  const cardColor = getBookingCardColor(teacher);
                   return (
                     <button
                       key={booking.id}
@@ -97,7 +99,7 @@ export function MonthView({ date, bookings, onDayClick, onBookingClick }: MonthV
                         // On the narrowest phones only the first chip is shown to
                         // keep the month compact; the "+N more" line covers the rest.
                         i > 0 && 'max-[400px]:hidden',
-                        config.bgColor, config.color
+                        cardColor.bgColor, cardColor.color
                       )}
                     >
                       {time(booking.startTime)} {booking.title}

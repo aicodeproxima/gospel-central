@@ -52,6 +52,8 @@ import {
 import { InfoButton } from '@/components/shared/InfoButton';
 import { settingsHelp } from '@/components/shared/pageHelp';
 import { avatarsForRole, canPickGospelWorker } from '@/lib/avatars';
+import { genderOf } from '@/lib/utils/booking-display';
+import type { UserGender } from '@/lib/types/user';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import {
@@ -116,6 +118,7 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [gender, setGender] = useState<UserGender>('brother');
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
 
   // Password
@@ -138,6 +141,7 @@ export default function SettingsPage() {
       setLastName(user.lastName);
       setEmail(user.email);
       setPhone(user.phone || '');
+      setGender(genderOf(user));
       setAvatarUrl(user.avatarUrl);
     }
   }, [user]);
@@ -148,6 +152,7 @@ export default function SettingsPage() {
       lastName !== user.lastName ||
       email !== user.email ||
       phone !== (user.phone || '') ||
+      gender !== genderOf(user) ||
       avatarUrl !== user.avatarUrl);
 
   const handleSave = async () => {
@@ -157,9 +162,9 @@ export default function SettingsPage() {
     // backend so they survive a reload once a real backend is wired (the mock
     // stores them in-memory). avatarUrl is a frontend-only 3D-avatar choice and
     // stays local. Revert the optimistic update if the save fails.
-    setUser({ ...user, firstName, lastName, email, phone, avatarUrl });
+    setUser({ ...user, firstName, lastName, email, phone, gender, avatarUrl });
     try {
-      await usersApi.update(user.id, { firstName, lastName, email, phone, actorId: user.id });
+      await usersApi.update(user.id, { firstName, lastName, email, phone, gender, actorId: user.id });
       toast.success(t('btn.save'));
     } catch (e) {
       console.error('Failed to save profile', e);
@@ -353,6 +358,20 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>{t('settings.phone')}</Label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('settings.genderTag')}</Label>
+              <Select value={gender} onValueChange={(v) => setGender(v as UserGender)}>
+                <SelectTrigger>
+                  <SelectValue>
+                    {gender === 'sister' ? t('settings.sister') : t('settings.brother')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="brother">{t('settings.brother')}</SelectItem>
+                  <SelectItem value="sister">{t('settings.sister')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

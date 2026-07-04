@@ -30,8 +30,9 @@ import { bookingsApi } from '@/lib/api/bookings';
 import { contactsApi } from '@/lib/api/contacts';
 import { usersApi } from '@/lib/api/users';
 import { Badge } from '@/components/ui/badge';
-import { BOOKING_TYPE_CONFIG, BookingType } from '@/lib/types';
+import { BOOKING_STATUS_CONFIG, BookingStatus } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
+import { BAPTISM_BORDER_CLASS, CARD_COLOR_CONFIG } from '@/lib/utils/booking-display';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { calendarHelp } from '@/components/shared/pageHelp';
 import {
@@ -48,7 +49,7 @@ import {
 } from 'date-fns';
 
 export default function CalendarPage() {
-  const { tBookingType } = useTranslation();
+  const { t } = useTranslation();
   const viewer = useAuthStore((s) => s.user);
   const { selectedDate, view, selectedAreaId, setDate, setView, setAreaId, openBookingModal, openEditModal } = useBookingStore();
   const [areas, setAreas] = useState<Area[]>([]);
@@ -261,6 +262,24 @@ export default function CalendarPage() {
     setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
   };
 
+  // Phase 3 (Decision 11): outcome-status transitions from the detail dialog.
+  // The →completed edge moves contact study counters server-side, so refresh
+  // contacts alongside the bookings reload.
+  const handleBookingSetStatus = useCallback(
+    async (
+      id: string,
+      status: 'bible_study' | 'completed' | 'no_show' | 'rescheduled',
+    ) => {
+      await bookingsApi.setBookingStatus(id, status);
+      await reloadBookings();
+      contactsApi
+        .getContacts()
+        .then((d) => setContacts(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    },
+    [reloadBookings],
+  );
+
   const dateLabel = useMemo(() => {
     if (view === 'day') return format(selectedDate, 'EEEE, MMMM d, yyyy');
     if (view === 'week') {
@@ -350,6 +369,39 @@ export default function CalendarPage() {
     });
     return Array.isArray(data) ? data : [];
   }, []);
+
+  // Phase 3 legend (Decision 4 + 11): the BookingType color axis is gone.
+  // Cards are colored by the teacher/leader's Brother/Sister tag, carry a
+  // baptism top-border (bible studies only), and print an outcome status.
+  // Shared by the ≥md chip row and the phone Legend popover.
+  const legendChips = (
+    <>
+      <Badge variant="outline" className={`${CARD_COLOR_CONFIG.brother.bgColor} ${CARD_COLOR_CONFIG.brother.color} text-[11px]`}>
+        {t('settings.brother')}
+      </Badge>
+      <Badge variant="outline" className={`${CARD_COLOR_CONFIG.sister.bgColor} ${CARD_COLOR_CONFIG.sister.color} text-[11px]`}>
+        {t('settings.sister')}
+      </Badge>
+      <Badge variant="outline" className={`${BAPTISM_BORDER_CLASS.baptized} rounded-t-sm text-[11px]`}>
+        {t('stage.baptized')}
+      </Badge>
+      <Badge variant="outline" className={`${BAPTISM_BORDER_CLASS.unbaptized} rounded-t-sm text-[11px]`}>
+        {t('stage.unbaptized')}
+      </Badge>
+      <Badge variant="outline" className={`${BOOKING_STATUS_CONFIG[BookingStatus.BIBLE_STUDY].color} text-[11px]`}>
+        {t('bstatus.bible_study')}
+      </Badge>
+      <Badge variant="outline" className={`${BOOKING_STATUS_CONFIG[BookingStatus.COMPLETED].color} text-[11px]`}>
+        {t('bstatus.ns.completed')}
+      </Badge>
+      <Badge variant="outline" className={`${BOOKING_STATUS_CONFIG[BookingStatus.NO_SHOW].color} text-[11px]`}>
+        {t('bstatus.no_show')}
+      </Badge>
+      <Badge variant="outline" className={`${BOOKING_STATUS_CONFIG[BookingStatus.RESCHEDULED].color} text-[11px]`}>
+        {t('bstatus.rescheduled')}
+      </Badge>
+    </>
+  );
 
   // Mount the page's toolbar into the global Topbar so the calendar grid
   // gets the full content area below. Re-runs whenever any value the JSX
@@ -551,16 +603,7 @@ export default function CalendarPage() {
               Legend
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-auto max-w-[280px] flex-row flex-wrap gap-2">
-              {Object.entries(BOOKING_TYPE_CONFIG)
-                /* 2026-07 overhaul: Baptized Persecuted removed from the legend
-                   (user request; the wizard's segment label renames to plain
-                   "Baptized" in the Phase 4 booking-form rework). */
-                .filter(([type]) => type !== BookingType.BAPTIZED_PERSECUTED)
-                .map(([type, config]) => (
-                <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
-                  {tBookingType(type)}
-                </Badge>
-              ))}
+              {legendChips}
             </PopoverContent>
           </Popover>
         </div>
@@ -574,7 +617,7 @@ export default function CalendarPage() {
       // The compact Church trigger's aria-label + the Legend popover chips
       // are rendered in the slot JSX now — both must invalidate it.
       selectedArea,
-      tBookingType,
+      t,
       areas,
       bookings,
       users,
@@ -635,13 +678,7 @@ export default function CalendarPage() {
            Legend popover in the compact topbar instead, so no vertical space
            is spent above the calendar here. */}
       <div className="hidden flex-wrap gap-2 md:flex">
-        {Object.entries(BOOKING_TYPE_CONFIG)
-          .filter(([type]) => type !== BookingType.BAPTIZED_PERSECUTED)
-          .map(([type, config]) => (
-          <Badge key={type} variant="outline" className={`${config.bgColor} ${config.color} text-[11px]`}>
-            {tBookingType(type)}
-          </Badge>
-        ))}
+        {legendChips}
       </div>
 
       {/* Calendar — swipe left/right to navigate periods */}
@@ -673,19 +710,19 @@ export default function CalendarPage() {
             {/* ≥md: the multi-room time grid (desktop unchanged ≥1280). */}
             <div className="hidden md:flex md:min-h-0 md:flex-1 md:flex-col">
               {view === 'week' && (
-                <WeekView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+                <WeekView date={selectedDate} rooms={rooms} bookings={bookings} userById={userById} contactById={contactById} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
               )}
               {view === 'day' && (
-                <DayView date={selectedDate} rooms={rooms} bookings={bookings} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
+                <DayView date={selectedDate} rooms={rooms} bookings={bookings} userById={userById} contactById={contactById} onSlotClick={handleSlotClick} onBookingClick={openEditModal} />
               )}
               {view === 'month' && (
-                <MonthView date={selectedDate} bookings={bookings} onDayClick={handleDayClick} onBookingClick={openEditModal} />
+                <MonthView date={selectedDate} bookings={bookings} userById={userById} onDayClick={handleDayClick} onBookingClick={openEditModal} />
               )}
             </div>
             {/* <md: phone agenda — a readable chronological list of the loaded
                  range, grouped by day. Avoids the cramped multi-room grid. */}
             <div className="md:hidden">
-              <AgendaView bookings={bookings} rooms={rooms} date={selectedDate} view={view} onBookingClick={openEditModal} />
+              <AgendaView bookings={bookings} rooms={rooms} date={selectedDate} view={view} userById={userById} contactById={contactById} onBookingClick={openEditModal} />
             </div>
           </>
         )}
@@ -702,6 +739,7 @@ export default function CalendarPage() {
         onDelete={handleBookingDelete}
         onCancel={handleBookingCancel}
         onRestore={handleBookingRestore}
+        onSetStatus={handleBookingSetStatus}
       />
     </div>
   );

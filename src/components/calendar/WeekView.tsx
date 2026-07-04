@@ -7,6 +7,8 @@ import { getWeekDays, getTimeSlots, format, isSameDay, parseISO } from '@/lib/ut
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
+import type { User } from '@/lib/types/user';
+import type { Contact } from '@/lib/types/contact';
 
 interface WeekViewProps {
   date: Date;
@@ -14,13 +16,15 @@ interface WeekViewProps {
   bookings: Booking[];
   onSlotClick: (roomId: string, date: Date, time24: string) => void;
   onBookingClick: (booking: Booking) => void;
+  userById: Map<string, User>;
+  contactById: Map<string, Contact>;
 }
 
 const START_HOUR = 8;
 const END_HOUR = 23;
 const SLOT_HEIGHT = 48;
 
-export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }: WeekViewProps) {
+export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick, userById, contactById }: WeekViewProps) {
   const days = useMemo(() => getWeekDays(date), [date]);
   const { clock } = useTimeFormat();
   const timeSlots = useMemo(() => getTimeSlots(START_HOUR, END_HOUR, clock), [clock]);
@@ -70,11 +74,15 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
       data-calendar-surface="grid"
       className="max-w-full touch-manipulation overflow-auto overscroll-contain rounded-lg border border-border bg-card md:flex-1 md:min-h-[360px]"
     >
-      <div className="min-w-[800px] max-xl:min-w-0">
-        {/* Header: Day columns. Grid template is class-driven (days.length is
-             always 7 for a week) so there's no inline style for the responsive
-             `max-*` overrides to fight. xl keeps the exact desktop template. */}
-        <div data-calendar-surface="header" className="sticky top-0 z-20 grid [grid-template-columns:80px_repeat(7,1fr)] max-xl:[grid-template-columns:64px_repeat(7,minmax(96px,1fr))] max-md:[grid-template-columns:48px_repeat(7,minmax(72px,1fr))] border-b border-border bg-card">
+      {/* ONE grid owns the column tracks (same subgrid remedy as DayView: two
+          sibling grids resolve `fr` tracks + subpixel rounding per-container,
+          so identical templates can still stagger while the window scales;
+          subgrid children inherit the SAME resolved tracks and cannot drift).
+          Templates stay class-driven with the responsive `max-*` overrides;
+          xl keeps the exact desktop template. */}
+      <div className="grid min-w-[800px] max-xl:min-w-0 [grid-template-columns:80px_repeat(7,1fr)] max-xl:[grid-template-columns:64px_repeat(7,minmax(96px,1fr))] max-md:[grid-template-columns:48px_repeat(7,minmax(72px,1fr))]">
+        {/* Header: Day columns — a subgrid row spanning every column. */}
+        <div data-calendar-surface="header" className="sticky top-0 z-20 grid [grid-column:1/-1] [grid-template-columns:subgrid] border-b border-border bg-card">
           <div className="sticky left-0 z-10 border-r border-border bg-card p-2 text-xs font-medium text-muted-foreground">Time</div>
           {days.map((day) => (
             <div
@@ -95,8 +103,9 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
           ))}
         </div>
 
-        {/* Time grid — same class-driven template as the header so columns line up. */}
-        <div className="relative grid [grid-template-columns:80px_repeat(7,1fr)] max-xl:[grid-template-columns:64px_repeat(7,minmax(96px,1fr))] max-md:[grid-template-columns:48px_repeat(7,minmax(72px,1fr))]">
+        {/* Time grid — a subgrid row inheriting the identical tracks, so
+            columns line up with the header by construction. */}
+        <div className="relative grid [grid-column:1/-1] [grid-template-columns:subgrid]">
           {/* Time labels — sticky-left so they stay put during horizontal scroll */}
           <div className="sticky left-0 z-10 border-r border-border bg-card">
             {timeSlots.map((slot) => (
@@ -160,7 +169,12 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick }:
                           width: `${colWidth}%`,
                         }}
                       >
-                        <BookingCard booking={booking} onClick={onBookingClick} />
+                        <BookingCard
+                          booking={booking}
+                          onClick={onBookingClick}
+                          teacher={booking.teacherId ? userById.get(booking.teacherId) ?? null : null}
+                          contact={booking.contactId ? contactById.get(booking.contactId) ?? null : null}
+                        />
                       </div>
                     );
                   });
