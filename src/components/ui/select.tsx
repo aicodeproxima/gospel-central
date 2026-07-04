@@ -76,10 +76,7 @@ function SelectContent({
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
   return (
-    <SelectPrimitive.Portal
-      data-slot="select-portal"
-      style={{ zoom: "var(--floating-portal-zoom)" }}
-    >
+    <SelectPrimitive.Portal data-slot="select-portal">
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

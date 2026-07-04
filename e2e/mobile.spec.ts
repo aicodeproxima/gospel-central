@@ -52,16 +52,18 @@ test.describe('mobile (S24 Ultra) fitment', () => {
     ).toBeVisible(); // a seeded contact actually rendered (not an empty/clipped list)
   });
 
-  // B25 — the org tree page (3D canvas) must offer the List view and fit phone
-  // width with no pan in either mode.
-  test('B25 the org tree fits phone width and toggles to List view', async ({ page }) => {
+  // B25 — the org page must fit phone width with no pan in BOTH view modes.
+  // List is the DEFAULT since G1 (groupsDefaultView), and the "Organization"
+  // title pill is xl-only — so assert readiness via rendered org rows, then
+  // toggle to 3D and re-check fitment there.
+  test('B25 the org page fits phone width in List and 3D views', async ({ page }) => {
     await loginAs(page, 'branch1');
     await page.goto('/groups');
-    await expect(page.getByText(/organization/i).first()).toBeVisible();
-    expect(await pageOverflowPx(page), '/groups (3D) must not pan').toBeLessThanOrEqual(1);
-    await page.getByRole('button', { name: /^list$/i }).first().click();
     await expect(page.getByText(/michael|gabriel|joseph/i).first()).toBeVisible();
     expect(await pageOverflowPx(page), '/groups (List) must not pan').toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: /^3d$/i }).first().click();
+    await expect(page.getByText(/drag to pan/i).first()).toBeVisible(); // 3D scene mounted
+    expect(await pageOverflowPx(page), '/groups (3D) must not pan').toBeLessThanOrEqual(1);
   });
 
   // B49 — the long settings page (cards + danger zone + switch rows) must fit

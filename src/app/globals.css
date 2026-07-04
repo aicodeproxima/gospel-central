@@ -73,7 +73,6 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --floating-portal-zoom: 1;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -900,10 +899,16 @@ html[data-theme="deepspace"] [data-calendar-surface="header"] {
    VERIFIED on prod that the /groups react-three-fiber canvas + node-click
    raycasting still work under this zoom (the investigation's flagged risk).
    Supersedes the "desktop ≥1280 frozen" note in the block below (user request). */
+/* NOTE (2026-07-04, twice-proven): do NOT reintroduce a counter-zoom var
+   applied to a base-ui Portal/Positioner (`--floating-portal-zoom`) — CSS
+   `zoom` there SCALES the Positioner's JS-computed coords and throws every
+   Select/Popover/DropdownMenu off its anchor at >=1280 (EditUserDialog Role
+   options render off-screen; e2e E4 catches it). Popups render at 90% like
+   the rest of the zoomed app — that is the accepted, prod-proven behavior.
+   See OVERHAUL_PROGRESS.md "dropdown work forensics". */
 @media (min-width: 1280px) {
   :root {
     zoom: 0.9;
-    --floating-portal-zoom: 1.1111111111;
   }
 }
 

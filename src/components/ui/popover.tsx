@@ -26,10 +26,7 @@ function PopoverContent({
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
   return (
-    <PopoverPrimitive.Portal
-      data-slot="popover-portal"
-      style={{ zoom: "var(--floating-portal-zoom)" }}
-    >
+    <PopoverPrimitive.Portal data-slot="popover-portal">
       <PopoverPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
