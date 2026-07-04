@@ -44,8 +44,10 @@ export function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              // gap/padding/label tightened so the 7-item BL+ nav (Admin added)
+              // fits the 275px S24 width without clipping the last label.
               className={cn(
-                'flex min-h-[56px] flex-1 touch-manipulation flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] transition-colors',
+                'flex min-h-[56px] flex-1 touch-manipulation flex-col items-center justify-center gap-1 px-0.5 py-2 text-[10px] leading-tight transition-colors',
                 isActive ? 'text-primary' : 'text-muted-foreground'
               )}
             >
@@ -60,7 +62,7 @@ export function MobileNav() {
                   </span>
                 )}
               </span>
-              {item.label}
+              <span className="max-w-full truncate">{item.label}</span>
             </Link>
           );
         })}
