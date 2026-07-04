@@ -26,7 +26,7 @@ truth, G3): a non-browser client (curl, a future mobile app) hitting the API dir
 These were found in the 2026-06-17 role audit and remain mock-permissive (documented in `docs/BACKEND_GAPS.md`):
 - `POST /contacts` — accepts mass-assigned `createdBy` / `convertedToUserId` (no ownership enforcement).
 - `POST /contacts/:id/convert {role:dev}` — **mints an elevated user (privilege escalation)** for a Member token.
-- `POST /bookings/:id/cancel` — hardcodes `cancelledBy: u-michael` (audit mis-attribution) and does not check the actor's scope.
+- `POST /bookings/:id/cancel` — ~~hardcodes `cancelledBy: u-michael` (audit mis-attribution)~~ **audit mis-attribution FIXED 2026-07-04**: the cancel handler (and PUT edit + restore) now attribute to the JWT-resolved viewer via `resolveViewer` → `resolveActor`, not a hardcoded actor. Still does **not** check the actor's scope — `canEditBooking` remains Mike's backend gate (row #4 above).
 
 ## What IS gated server-side today (the §7 SHIM — validates the pattern, locked by `adversarial.itest.ts`)
 `POST /areas` (Overseer+), `POST /areas/:id/rooms` + `PUT /rooms/:id` (admin-tier), `POST /blocked-slots`
@@ -48,12 +48,12 @@ From the code-grounded propagation audit (`PROPAGATION.md`, `propagation-graph.m
 completeness-critic (full list: `propagation-graph-gaps.md`). These are real surface findings, NOT covered by
 the executed cells:
 
-- **Reports "Top Contributors" leaderboard MIS-ATTRIBUTES all booking cancels/updates to Michael.** The cancel
-  handler hardcodes `userId:'u-michael'` / `cancelledBy:'u-michael'` (handlers.ts ~1157), so the
-  Top-Contributors aggregation (reports/page.tsx ~330-340, grouped by `userId`) credits every cancel to one
-  user regardless of the real actor. This extends the already-known `cancelledBy` gap to the **leaderboard
-  surface**. Classification: KNOWN backend-gap (the mock hardcode — do NOT patch the mock; the real backend
-  must attribute to the JWT actor).
+- **[RESOLVED 2026-07-04] Reports "Top Contributors" leaderboard mis-attributed all booking cancels/updates/restores to Michael.**
+  The booking edit/cancel/restore handlers hardcoded `userId:'u-michael'` / `cancelledBy:'u-michael'`; they now
+  resolve the real actor from the JWT (`resolveViewer` → `resolveActor`), so the Top-Contributors aggregation
+  (reports/page.tsx ~330-340, grouped by `userId`) credits the actual actor. (Only the audit *attribution* was
+  corrected — the `canEditBooking` scope check is still Mike's backend gate; see the #4 row above.) The real
+  backend must likewise attribute to the JWT actor.
 - **Groups "Bearing Fruit" — count is STATIC but the drill-down LIST is LIVE** (internal inconsistency).
   `bearingFruit` *count* derives from static `teacherMetrics.baptizedSinceStudying` (org-metrics.ts:66), while
   the fruit-filter contact *list* is computed live from `pipelineStage==='baptized'` (OrgNode.tsx:97,

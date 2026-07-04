@@ -1240,13 +1240,20 @@ export const handlers = [
     const reason =
       typeof body.editReason === 'string' ? body.editReason.trim() : '';
     if (reason) {
+      // Attribute the edit to the JWT-resolved viewer (the FE always sends the
+      // Bearer token); falls back to 'unknown' when unauthenticated. NOTE: the
+      // canEditBooking authz gate is deliberately NOT enforced here — that's
+      // Mike's backend gap (docs/qa/out-of-scope-findings.md); this fix only
+      // corrects the audit-actor mis-attribution, not the missing scope check.
+      const viewer = resolveViewer(request, body);
+      const actor = resolveActor(viewer?.id);
       mockAuditLog.push({
         id: 'al-' + Date.now(),
         action: 'update',
         entityType: 'booking',
         entityId: updated.id,
-        userId: 'u-michael',
-        userName: 'Michael',
+        userId: actor.id,
+        userName: actor.name,
         details: `Edited booking: ${reason}`,
         timestamp: new Date().toISOString(),
       });
@@ -1350,6 +1357,10 @@ export const handlers = [
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    // Attribute the cancel to the JWT-resolved viewer (never a hardcoded actor).
+    // Authz scope (canEditBooking) is intentionally left to Mike's backend.
+    const viewer = resolveViewer(request);
+    const actor = resolveActor(viewer?.id);
     // Cancelling an already-Completed study reverses its metrics side-effects.
     if (booking.status === 'completed') reverseStudyCompletion(booking);
     const updated = {
@@ -1357,7 +1368,7 @@ export const handlers = [
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
       cancelReason: (body.reason || '').trim(),
-      cancelledBy: 'u-michael',
+      cancelledBy: actor.id,
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
@@ -1366,8 +1377,8 @@ export const handlers = [
       action: 'cancel',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: actor.id,
+      userName: actor.name,
       details: `Cancelled booking "${booking.title}": ${body.reason || 'No reason'}`,
       timestamp: new Date().toISOString(),
     });
@@ -1375,10 +1386,13 @@ export const handlers = [
   }),
 
   // Restore a cancelled booking
-  http.post(`${API}/bookings/:id/restore`, ({ params }) => {
+  http.post(`${API}/bookings/:id/restore`, ({ request, params }) => {
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    // Attribute the restore to the JWT-resolved viewer (never a hardcoded actor).
+    const viewer = resolveViewer(request);
+    const actor = resolveActor(viewer?.id);
     const updated = {
       ...booking,
       // Restore always lands back on 'bible_study' (scheduled) — if the study
@@ -1395,8 +1409,8 @@ export const handlers = [
       action: 'update',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: actor.id,
+      userName: actor.name,
       details: `Restored cancelled booking "${booking.title}"`,
       timestamp: new Date().toISOString(),
     });
