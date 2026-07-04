@@ -9,7 +9,10 @@ import { migrateLegacyLocalStorageKey } from './migrate-storage';
 migrateLegacyLocalStorageKey('diamond-preferences', 'gospel-central-preferences');
 
 export type ColorTheme =
-  | 'default'
+  // 'basic' = the attribute-less neutral palette (renamed from 'default' in the
+  // v4 prefs migration when Marble became the app default — Decision 8). It
+  // still removes `data-theme` from <html>, so its DOM behavior is unchanged.
+  | 'basic'
   | 'ocean'
   | 'purple'
   | 'forest'
@@ -97,6 +100,17 @@ interface PreferencesState {
    * needed (zustand shallow-merges defaults; no partialize list).
    */
   groupsDefaultView: '3d' | 'list';
+  /**
+   * 2026-07 overhaul Phase 7 (packet: Settings > Alerts page): the timestamp of
+   * the newest alert-relevant event the user has SEEN. The Alerts nav badge
+   * counts relevant events with `timestamp > alertsLastSeenAt`; visiting
+   * /alerts marks-seen by setting this to the newest relevant event's
+   * timestamp. Stored as the event's OWN ISO timestamp (not wall-clock now) so
+   * it stays in the same time domain as the audit log — which mixes mock-dated
+   * seed entries and real-clock runtime entries. `null` = nothing seen yet
+   * (every relevant event counts). Additive key: no persist-version bump.
+   */
+  alertsLastSeenAt: string | null;
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -111,6 +125,9 @@ interface PreferencesState {
   resetBackgroundConfig: (style: BackgroundStyle) => void;
   setDashboardChurchId: (areaId: string | null) => void;
   setGroupsDefaultView: (view: '3d' | 'list') => void;
+  /** Mark alerts seen up to the given event ISO timestamp (the newest relevant
+   *  event at visit time). Pass the event's own timestamp, not wall-clock. */
+  setAlertsLastSeen: (iso: string) => void;
 }
 
 /**
@@ -120,7 +137,9 @@ interface PreferencesState {
 export function applyThemeToDOM(theme: ColorTheme) {
   if (typeof document === 'undefined') return;
   const html = document.documentElement;
-  if (theme === 'default') {
+  // 'basic' (formerly 'default') is the attribute-less palette — it carries no
+  // `data-theme`, so globals.css falls through to the :root/.dark tokens.
+  if (theme === 'basic') {
     html.removeAttribute('data-theme');
   } else {
     html.setAttribute('data-theme', theme);
@@ -144,10 +163,54 @@ export function applyBackgroundToDOM(style: BackgroundStyle) {
   }
 }
 
+/**
+ * Persisted-blob migration for the preferences store. Extracted as a named
+ * export so the v1/v2/v3→v4 upgrade paths can be unit-tested against
+ * hand-crafted blobs (a single-shot prod-storage migration deserves direct
+ * coverage). Migrations are cumulative — apply every step whose version the
+ * persisted blob predates, then return the upgraded object.
+ *   v1→v2: had no background fields; default to no animated background
+ *          (keep all other prefs: theme/language/view/timeFormat/…).
+ *   v2→v3: removed the 'voronoi' and 'smoke' color themes; a user who had one
+ *          selected falls back to the neutral palette so they aren't stranded
+ *          on a theme the picker no longer offers.
+ *   v3→v4: (2026-07 overhaul Phase 7, Decision 8) Marble becomes the app
+ *          default palette. FORCE every pre-v4 blob to Marble regardless of its
+ *          prior selection (one-time), AND rename the old 'default' literal →
+ *          'basic' anywhere it persisted (colorTheme is force-set, but the
+ *          revert-history field can still carry the dead literal → strand a
+ *          later revert on a value no longer in the ColorTheme union).
+ */
+export function migratePreferences(
+  persisted: unknown,
+  version: number,
+): PreferencesState {
+  const p = { ...((persisted ?? {}) as Partial<PreferencesState>) };
+  if (version < 2) {
+    p.backgroundStyle = 'none';
+    p.backgroundConfig = {};
+  }
+  // 'voronoi'/'smoke' were removed from ColorTheme — normalize to the neutral
+  // palette. (For version < 4 this is overwritten by the Marble force below,
+  // but it keeps the intermediate value inside the union.)
+  const stored = p.colorTheme as string | undefined;
+  if (stored === 'voronoi' || stored === 'smoke') {
+    p.colorTheme = 'basic';
+  }
+  if (version < 4) {
+    p.colorTheme = 'marble';
+    if ((p.previousColorTheme as string | undefined) === 'default') {
+      p.previousColorTheme = 'basic';
+    }
+  }
+  return p as PreferencesState;
+}
+
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set, get) => ({
-      colorTheme: 'default',
+      // New-user default is Marble (Decision 8 — 2026-07 overhaul Phase 7).
+      colorTheme: 'marble',
       language: 'en',
       calendarDefaultView: 'day',
       timeFormat: '12h',
@@ -162,6 +225,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       backgroundConfig: {},
       dashboardChurchId: null,
       groupsDefaultView: 'list',
+      alertsLastSeenAt: null,
       previousColorTheme: null,
       previousBackgroundStyle: null,
 
@@ -214,33 +278,14 @@ export const usePreferencesStore = create<PreferencesState>()(
       },
       setDashboardChurchId: (areaId) => set({ dashboardChurchId: areaId }),
       setGroupsDefaultView: (view) => set({ groupsDefaultView: view }),
+      setAlertsLastSeen: (iso) => set({ alertsLastSeenAt: iso }),
     }),
     {
       name: 'gospel-central-preferences',
-      version: 3,
-      // Migrations are cumulative — apply every step whose version the
-      // persisted blob predates, then return the upgraded object.
-      //   v1→v2: had no background fields; default to no animated background
-      //          (keep all other prefs: theme/language/view/timeFormat/…).
-      //   v2→v3: removed the 'voronoi' and 'smoke' color themes; a user who
-      //          had one selected falls back to 'default' so they aren't
-      //          stranded on a theme the picker no longer offers and that no
-      //          longer exists in the ColorTheme union.
-      migrate: (persisted, version) => {
-        const p = { ...((persisted ?? {}) as Partial<PreferencesState>) };
-        if (version < 2) {
-          p.backgroundStyle = 'none';
-          p.backgroundConfig = {};
-        }
-        // 'voronoi'/'smoke' were removed from ColorTheme — cast to string to
-        // compare against the now-nonexistent literals, then fall back to the
-        // default palette so the persisted value is valid again.
-        const stored = p.colorTheme as string | undefined;
-        if (stored === 'voronoi' || stored === 'smoke') {
-          p.colorTheme = 'default';
-        }
-        return p as PreferencesState;
-      },
+      // v4 (2026-07 overhaul Phase 7): Marble force + 'default'→'basic' rename.
+      // See migratePreferences above (extracted for unit testing).
+      version: 4,
+      migrate: (persisted, version) => migratePreferences(persisted, version),
     },
   ),
 );

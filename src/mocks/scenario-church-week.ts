@@ -1508,6 +1508,9 @@ function generateAuditLog(): AuditLogEntry[] {
         userName: actor.name,
         details: detail,
         timestamp: ts.toISOString(),
+        // Seed entityIds are synthetic (not tied to a real user/contact), so
+        // the acting user is the only real relevant party for the Alerts feed.
+        relatedUserIds: [actor.id],
       });
     }
   }
@@ -1536,6 +1539,7 @@ function generateAuditLog(): AuditLogEntry[] {
       userName: gabriel.name,
       details: c.details,
       timestamp: ts.toISOString(),
+      relatedUserIds: [gabriel.id],
     });
   }
 

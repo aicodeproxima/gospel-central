@@ -81,7 +81,10 @@ interface ThemeOption {
 // literal username='admin' check in the picker; that gate was lifted so
 // Stephen, Branch Leaders, Members, etc. can pick any theme too.
 const THEME_OPTIONS: ThemeOption[] = [
-  { id: 'default', label: 'Default', color: 'bg-gray-500' },
+  // Marble is the app default (Decision 8) — listed first. 'basic' (formerly
+  // 'default') is the attribute-less neutral palette.
+  { id: 'marble', label: 'Marble', color: 'bg-gradient-to-br from-[#fdfaf2] via-[#e6c458] to-[#b8941f]' },
+  { id: 'basic', label: 'Basic', color: 'bg-gray-500' },
   { id: 'ocean', label: 'Ocean', color: 'bg-blue-500' },
   { id: 'purple', label: 'Purple', color: 'bg-violet-500' },
   { id: 'forest', label: 'Forest', color: 'bg-green-500' },

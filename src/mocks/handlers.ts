@@ -33,6 +33,7 @@ import type { User } from '../lib/types/user';
 import { UserRole } from '../lib/types/user';
 import { PipelineStage } from '../lib/types/contact';
 import { BOOKING_STATUS_CONFIG, type Booking, type BookingStatus } from '../lib/types/booking';
+import type { AuditLogEntry } from '../lib/types/group';
 import { buildOrgTree } from '../lib/utils/org-tree';
 import { API_BASE } from '../lib/api/client';
 
@@ -148,6 +149,19 @@ function resolveActor(actorId: string | undefined): { id: string; name: string }
     ? `${u.firstName} ${u.lastName}`.trim() || u.username
     : id;
   return { id, name };
+}
+
+/** Flatten + drop falsy + dedupe user ids for an audit entry's relatedUserIds. */
+function relatedUsers(...ids: (string | null | undefined)[]): string[] {
+  return [...new Set(ids.filter((x): x is string => typeof x === 'string' && x.length > 0))];
+}
+
+/** Typed choke point for audit rows. Requires relatedUserIds (compile-time
+ *  omission-proofing — a push that forgets it fails tsc), otherwise identical
+ *  to mockAuditLog.push (preserves each site's own id/timestamp semantics). */
+type AuditInput = Omit<AuditLogEntry, 'relatedUserIds'> & { relatedUserIds: string[] };
+function pushAudit(entry: AuditInput): void {
+  mockAuditLog.push(entry);
 }
 
 /**
@@ -485,7 +499,7 @@ function applyStudyCompletion(
       ],
       updatedAt: new Date().toISOString(),
     };
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-ap',
       action: 'update',
       entityType: 'contact',
@@ -495,6 +509,7 @@ function applyStudyCompletion(
       details: `Auto-promoted "${bumped.firstName} ${bumped.lastName}" First Study → Unbaptized after 2 completed studies`,
       before: { pipelineStage: PipelineStage.FIRST_STUDY },
       after: { pipelineStage: PipelineStage.UNBAPTIZED },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
   }
@@ -549,7 +564,7 @@ export const handlers = [
       // AUDIT-2: emit a login_failed entry with the attempted username so
       // brute-force / probing patterns can be reconstructed. entityId is
       // the attempted username (no user id available).
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-lf',
         action: 'login_failed',
         entityType: 'login_failed',
@@ -557,6 +572,7 @@ export const handlers = [
         userId: 'anonymous',
         userName: username || 'unknown',
         details: `Failed login: ${reason}`,
+        relatedUserIds: relatedUsers('anonymous'),
         timestamp: now,
       });
       return HttpResponse.json({ message: 'Invalid credentials' }, { status: 401 });
@@ -571,7 +587,7 @@ export const handlers = [
     if (!isSeeded && !body.password) return fail('empty password');
 
     // AUDIT-2: emit login_success
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-ls',
       action: 'login',
       entityType: 'login_success',
@@ -579,6 +595,7 @@ export const handlers = [
       userId: user.id,
       userName: `${user.firstName} ${user.lastName}`.trim() || user.username,
       details: `Login success: @${user.username}`,
+      relatedUserIds: relatedUsers(user.id),
       timestamp: now,
     });
 
@@ -651,7 +668,7 @@ export const handlers = [
     const label = (v: boolean | undefined) => (v === undefined ? 'Inherit' : v ? 'On' : 'Off');
     const nodeName = `${node.firstName} ${node.lastName}`.trim() || node.username;
 
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-eii',
       action: 'update',
       entityType: 'permission',
@@ -661,6 +678,7 @@ export const handlers = [
       details: `Export/import for "${nodeName}" set to ${label(clearing ? undefined : !!body.value)}`,
       before: { exportImport: label(prev) },
       after: { exportImport: label(clearing ? undefined : !!body.value) },
+      relatedUserIds: relatedUsers(viewer.id, nodeId),
       timestamp: new Date().toISOString(),
     });
 
@@ -707,7 +725,7 @@ export const handlers = [
     areasState.push(newArea);
     // §7 SHIM (H-01): emit area.create audit row.
     const actor = resolveActor(viewer.id);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-ac',
       action: 'create',
       entityType: 'area',
@@ -716,6 +734,7 @@ export const handlers = [
       userName: actor.name,
       details: `Created area: ${newArea.name}`,
       after: { name: newArea.name },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(newArea, { status: 201 });
@@ -739,7 +758,7 @@ export const handlers = [
     areasState[idx] = { ...before, ...sanitized } as typeof areasState[number];
     // §7 SHIM (H-01): emit area.update audit row.
     const actor = resolveActor(viewer.id);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-au',
       action: 'update',
       entityType: 'area',
@@ -749,6 +768,7 @@ export const handlers = [
       details: `Updated area: ${areasState[idx].name}`,
       before: { name: before.name },
       after: { name: areasState[idx].name },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(areasState[idx]);
@@ -767,7 +787,7 @@ export const handlers = [
     areasState[idx] = { ...areasState[idx], isActive: false };
     // §7 SHIM (H-01): emit area.delete audit row.
     const actor = resolveActor(viewer.id);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-ad',
       action: 'delete',
       entityType: 'area',
@@ -777,6 +797,7 @@ export const handlers = [
       details: `Deactivated area: ${areasState[idx].name}`,
       before: { isActive: true },
       after: { isActive: false },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(areasState[idx]);
@@ -795,7 +816,7 @@ export const handlers = [
     areasState[idx] = { ...areasState[idx], isActive: true };
     // §7 SHIM (H-01): emit area.restore audit row.
     const actor = resolveActor(viewer.id);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-ar',
       action: 'restore',
       entityType: 'area',
@@ -805,6 +826,7 @@ export const handlers = [
       details: `Restored area: ${areasState[idx].name}`,
       before: { isActive: false },
       after: { isActive: true },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(areasState[idx]);
@@ -838,7 +860,7 @@ export const handlers = [
     areasState[idx].rooms.push(newRoom);
     // §7 SHIM (H-01): emit room.create audit row.
     const actor = resolveActor(viewer.id);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-rc',
       action: 'create',
       entityType: 'room',
@@ -847,6 +869,7 @@ export const handlers = [
       userName: actor.name,
       details: `Created room: ${newRoom.name} in ${areasState[idx].name}`,
       after: { name: newRoom.name, areaId },
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(newRoom, { status: 201 });
@@ -872,7 +895,7 @@ export const handlers = [
       area.rooms[ridx] = { ...before, ...sanitized } as typeof area.rooms[number];
       // §7 SHIM (H-01): emit room.update audit row.
       const actor = resolveActor(viewer.id);
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-ru',
         action: 'update',
         entityType: 'room',
@@ -882,6 +905,7 @@ export const handlers = [
         details: `Updated room: ${area.rooms[ridx].name}`,
         before: { name: before.name, capacity: before.capacity },
         after: { name: area.rooms[ridx].name, capacity: area.rooms[ridx].capacity },
+        relatedUserIds: relatedUsers(actor.id),
         timestamp: new Date().toISOString(),
       });
       return HttpResponse.json(area.rooms[ridx]);
@@ -902,7 +926,7 @@ export const handlers = [
       if (ridx === -1) continue;
       area.rooms[ridx] = { ...area.rooms[ridx], isActive: false };
       const actor = resolveActor(viewer.id);
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-rd',
         action: 'delete',
         entityType: 'room',
@@ -912,6 +936,7 @@ export const handlers = [
         details: `Deactivated room: ${area.rooms[ridx].name}`,
         before: { isActive: true },
         after: { isActive: false },
+        relatedUserIds: relatedUsers(actor.id),
         timestamp: new Date().toISOString(),
       });
       return HttpResponse.json(area.rooms[ridx]);
@@ -932,7 +957,7 @@ export const handlers = [
       if (ridx === -1) continue;
       area.rooms[ridx] = { ...area.rooms[ridx], isActive: true };
       const actor = resolveActor(viewer.id);
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-rr',
         action: 'restore',
         entityType: 'room',
@@ -942,6 +967,7 @@ export const handlers = [
         details: `Restored room: ${area.rooms[ridx].name}`,
         before: { isActive: false },
         after: { isActive: true },
+        relatedUserIds: relatedUsers(actor.id),
         timestamp: new Date().toISOString(),
       });
       return HttpResponse.json(area.rooms[ridx]);
@@ -1000,7 +1026,7 @@ export const handlers = [
     blockedSlotsState.push(newSlot);
     // AUDIT-3: emit blocked_slot create entry.
     const actor = resolveActor(typeof body.actorId === 'string' ? body.actorId : undefined);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'create',
       entityType: 'blocked_slot',
@@ -1009,6 +1035,7 @@ export const handlers = [
       userName: actor.name,
       details: `Created blocked slot: ${reason}`,
       after: newSlot,
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: now,
     });
     return HttpResponse.json(newSlot, { status: 201 });
@@ -1035,7 +1062,7 @@ export const handlers = [
     blockedSlotsState[idx] = updated as typeof blockedSlotsState[number];
     // AUDIT-3: emit blocked_slot update entry.
     const actor = resolveActor(typeof body.actorId === 'string' ? body.actorId : undefined);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'update',
       entityType: 'blocked_slot',
@@ -1045,6 +1072,7 @@ export const handlers = [
       details: `Updated blocked slot: ${updated.reason ?? ''}`,
       before,
       after: updated,
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(updated);
@@ -1067,7 +1095,7 @@ export const handlers = [
     blockedSlotsState[idx] = { ...before, isActive: false };
     // AUDIT-3: emit blocked_slot delete entry.
     const actor = resolveActor(body.actorId);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'delete',
       entityType: 'blocked_slot',
@@ -1076,6 +1104,7 @@ export const handlers = [
       userName: actor.name,
       details: `Removed blocked slot: ${before.reason ?? ''}`,
       before,
+      relatedUserIds: relatedUsers(actor.id),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json({ success: true });
@@ -1160,7 +1189,7 @@ export const handlers = [
             ? (body.userId as string)
             : undefined,
       );
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-bc',
         action: 'create',
         entityType: 'booking',
@@ -1175,6 +1204,10 @@ export const handlers = [
           areaId: typeof body.areaId === 'string' ? body.areaId : undefined,
           startTime: typeof body.startTime === 'string' ? body.startTime : undefined,
         },
+        relatedUserIds: relatedUsers(
+          actor.id,
+          typeof body.teacherId === 'string' ? body.teacherId : undefined,
+        ),
         timestamp: newBooking.createdAt,
       });
     }
@@ -1240,7 +1273,7 @@ export const handlers = [
     const reason =
       typeof body.editReason === 'string' ? body.editReason.trim() : '';
     if (reason) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now(),
         action: 'update',
         entityType: 'booking',
@@ -1248,6 +1281,10 @@ export const handlers = [
         userId: 'u-michael',
         userName: 'Michael',
         details: `Edited booking: ${reason}`,
+        relatedUserIds: relatedUsers(
+          'u-michael',
+          typeof updated.teacherId === 'string' ? updated.teacherId : undefined,
+        ),
         timestamp: new Date().toISOString(),
       });
     }
@@ -1294,7 +1331,7 @@ export const handlers = [
     else if (prev === 'completed') reverseStudyCompletion(updated, viewer.id);
     const label =
       BOOKING_STATUS_CONFIG[body.status as BookingStatus]?.label ?? body.status;
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-bs',
       action: 'update',
       entityType: 'booking',
@@ -1304,6 +1341,10 @@ export const handlers = [
       details: `Set booking "${updated.title}" status to ${label}`,
       before: { status: prev },
       after: { status: body.status },
+      relatedUserIds: relatedUsers(
+        viewer.id,
+        typeof updated.teacherId === 'string' ? updated.teacherId : undefined,
+      ),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(updated);
@@ -1330,7 +1371,7 @@ export const handlers = [
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
     const actor = resolveActor(body.actorId);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'delete',
       entityType: 'booking',
@@ -1339,6 +1380,10 @@ export const handlers = [
       userName: actor.name,
       details: `Deleted booking "${before.title}" (soft-cancelled, history preserved)`,
       before,
+      relatedUserIds: relatedUsers(
+        actor.id,
+        typeof before.teacherId === 'string' ? before.teacherId : undefined,
+      ),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json({ success: true });
@@ -1361,7 +1406,7 @@ export const handlers = [
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'cancel',
       entityType: 'booking',
@@ -1369,6 +1414,10 @@ export const handlers = [
       userId: 'u-michael',
       userName: 'Michael',
       details: `Cancelled booking "${booking.title}": ${body.reason || 'No reason'}`,
+      relatedUserIds: relatedUsers(
+        'u-michael',
+        typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
+      ),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(updated);
@@ -1390,7 +1439,7 @@ export const handlers = [
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'update',
       entityType: 'booking',
@@ -1398,6 +1447,10 @@ export const handlers = [
       userId: 'u-michael',
       userName: 'Michael',
       details: `Restored cancelled booking "${booking.title}"`,
+      relatedUserIds: relatedUsers(
+        'u-michael',
+        typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
+      ),
       timestamp: new Date().toISOString(),
     });
     return HttpResponse.json(updated);
@@ -1458,7 +1511,7 @@ export const handlers = [
     const actor = resolveActor(
       typeof body.actorId === 'string' ? body.actorId : undefined,
     );
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-cc',
       action: 'create',
       entityType: 'contact',
@@ -1467,6 +1520,11 @@ export const handlers = [
       userName: actor.name,
       details: `Created contact: ${newContact.firstName} ${newContact.lastName}`,
       after: { type: newContact.type, pipelineStage: newContact.pipelineStage },
+      relatedUserIds: relatedUsers(
+        actor.id,
+        typeof newContact.assignedTeacherId === 'string' ? newContact.assignedTeacherId : undefined,
+        ...(Array.isArray(newContact.preachingPartnerIds) ? newContact.preachingPartnerIds : []),
+      ),
       timestamp: newContact.createdAt,
     });
     return HttpResponse.json(newContact, { status: 201 });
@@ -1483,7 +1541,7 @@ export const handlers = [
     const actor = resolveActor(
       typeof body.actorId === 'string' ? body.actorId : undefined,
     );
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-cu',
       action: 'update',
       entityType: 'contact',
@@ -1493,6 +1551,7 @@ export const handlers = [
       details: `Updated contact ${updated.firstName} ${updated.lastName}`,
       before: { pipelineStage: before.pipelineStage, status: before.status },
       after: { pipelineStage: updated.pipelineStage, status: updated.status },
+      relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId, updated.assignedTeacherId),
       timestamp: updated.updatedAt,
     });
     // F1: distinct `reassign` audit row when the owner (assignedTeacherId) changed,
@@ -1506,7 +1565,7 @@ export const handlers = [
         const u = usersState.find((x) => x.id === uid);
         return u ? `${u.firstName} ${u.lastName}` : uid || 'Unassigned';
       };
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-cr',
         action: 'reassign',
         entityType: 'contact',
@@ -1516,6 +1575,7 @@ export const handlers = [
         details: `Reassigned ${updated.firstName} ${updated.lastName} from ${nameOf(before.assignedTeacherId)} to ${nameOf(updated.assignedTeacherId)}`,
         before: { assignedTeacherId: before.assignedTeacherId },
         after: { assignedTeacherId: updated.assignedTeacherId },
+        relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId, updated.assignedTeacherId),
         timestamp: updated.updatedAt,
       });
     }
@@ -1539,7 +1599,7 @@ export const handlers = [
     } as typeof contactsState[number];
     contactsState[idx] = updated;
     const actor = resolveActor(body.actorId);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-cd',
       action: 'delete',
       entityType: 'contact',
@@ -1549,6 +1609,7 @@ export const handlers = [
       details: `Soft-deleted contact ${before.firstName} ${before.lastName}`,
       before: { status: before.status },
       after: { status: 'inactive' },
+      relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId),
       timestamp: updated.updatedAt,
     });
     return HttpResponse.json({ success: true, contact: updated });
@@ -1640,7 +1701,7 @@ export const handlers = [
     // Pair the audit rows under the same Date.now() prefix so they sort
     // together in the Reports table.
     const ts = Date.now();
-    mockAuditLog.push({
+    pushAudit({
       id: `al-${ts}-uc`,
       action: 'create',
       entityType: 'user',
@@ -1650,8 +1711,9 @@ export const handlers = [
       details: `Converted contact ${contact.firstName} ${contact.lastName} → user @${username} (${String(body.role)})`,
       after: { sourceContactId: contact.id, role: newUser.role, parentId: newUser.parentId },
       timestamp: now,
+      relatedUserIds: relatedUsers(actor.id, newUser.id, newUser.parentId),
     });
-    mockAuditLog.push({
+    pushAudit({
       id: `al-${ts}-cu`,
       action: 'update',
       entityType: 'contact',
@@ -1662,6 +1724,7 @@ export const handlers = [
       before: { status: contact.status, convertedToUserId: contact.convertedToUserId },
       after: { status: 'converted', convertedToUserId: newUser.id },
       timestamp: now,
+      relatedUserIds: relatedUsers(actor.id, newUser.id, contact.assignedTeacherId),
     });
 
     return HttpResponse.json({ user: newUser, contact: updatedContact }, { status: 201 });
@@ -1713,6 +1776,12 @@ export const handlers = [
     const action = url.searchParams.get('action');
     const entityType = url.searchParams.get('entityType');
     const userId = url.searchParams.get('userId');
+    // Phase 7 (Alerts): scope to events RELEVANT to a user — actor OR any
+    // affected party (relatedUserIds). Legacy entries without the field fall
+    // back to actor match so nothing vanishes. This is what the real backend's
+    // per-user alert feed should scope; the mock returns the whole log
+    // otherwise (existing authz gap — Mike-side).
+    const relatedTo = url.searchParams.get('relatedTo');
     const search = url.searchParams.get('search')?.toLowerCase();
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
@@ -1723,6 +1792,10 @@ export const handlers = [
     if (action) filtered = filtered.filter((e) => e.action === action);
     if (entityType) filtered = filtered.filter((e) => e.entityType === entityType);
     if (userId) filtered = filtered.filter((e) => e.userId === userId);
+    if (relatedTo)
+      filtered = filtered.filter(
+        (e) => e.relatedUserIds?.includes(relatedTo) || e.userId === relatedTo,
+      );
     if (search) {
       filtered = filtered.filter(
         (e) =>
@@ -1832,7 +1905,7 @@ export const handlers = [
     usersState.push(newUser);
 
     const actor = resolveActor(typeof body.createdById === 'string' ? body.createdById : undefined);
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'create',
       entityType: 'user',
@@ -1842,6 +1915,7 @@ export const handlers = [
       details: `Created ${String(body.role)} account for ${newUser.firstName} ${newUser.lastName} (@${newUser.username})`,
       after: { role: newUser.role, parentId: newUser.parentId, groupId: newUser.groupId },
       timestamp: now,
+      relatedUserIds: relatedUsers(actor.id, newUser.id, newUser.parentId),
     });
 
     return HttpResponse.json(newUser, { status: 201 });
@@ -1955,7 +2029,7 @@ export const handlers = [
 
     // Role change row
     if (before.role !== updated.role) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-rc',
         action: 'role_change',
         entityType: 'role_change',
@@ -1966,11 +2040,12 @@ export const handlers = [
         before: { role: before.role },
         after: { role: updated.role },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, updated.id),
       });
     }
     // Parent/group reassignment row
     if (before.parentId !== updated.parentId || before.groupId !== updated.groupId) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-ga',
         action: 'reassign',
         entityType: 'group_assignment',
@@ -1981,13 +2056,14 @@ export const handlers = [
         before: { parentId: before.parentId, groupId: before.groupId },
         after: { parentId: updated.parentId, groupId: updated.groupId },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, updated.id, before.parentId, updated.parentId),
       });
     }
     // Relocation row — moving a person to a different physical location (Area).
     // entityType 'area' (not 'group_assignment') so the audit filter can tell a
     // location move apart from a reporting-line move (audit #7/#9).
     if (before.locationId !== updated.locationId) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-loc',
         action: 'reassign',
         entityType: 'area',
@@ -1998,11 +2074,12 @@ export const handlers = [
         before: { locationId: before.locationId },
         after: { locationId: updated.locationId },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, updated.id),
       });
     }
     // Generic safe-fields update row (always emit so the page-level summary
     // shows that the record was touched even when nothing privileged moved).
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now() + '-uu',
       action: 'update',
       entityType: 'user',
@@ -2010,6 +2087,7 @@ export const handlers = [
       userId: actor.id,
       userName: actor.name,
       details: `Updated profile for @${updated.username}`,
+      relatedUserIds: relatedUsers(actor.id, updated.id),
       before: {
         firstName: before.firstName,
         lastName: before.lastName,
@@ -2074,7 +2152,7 @@ export const handlers = [
         ...(cascadeId ? { deactivatedCascadeId: cascadeId } : {}),
       };
       changed++;
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-' + usersState[i].id,
         action: 'delete', // closest existing action; entityType disambiguates
         entityType: 'user',
@@ -2087,6 +2165,7 @@ export const handlers = [
         before: { isActive: true },
         after: { isActive: false },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, usersState[i].id, usersState[i].parentId),
       });
     }
     return HttpResponse.json({ ...usersState[idx], deactivatedCount: changed });
@@ -2132,7 +2211,7 @@ export const handlers = [
         deactivatedCascadeId: undefined, // clear the batch stamp on restore
       };
       changed++;
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-' + usersState[i].id,
         action: 'restore',
         entityType: 'user',
@@ -2143,6 +2222,7 @@ export const handlers = [
         before: { isActive: false },
         after: { isActive: true },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, usersState[i].id, usersState[i].parentId),
       });
     }
     return HttpResponse.json({ ...usersState[idx], restoredCount: changed });
@@ -2177,7 +2257,7 @@ export const handlers = [
     // AUDIT-1/BE-9: use entityType='password_reset' + action='reset_password'
     // so a Reports-tab filter for password resets can isolate them. The
     // audit row never carries the temp password.
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'reset_password',
       entityType: 'password_reset',
@@ -2186,6 +2266,7 @@ export const handlers = [
       userName: actor.name,
       details: `Reset password for @${usersState[idx].username}`,
       timestamp: new Date().toISOString(),
+      relatedUserIds: relatedUsers(actor.id, usersState[idx].id),
     });
     return HttpResponse.json({ tempPassword, user: usersState[idx] });
   }),
@@ -2209,7 +2290,7 @@ export const handlers = [
       mustChangePassword: false,
       updatedAt: new Date().toISOString(),
     };
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'update',
       entityType: 'password_reset',
@@ -2218,6 +2299,7 @@ export const handlers = [
       userName: `${usersState[idx].firstName} ${usersState[idx].lastName}`.trim() || usersState[idx].username,
       details: `Self password change for @${usersState[idx].username}`,
       timestamp: new Date().toISOString(),
+      relatedUserIds: relatedUsers(usersState[idx].id),
     });
     return HttpResponse.json(usersState[idx]);
   }),
@@ -2253,7 +2335,7 @@ export const handlers = [
     const now = new Date().toISOString();
     let seq = 0;
     for (const tag of added) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-tg' + (seq++),
         action: 'tag_grant',
         entityType: 'tag',
@@ -2263,10 +2345,11 @@ export const handlers = [
         details: `Granted tag '${tag}' to @${username}`,
         after: { userId: usersState[idx].id, tag },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, usersState[idx].id),
       });
     }
     for (const tag of removed) {
-      mockAuditLog.push({
+      pushAudit({
         id: 'al-' + Date.now() + '-tr' + (seq++),
         action: 'tag_revoke',
         entityType: 'tag',
@@ -2276,6 +2359,7 @@ export const handlers = [
         details: `Revoked tag '${tag}' from @${username}`,
         before: { userId: usersState[idx].id, tag },
         timestamp: now,
+        relatedUserIds: relatedUsers(actor.id, usersState[idx].id),
       });
     }
     return HttpResponse.json(usersState[idx]);
@@ -2363,7 +2447,7 @@ export const handlers = [
     usersState[idx] = { ...usersState[idx], username: desired, updatedAt: new Date().toISOString() };
     const actor = resolveActor(body.actorId);
     // AUDIT-1: dedicated entityType='username_change' + action='rename'.
-    mockAuditLog.push({
+    pushAudit({
       id: 'al-' + Date.now(),
       action: 'rename',
       entityType: 'username_change',
@@ -2374,6 +2458,7 @@ export const handlers = [
       before: { username: previousUsername },
       after: { username: desired },
       timestamp: new Date().toISOString(),
+      relatedUserIds: relatedUsers(actor.id, usersState[idx].id),
     });
     return HttpResponse.json(usersState[idx]);
   }),

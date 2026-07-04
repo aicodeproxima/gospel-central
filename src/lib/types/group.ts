@@ -94,5 +94,9 @@ export interface AuditLogEntry {
   after?: unknown;
   /** Optional human-readable reason supplied by the actor (e.g. for booking edits). */
   reason?: string;
+  /** User IDs this event is relevant to (actor + affected users) — powers the
+   *  per-user Alerts feed. Optional: absent on legacy entries (fall back to
+   *  [userId]). Populated at every runtime push site + the seed generator. */
+  relatedUserIds?: string[];
   timestamp: string;
 }

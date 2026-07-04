@@ -38,6 +38,9 @@ export const groupsApi = {
     action?: string;
     entityType?: string;
     userId?: string;
+    /** Phase 7 (Alerts): scope to events relevant to this user id — the actor
+     *  OR any affected party (relatedUserIds). */
+    relatedTo?: string;
     search?: string;
     startDate?: string;
     endDate?: string;

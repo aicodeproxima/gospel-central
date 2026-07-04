@@ -724,10 +724,10 @@ html[data-theme="starfield"] .text-muted-foreground {
   --sidebar-accent-foreground: oklch(0.98 0.01 270);
 }
 
-/* The "default" palette (no data-theme) has only a neutral grey --primary,
-   which would make a themed background monochrome. Give it a pleasant accent
-   when a background is on. The :not([data-theme]) scoping means this NEVER
-   overrides a real palette's --primary. */
+/* The "basic" palette (no data-theme; formerly "default") has only a neutral
+   grey --primary, which would make a themed background monochrome. Give it a
+   pleasant accent when a background is on. The :not([data-theme]) scoping means
+   this NEVER overrides a real palette's --primary. */
 html[data-bg]:not([data-theme]) {
   --primary: oklch(0.72 0.18 285);
   --primary-foreground: oklch(0.98 0 0);
