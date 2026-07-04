@@ -40,6 +40,14 @@ export interface GetDaySlotsOptions {
   /** Clock for the slot `label`. Defaults to 12h; the wizard passes the
    *  user's Settings ▸ time-format preference so picker labels match. */
   clock?: Clock;
+  /**
+   * Phase 4 self-conflict fix: when EDITING a booking, that booking's own
+   * time window must not count as occupied — otherwise its current slot
+   * shows as taken and a teacher-only edit rejects with "time isn't
+   * available". Excluded from BOTH the same-room and the teacher-busy
+   * checks (the server PUT already excludes via findBookingRoomConflict).
+   */
+  excludeBookingId?: string;
 }
 
 /**
@@ -108,8 +116,13 @@ export function getDaySlots(
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  // Same-room bookings
+  // Same-room bookings. Soft-CANCELLED bookings free their slot — the server
+  // conflict check (handlers.ts findBookingRoomConflict) skips them, so the
+  // client grid must agree or it falsely blocks a bookable window until the
+  // cancelled record ages out (ultracode-gate F5).
   const dayBookings = bookings.filter((b) => {
+    if (b.id === opts.excludeBookingId) return false;
+    if (b.status === 'cancelled') return false;
     if (b.roomId !== roomId) return false;
     const bs = new Date(b.startTime);
     return bs >= dayStart && bs < dayEnd;
@@ -119,6 +132,8 @@ export function getDaySlots(
   // double-bookings of the same teacher.
   const teacherDayBookings = opts.teacherId
     ? teacherBookings.filter((b) => {
+        if (b.id === opts.excludeBookingId) return false;
+        if (b.status === 'cancelled') return false;
         if (b.teacherId !== opts.teacherId) return false;
         const bs = new Date(b.startTime);
         return bs >= dayStart && bs < dayEnd;

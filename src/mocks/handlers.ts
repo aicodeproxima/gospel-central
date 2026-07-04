@@ -372,6 +372,40 @@ function findBookingRoomConflict(
 }
 
 /**
+ * Phase 4 ultracode-gate fix (F6): a teacher must not be double-booked, and
+ * the CLIENT cannot fully enforce this — the wizard only ever sees the
+ * currently-viewed area's bookings, so a teacher already booked in the OTHER
+ * church looks free. The server sees all areas; it is the only layer that
+ * can hold this invariant. Mirrors findBookingRoomConflict's contract
+ * (cancelled bookings free the teacher; `excludeId` for self-edits). Mike's
+ * real backend needs the equivalent check on (teacher_id, time range)
+ * WHERE status <> 'cancelled'.
+ */
+function findBookingTeacherConflict(
+  body: Record<string, unknown>,
+  excludeId?: string,
+): { id: string; title: string } | undefined {
+  const teacherId = typeof body.teacherId === 'string' ? body.teacherId : undefined;
+  const start = typeof body.startTime === 'string' ? new Date(body.startTime) : null;
+  const end = typeof body.endTime === 'string' ? new Date(body.endTime) : null;
+  if (!teacherId || !start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return undefined;
+  }
+  for (const b of bookingsState) {
+    if (b.id === excludeId) continue;
+    if (b.teacherId !== teacherId) continue;
+    if (b.status === 'cancelled') continue;
+    const bs = typeof b.startTime === 'string' ? new Date(b.startTime).getTime() : NaN;
+    const be = typeof b.endTime === 'string' ? new Date(b.endTime).getTime() : NaN;
+    if (isNaN(bs) || isNaN(be)) continue;
+    if (start.getTime() < be && end.getTime() > bs) {
+      return { id: b.id, title: typeof b.title === 'string' ? b.title : 'untitled' };
+    }
+  }
+  return undefined;
+}
+
+/**
  * Side-effects of a booking transitioning INTO 'completed' (2026-07 overhaul,
  * Decision 9/11). Moved here from the booking POST handler — a study counts
  * toward the contact card / teacher log ONLY once someone marks it Completed.
@@ -1093,6 +1127,18 @@ export const handlers = [
         { status: 409 },
       );
     }
+    // Phase 4 (F6): cross-area teacher double-booking — server-only invariant.
+    const teacherConflict = findBookingTeacherConflict(body);
+    if (teacherConflict) {
+      return HttpResponse.json(
+        {
+          message: `Teacher is already booked at that time: ${teacherConflict.title}`,
+          code: 'TEACHER_CONFLICT',
+          details: { type: 'teacher', booking: teacherConflict },
+        },
+        { status: 409 },
+      );
+    }
     const newBooking = {
       id: 'b' + Date.now(),
       ...body,
@@ -1159,6 +1205,20 @@ export const handlers = [
     // Critical scenarios #7/#16/#25 fix on the edit path: reject if the
     // edited fields would overlap a DIFFERENT booking. Self-overlap (same
     // id) is excluded so a no-op edit doesn't reject itself.
+    const teacherConflictPut = findBookingTeacherConflict(
+      { ...bookingsState[idx], ...body },
+      String(params.id),
+    );
+    if (teacherConflictPut) {
+      return HttpResponse.json(
+        {
+          message: `Teacher is already booked at that time: ${teacherConflictPut.title}`,
+          code: 'TEACHER_CONFLICT',
+          details: { type: 'teacher', booking: teacherConflictPut },
+        },
+        { status: 409 },
+      );
+    }
     const roomConflict = findBookingRoomConflict(
       { ...bookingsState[idx], ...body },
       String(params.id),

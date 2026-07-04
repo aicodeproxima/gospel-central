@@ -61,4 +61,30 @@ test.describe('visual regression', () => {
     await expect(page.getByText(/top contributors/i).first()).toBeVisible();
     await expect(page).toHaveScreenshot('reports-dashboard.png', shot);
   });
+
+  // Phase 4 — the consolidated When page (wizard's always-first page) at the
+  // project's three verification widths. Element shot of the dialog (the page
+  // behind it is covered by the other baselines); the dialog is 92vh-bounded
+  // so it fits each viewport.
+  test('B-P4 wizard When page at 3 widths (member)', async ({ page }) => {
+    await loginAs(page, 'member3');
+    await page.goto('/calendar');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /^book$/i }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /^bible study$/i }).click();
+    for (const [w, h, name] of [
+      [1440, 900, 'wizard-when-desktop.png'],
+      [412, 915, 'wizard-when-412.png'],
+      [275, 596, 'wizard-when-275.png'],
+    ] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(400);
+      await expect(dialog).toHaveScreenshot(name, {
+        animations: 'disabled',
+        maxDiffPixelRatio: 0.03,
+      });
+    }
+  });
 });

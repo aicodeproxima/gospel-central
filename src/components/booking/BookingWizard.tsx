@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Combobox, type ComboOption } from '@/components/shared/Combobox';
 import { StepSubjectPicker } from '@/components/shared/StepSubjectPicker';
@@ -30,7 +29,8 @@ import {
   canViewContact,
 } from '@/lib/utils/permissions';
 import { BOOKING_STATUS_CONFIG, BookingStatus } from '@/lib/types/booking';
-import { bookingStatusI18nKey } from '@/lib/utils/booking-display';
+import { bookingStatusI18nKey, isBaptizedType } from '@/lib/utils/booking-display';
+import { WhenStep } from './WhenStep';
 import {
   ArrowLeft,
   ArrowRight,
@@ -40,14 +40,11 @@ import {
   ChevronRight,
   ClipboardCheck,
   Loader2,
-  Monitor,
   RotateCcw,
   Trash2,
-  UserCheck,
   Users,
   UsersRound,
   Briefcase,
-  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -125,15 +122,20 @@ const ACTIVITY_GROUPS: {
   },
 ];
 
+/**
+ * Phase 4 flow (Decision 5): the "When" page is ALWAYS first and consolidates
+ * activity group + date + In-Person/Zoom + Unbaptized/Baptized + start→end
+ * time picking. Study: when→room→leader→contact→subject→confirm (6 steps);
+ * non-study: when→room→leader→confirm (4). The old activity/date/mode/time
+ * steps are folded in; the duration selector is gone (duration derives from
+ * the picked start→end range).
+ */
 type Step =
-  | 'activity'
-  | 'date'
+  | 'when'
   | 'room'
   | 'leader'
-  | 'mode'
   | 'contact'
   | 'subject'
-  | 'time'
   | 'confirm';
 
 export function BookingWizard({ areas, bookings, users, contacts, blockedSlots = [], onSubmit, onDelete, onCancel, onRestore, onSetStatus }: WizardProps) {
@@ -154,16 +156,19 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     ? true
     : !!viewer && canEditBooking(viewer, selectedBooking, scope.userIds);
 
-  const [step, setStep] = useState<Step>('activity');
+  const [step, setStep] = useState<Step>('when');
   const [activityGroup, setActivityGroup] = useState<ActivityGroup | null>(null);
   const [date, setDate] = useState<Date>(new Date());
   const [roomId, setRoomId] = useState<string>('');
   const [leaderId, setLeaderId] = useState<string>('');
   const [mode, setMode] = useState<'in_person' | 'zoom' | null>(null);
   const [contactId, setContactId] = useState<string>('');
-  const [contactBaptismType, setContactBaptismType] = useState<'unbaptized' | 'baptized_persecuted' | null>(null);
+  // Phase 4: segment renamed "Baptized Persecuted" → "Baptized"; new baptized
+  // in-person bookings store BAPTIZED_IN_PERSON (the _PERSECUTED type remains
+  // readable in old data only).
+  const [contactBaptismType, setContactBaptismType] = useState<'unbaptized' | 'baptized' | null>(null);
   const [startSlotIdx, setStartSlotIdx] = useState<number | null>(null);
-  const [durationSlots, setDurationSlots] = useState(2); // 60 min default
+  const [durationSlots, setDurationSlots] = useState(1); // derived from the picked start→end range
   // STUDY-1: subjects covered this session + the "not sure yet" escape hatch.
   const [subjectsStudied, setSubjectsStudied] = useState<string[]>([]);
   const [addSubjectLater, setAddSubjectLater] = useState(false);
@@ -199,9 +204,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
             : 'in_person',
         );
         setContactId(selectedBooking.contactId || '');
-        setContactBaptismType(
-          selectedBooking.type === BookingType.BAPTIZED_PERSECUTED ? 'baptized_persecuted' : 'unbaptized',
-        );
+        // Any stored baptized type (in-person / zoom / legacy persecuted)
+        // maps to the "Baptized" segment.
+        setContactBaptismType(isBaptizedType(selectedBooking.type) ? 'baptized' : 'unbaptized');
         // STUDY-1: prefill subjects from the booking's stored subject (edits
         // don't re-push to the contact card — the create path owns that).
         setSubjectsStudied(selectedBooking.subject ? [selectedBooking.subject] : []);
@@ -230,38 +235,34 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           const slotStart = new Date(bookingSlot.start);
           setDate(slotStart);
           setRoomId(bookingSlot.roomId);
-          const slotEnd = new Date(bookingSlot.end);
-          const dur = Math.max(
-            1,
-            Math.round((slotEnd.getTime() - slotStart.getTime()) / (30 * 60000)),
-          );
-          setDurationSlots(dur);
-          // Request 1: pre-select the slot the user clicked on the calendar so
-          // the time step opens with it highlighted (still fully changeable).
-          // Same 30-min grid math as the edit branch. GUARD: only pre-select if
-          // the whole range is actually bookable — the calendar grid can surface
-          // a blocked service time (e.g. Sabbath afternoon) as clickable, and
-          // pre-selecting it would dead-end at submit (409). Off-grid/occupied →
-          // null = the time step opens with nothing chosen (blocked slots are
-          // disabled there) so the user picks a free one.
+          // Decision 5: a calendar slot-click prefills day + START time only —
+          // the user picks the end time on the When page (so the range starts
+          // as one 30-min slot, extendable by clicking a later slot).
+          // GUARD: only pre-select if the clicked slot is actually bookable —
+          // the calendar grid can surface a blocked service time as clickable,
+          // and pre-selecting it would dead-end at submit (409). Off-grid /
+          // occupied → null = nothing chosen; blocked slots render disabled.
           const slotIdx =
             (slotStart.getHours() * 60 + slotStart.getMinutes() - DEFAULT_SLOT_START_HOUR * 60) / 30;
           const room = allRooms.find((r) => r.id === bookingSlot.roomId);
+          // (No excludeBookingId here — this branch only runs for NEW
+          // bookings created from a slot click; there is no selectedBooking.)
           const probe = getDaySlots(slotStart, bookingSlot.roomId, bookings, {
             blockedSlots,
             areaId: room?.areaId,
           });
-          let fits = Number.isInteger(slotIdx) && slotIdx >= 0;
-          for (let j = 0; fits && j < dur; j++) {
-            const s = probe[slotIdx + j];
-            if (!s || s.occupied) fits = false;
-          }
+          const fits =
+            Number.isInteger(slotIdx) &&
+            slotIdx >= 0 &&
+            !!probe[slotIdx] &&
+            !probe[slotIdx].occupied;
           setStartSlotIdx(fits ? slotIdx : null);
+          setDurationSlots(1);
         } else {
           setDate(new Date());
           setRoomId('');
           setStartSlotIdx(null);
-          setDurationSlots(2);
+          setDurationSlots(1);
         }
         setActivityGroup(null);
         setLeaderId('');
@@ -270,26 +271,55 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         setContactBaptismType(null);
         setSubjectsStudied([]);
         setAddSubjectLater(false);
-        setStep('activity');
+        setStep('when');
       }
       setEditReason('');
+      // (F4) The cancel-confirm overlay is component state that survived a
+      // Dialog close (onOpenChange only clears the STORE). Without this, the
+      // overlay — with the previous booking's typed reason — re-appeared over
+      // the NEXT booking opened, one click away from cancelling the wrong one.
+      setShowCancelConfirm(false);
+      setCancelReasonInput('');
     }
   }, [isBookingModalOpen, selectedBooking, bookingSlot]);
 
-  // Build room options with availability
+  // Build room options with availability. Phase 4: time is picked BEFORE the
+  // room, so when a range is selected each room is additionally gated on the
+  // WHOLE range being free there (the design note: "Room step filters rooms
+  // by availability FOR the selected range").
   const roomOptions: ComboOption[] = useMemo(() => {
     const base: ComboOption[] = allRooms.map((r) => {
       const slots = getDaySlots(date, r.id, bookings, {
         blockedSlots,
         areaId: r.areaId,
+        // Editing: the booking's own window doesn't count against its room.
+        excludeBookingId: selectedBooking?.id,
       });
       const free = slots.filter((s) => !s.occupied).length;
+      const fitsRange =
+        startSlotIdx === null ||
+        (() => {
+          for (let j = 0; j < durationSlots; j++) {
+            const s = slots[startSlotIdx + j];
+            if (!s || s.occupied) return false;
+          }
+          return true;
+        })();
       return {
         id: r.id,
         label: r.name,
-        sublabel: free > 0 ? `${free} free 30-min slots` : 'Fully booked',
-        disabled: free === 0,
-        disabledReason: free === 0 ? 'No availability this day' : undefined,
+        sublabel: !fitsRange
+          ? 'Booked at the selected time'
+          : free > 0
+            ? `${free} free 30-min slots`
+            : 'Fully booked',
+        disabled: free === 0 || !fitsRange,
+        disabledReason:
+          free === 0
+            ? 'No availability this day'
+            : !fitsRange
+              ? 'Not free at the selected time'
+              : undefined,
       };
     });
     const custom: ComboOption[] = customRooms.map((c) => ({
@@ -298,7 +328,34 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       sublabel: 'Custom room',
     }));
     return [...base, ...custom];
-  }, [allRooms, customRooms, date, bookings]);
+  }, [allRooms, customRooms, date, bookings, blockedSlots, selectedBooking?.id, startSlotIdx, durationSlots]);
+
+  // Phase 4: time is picked before the leader, so the teacher-busy check
+  // moved from the old time grid onto the Leader step (+ the submit
+  // pre-flight). Teachers with another non-cancelled booking overlapping the
+  // selected range are disabled here.
+  const busyTeacherIds = useMemo(() => {
+    const set = new Set<string>();
+    if (startSlotIdx === null) return set;
+    const rangeStart = new Date(date);
+    rangeStart.setHours(
+      DEFAULT_SLOT_START_HOUR + Math.floor(startSlotIdx / 2),
+      (startSlotIdx % 2) * 30,
+      0,
+      0,
+    );
+    const startMs = rangeStart.getTime();
+    const endMs = startMs + durationSlots * 30 * 60000;
+    for (const b of bookings) {
+      if (!b.teacherId) continue;
+      if (b.id === selectedBooking?.id) continue; // self-conflict exclusion
+      if (b.status === 'cancelled') continue; // cancelled frees the slot
+      const bs = new Date(b.startTime).getTime();
+      const be = new Date(b.endTime).getTime();
+      if (bs < endMs && be > startMs) set.add(b.teacherId);
+    }
+    return set;
+  }, [bookings, startSlotIdx, durationSlots, date, selectedBooking?.id]);
 
   // Anyone with the 'teacher' tag is eligible to lead a Bible Study,
   // regardless of role. (Teacher used to be a role; in v1 it became a tag.)
@@ -314,7 +371,13 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     const base = teachers.map((t) => ({
       id: t.id,
       label: `${t.firstName} ${t.lastName}`.trim(),
-      sublabel: t.role.replace('_', ' '),
+      sublabel: busyTeacherIds.has(t.id)
+        ? 'Busy at the selected time'
+        : t.role.replace('_', ' '),
+      disabled: busyTeacherIds.has(t.id),
+      disabledReason: busyTeacherIds.has(t.id)
+        ? 'Already booked at the selected time'
+        : undefined,
     }));
     const custom: ComboOption[] = customTeachers.map((c) => ({
       id: c.id,
@@ -322,7 +385,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       sublabel: 'Custom teacher',
     }));
     return [...custom, ...base];
-  }, [users, customTeachers]);
+  }, [users, customTeachers, busyTeacherIds]);
 
   // CAL-4: contact picker scoped to what the viewer is allowed to see.
   // Members and Team / Group leaders only see contacts in their subtree;
@@ -345,7 +408,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   }, [contacts, customContacts, viewer, scope.userIds]);
 
   // Time slots for selected room + date — now blocked-slot- and
-  // teacher-conflict aware. (BLOCK-1, CAL-2.)
+  // teacher-conflict aware. (BLOCK-1, CAL-2.) Phase 4: when editing, the
+  // booking's OWN window is excluded from both room + teacher occupancy so a
+  // teacher-only edit no longer self-conflicts ("time isn't available").
   const daySlots = useMemo(() => {
     if (!roomId) return [];
     const room = allRooms.find((r) => r.id === roomId);
@@ -355,16 +420,29 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       teacherId: leaderId || undefined,
       teacherBookings: bookings,
       clock,
+      excludeBookingId: selectedBooking?.id,
     });
-  }, [roomId, date, bookings, blockedSlots, allRooms, leaderId, clock]);
+  }, [roomId, date, bookings, blockedSlots, allRooms, leaderId, clock, selectedBooking?.id]);
 
-  // Total steps for progress bar
+  // Slots for the When page's time grid. Room is usually not chosen yet
+  // (time comes first now), so before a room exists only GLOBAL blocked
+  // slots grey out (area-scoped blocks resolve once the room implies an
+  // area). With a room prefilled (calendar slot-click / edit), the full
+  // room+teacher occupancy applies — same grid bounds as daySlots, so slot
+  // INDEXES are interchangeable between the two.
+  const whenSlots = useMemo(() => {
+    if (roomId) return daySlots;
+    return getDaySlots(date, '__no_room__', [], { blockedSlots, clock });
+  }, [roomId, daySlots, date, blockedSlots, clock]);
+
+  // Total steps for progress bar. Study = when→room→leader→contact→subject→
+  // confirm (6); non-study (and before an activity is picked) = 4.
   const stepsNeeded: Step[] = useMemo(() => {
-    const base: Step[] = ['activity', 'date', 'room', 'leader'];
+    const base: Step[] = ['when', 'room', 'leader'];
     if (activityGroup === 'bible_study') {
-      base.push('mode', 'contact', 'subject');
+      base.push('contact', 'subject');
     }
-    base.push('time', 'confirm');
+    base.push('confirm');
     return base;
   }, [activityGroup]);
 
@@ -380,11 +458,13 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     if (idx > 0) setStep(stepsNeeded[idx - 1]);
   }
 
-  // Resolve final type from selections
+  // Resolve final type from selections. Phase 4: baptized + in-person now
+  // stores BAPTIZED_IN_PERSON (BAPTIZED_PERSECUTED is legacy-read-only —
+  // the segment was renamed to plain "Baptized").
   function resolveBookingType(): BookingType {
     if (activityGroup === 'bible_study') {
-      if (contactBaptismType === 'baptized_persecuted') {
-        return mode === 'zoom' ? BookingType.BAPTIZED_ZOOM : BookingType.BAPTIZED_PERSECUTED;
+      if (contactBaptismType === 'baptized') {
+        return mode === 'zoom' ? BookingType.BAPTIZED_ZOOM : BookingType.BAPTIZED_IN_PERSON;
       }
       return mode === 'zoom' ? BookingType.UNBAPTIZED_ZOOM : BookingType.UNBAPTIZED_CONTACT;
     }
@@ -409,6 +489,11 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   }
 
   const handleSubmit = async () => {
+    // (F1) Defensive twin of the disabled Create/Save button.
+    if (!formComplete) {
+      toast.error('Complete the required fields first');
+      return;
+    }
     if (startSlotIdx === null) {
       toast.error('Select a time slot');
       return;
@@ -427,7 +512,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       const s = daySlots[startSlotIdx + j];
       if (!s || s.occupied) {
         toast.error('That time isn’t available — pick another slot');
-        setStep('time');
+        setStep('when');
         return;
       }
     }
@@ -442,7 +527,10 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       // through unchanged. The placeholder removal is DEFERRED to after the
       // booking succeeds, and a failed booking rolls the contact back (catch),
       // so a 409 can never orphan it. (Mike's backend will do this atomically.)
-      let resolvedContactId = contactId || undefined;
+      // (F2) Contact/subject state can be stale after a study→non-study
+      // activity switch — non-study payloads must never carry them.
+      let resolvedContactId =
+        activityGroup === 'bible_study' ? contactId || undefined : undefined;
       if (activityGroup === 'bible_study' && contactId && !isBackendManagedId(contactId)) {
         const customName = customContacts.find((c) => c.id === contactId)?.name.trim() || '';
         const parts = customName.split(/\s+/).filter(Boolean);
@@ -451,8 +539,8 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           firstName: parts[0] || customName || 'New',
           lastName: parts.slice(1).join(' '),
           type:
-            contactBaptismType === 'baptized_persecuted'
-              ? BookingType.BAPTIZED_PERSECUTED
+            contactBaptismType === 'baptized'
+              ? BookingType.BAPTIZED_IN_PERSON
               : BookingType.UNBAPTIZED_CONTACT,
           status: ContactStatus.ACTIVE,
           pipelineStage: PipelineStage.FIRST_STUDY,
@@ -479,7 +567,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
         roomId,
         title: buildTitle(),
         description: '',
-        subject: finalSubjects[0] || undefined,
+        // (F2) subject gated on study too — finalSubjects can be stale after
+        // an activity switch.
+        subject: activityGroup === 'bible_study' ? finalSubjects[0] || undefined : undefined,
         startTime: startSlot.start.toISOString(),
         endTime: new Date(startSlot.start.getTime() + durationSlots * 30 * 60000).toISOString(),
         teacherId: leaderId || undefined,
@@ -530,30 +620,49 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     }
   };
 
-  // Step validity
+  // Step validity. The When page gates on everything it consolidated:
+  // activity + a time range, plus mode + baptism for studies.
   const canAdvance = (() => {
     switch (step) {
-      case 'activity': return !!activityGroup;
-      case 'date': return !!date;
+      case 'when':
+        return (
+          !!activityGroup &&
+          startSlotIdx !== null &&
+          (activityGroup !== 'bible_study' || (!!mode && !!contactBaptismType))
+        );
       case 'room': return !!roomId;
       case 'leader': return !!leaderId;
-      case 'mode': return !!mode;
-      case 'contact': return !!contactId && !!contactBaptismType;
+      case 'contact': return !!contactId;
       case 'subject': return true;
-      case 'time': return startSlotIdx !== null;
       case 'confirm': return true;
       default: return false;
     }
   })();
 
+  // Ultracode-gate fix (F1): the Review button can jump to the confirm step
+  // from ANY step, so per-step canAdvance gating is bypassable. Create/Save
+  // must independently verify the whole form — otherwise an incomplete study
+  // (no leader, no mode/baptism, no contact) gets written with a defaulted
+  // type the user never chose.
+  const formComplete =
+    !!activityGroup &&
+    !!roomId &&
+    !!leaderId &&
+    startSlotIdx !== null &&
+    (activityGroup !== 'bible_study' || (!!mode && !!contactBaptismType && !!contactId));
+
   return (
     <Dialog open={isBookingModalOpen} onOpenChange={(open) => !open && closeBookingModal()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          {/* max-md:pr-9 clears the absolute close-X (top-2 right-2, size-9) so the step badge doesn't sit under it on phones */}
-          <DialogTitle className="flex items-center justify-between max-md:pr-9">
-            <span>{isEdit ? t('wizard.editBooking') : t('wizard.newBooking')}</span>
-            <Badge variant="outline" className="text-xs">
+          {/* Packet bug (step counter behind the close-X at 275px): the row
+              reserves the X's space structurally — pr-9 clears the absolute
+              close-X (top-2 right-2, size-9) at ALL widths, the title is the
+              only shrinkable piece (min-w-0 truncate), and the badge can
+              neither shrink nor wrap under the X (shrink-0 whitespace-nowrap). */}
+          <DialogTitle className="flex items-center justify-between gap-2 pr-9">
+            <span className="min-w-0 truncate">{isEdit ? t('wizard.editBooking') : t('wizard.newBooking')}</span>
+            <Badge variant="outline" className="shrink-0 whitespace-nowrap text-xs">
               {t('wizard.step')} {currentStepIndex + 1} {t('misc.of')} {stepsNeeded.length}
             </Badge>
           </DialogTitle>
@@ -576,56 +685,55 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
             transition={{ duration: 0.2 }}
             className="min-h-[320px]"
           >
-            {step === 'activity' && (
+            {step === 'when' && (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">What kind of activity are you booking?</p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                {/* Compact activity selector — folded onto the When page so
+                    "When" is literally the first step (Decision 5 / Phase 4).
+                    No auto-advance: picking a group just reveals/hides the
+                    study segments below. */}
+                <div className="grid grid-cols-2 gap-2">
                   {ACTIVITY_GROUPS.map((g) => {
                     const Icon = g.icon as React.ComponentType<{ className?: string }>;
                     const selected = activityGroup === g.key;
                     return (
-                      <motion.button
+                      <button
                         key={g.key}
                         type="button"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => { setActivityGroup(g.key); setTimeout(goNext, 150); }}
+                        onClick={() => setActivityGroup(g.key)}
                         className={cn(
-                          'flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all bg-gradient-to-br touch-manipulation',
+                          'flex min-h-11 items-center gap-2 rounded-lg border-2 px-2.5 py-2 text-left text-xs font-semibold transition-all bg-gradient-to-br touch-manipulation',
                           g.color,
                           selected ? 'ring-2 ring-primary' : 'hover:brightness-110',
                         )}
                       >
-                        <div className="rounded-lg bg-card p-2.5 shadow-sm">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <div className="font-semibold">{g.label}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{g.description}</div>
-                        </div>
-                      </motion.button>
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{g.label}</span>
+                      </button>
                     );
                   })}
                 </div>
-              </div>
-            )}
 
-            {step === 'date' && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-semibold">When?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">Pick a day for this booking</p>
-                </div>
-                <Input
-                  type="date"
-                  value={format(date, 'yyyy-MM-dd')}
-                  onChange={(e) => setDate(new Date(e.target.value + 'T00:00'))}
-                  className="h-12 text-base"
+                <WhenStep
+                  date={date}
+                  onDateChange={(d) => {
+                    setDate(d);
+                    // A different day has different occupancy — clear the range.
+                    setStartSlotIdx(null);
+                    setDurationSlots(1);
+                  }}
+                  showStudyControls={activityGroup === 'bible_study'}
+                  mode={mode}
+                  onModeChange={setMode}
+                  baptism={contactBaptismType}
+                  onBaptismChange={setContactBaptismType}
+                  slots={whenSlots}
+                  startIdx={startSlotIdx}
+                  endIdxExclusive={startSlotIdx !== null ? startSlotIdx + durationSlots : null}
+                  onRangeChange={(s, e) => {
+                    setStartSlotIdx(s);
+                    setDurationSlots(s !== null && e !== null ? e - s : 1);
+                  }}
                 />
-                <div className="rounded-lg bg-accent/40 p-3 text-sm">
-                  <CalendarIcon className="inline h-4 w-4 mr-2" />
-                  {format(date, 'EEEE, MMMM d, yyyy')}
-                </div>
               </div>
             )}
 
@@ -671,89 +779,33 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               </div>
             )}
 
-            {step === 'mode' && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-semibold">In-person or Zoom?</Label>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {([
-                    { key: 'in_person', label: 'In Person', icon: UserCheck },
-                    { key: 'zoom', label: 'On Zoom', icon: Monitor },
-                  ] as const).map((m) => {
-                    const Icon = m.icon;
-                    const selected = mode === m.key;
-                    return (
-                      <motion.button
-                        key={m.key}
-                        type="button"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => { setMode(m.key); setTimeout(goNext, 150); }}
-                        className={cn(
-                          'flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all touch-manipulation',
-                          selected
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/40 hover:bg-accent/50',
-                        )}
-                      >
-                        <Icon className="h-8 w-8" />
-                        <span className="font-semibold">{m.label}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {step === 'contact' && (
               <div className="space-y-4">
                 <div>
                   <Label className="text-base font-semibold">Contact</Label>
-                  <p className="text-sm text-muted-foreground mt-1">First pick their status, then select the contact</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Who is this study with? (Baptized/Unbaptized was set on the When page.)
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {([
-                    { key: 'unbaptized', label: 'Unbaptized', color: 'bg-blue-500/10 border-blue-500/40' },
-                    { key: 'baptized_persecuted', label: 'Baptized Persecuted', color: 'bg-red-500/10 border-red-500/40' },
-                  ] as const).map((t) => {
-                    const selected = contactBaptismType === t.key;
-                    return (
-                      <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => setContactBaptismType(t.key)}
-                        className={cn(
-                          'rounded-lg border-2 p-3 text-sm font-medium transition-all touch-manipulation max-md:min-h-11',
-                          selected ? 'ring-2 ring-primary' : 'hover:brightness-110',
-                          t.color,
-                        )}
-                      >
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                {contactBaptismType && (
-                  <Combobox
-                    options={contactOptions}
-                    value={contactId}
-                    onChange={setContactId}
-                    placeholder="Search contacts..."
-                    allowAddNew
-                    onAddNew={(name) => {
-                      const entity = addCustom('contact', name);
-                      setContactId(entity.id);
-                    }}
-                  />
-                )}
+                <Combobox
+                  options={contactOptions}
+                  value={contactId}
+                  onChange={setContactId}
+                  placeholder="Search contacts..."
+                  allowAddNew
+                  onAddNew={(name) => {
+                    const entity = addCustom('contact', name);
+                    setContactId(entity.id);
+                  }}
+                />
               </div>
             )}
 
             {step === 'subject' && (
               <div className="space-y-4">
                 <div>
-                  <Label className="text-base font-semibold">Subject studied</Label>
+                  {/* Renamed from "Subject studied" (packet). */}
+                  <Label className="text-base font-semibold">Subject</Label>
                   <p className="text-sm text-muted-foreground mt-1">
                     Pick the subject(s) for this study — they&apos;re added to{' '}
                     {contactOptions.find((c) => c.id === contactId)?.label || 'the contact'}&apos;s
@@ -779,65 +831,6 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                 ) : (
                   <StepSubjectPicker value={subjectsStudied} onChange={setSubjectsStudied} />
                 )}
-              </div>
-            )}
-
-            {step === 'time' && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-semibold">Pick a time slot</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Occupied slots on {format(date, 'EEE MMM d')} are greyed out
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Duration</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3, 4].map((d) => (
-                      <Button
-                        key={d}
-                        type="button"
-                        variant={durationSlots === d ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDurationSlots(d)}
-                        className="touch-manipulation max-md:h-10 max-md:flex-1 max-md:min-w-[4.5rem]"
-                      >
-                        {d * 30} min
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 max-h-64 overflow-y-auto p-1 sm:grid-cols-4">
-                  {daySlots.map((slot, i) => {
-                    const canFit = !slot.occupied && (() => {
-                      for (let j = 0; j < durationSlots; j++) {
-                        const s = daySlots[i + j];
-                        if (!s || s.occupied) return false;
-                      }
-                      return true;
-                    })();
-                    const selected = startSlotIdx === i;
-                    const withinSelection = startSlotIdx !== null && i > startSlotIdx && i < startSlotIdx + durationSlots;
-                    return (
-                      <button
-                        key={slot.label}
-                        type="button"
-                        disabled={!canFit}
-                        onClick={() => setStartSlotIdx(i)}
-                        title={slot.occupied ? `Occupied by: ${slot.occupiedBy}` : undefined}
-                        className={cn(
-                          'rounded-md border px-2 py-2 text-xs font-medium transition-all touch-manipulation max-md:py-3 max-md:min-h-11',
-                          !canFit && 'opacity-30 cursor-not-allowed bg-muted',
-                          canFit && !selected && !withinSelection && 'border-border hover:bg-accent',
-                          selected && 'bg-primary text-primary-foreground border-primary',
-                          withinSelection && 'bg-primary/40 border-primary/40',
-                        )}
-                      >
-                        {slot.label}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             )}
 
@@ -867,13 +860,13 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   </Label>
                 </div>
                 <div className="space-y-1 rounded-lg border border-border bg-accent/30 p-4 text-sm">
-                  <Row label={t('wizard.activity')} value={ACTIVITY_GROUPS.find((g) => g.key === activityGroup)?.label || '—'} onClick={() => setStep('activity')} />
-                  <Row label={t('wizard.date')} value={format(date, 'EEEE, MMM d, yyyy')} onClick={() => setStep('date')} />
+                  <Row label={t('wizard.activity')} value={ACTIVITY_GROUPS.find((g) => g.key === activityGroup)?.label || '—'} onClick={() => setStep('when')} />
+                  <Row label={t('wizard.date')} value={format(date, 'EEEE, MMM d, yyyy')} onClick={() => setStep('when')} />
                   <Row label={t('wizard.room')} value={roomOptions.find((r) => r.id === roomId)?.label || '—'} onClick={() => setStep('room')} />
                   <Row label={t('wizard.leader')} value={teacherOptions.find((te) => te.id === leaderId)?.label || '—'} onClick={() => setStep('leader')} />
                   {activityGroup === 'bible_study' && (
                     <>
-                      <Row label={t('wizard.mode')} value={mode === 'zoom' ? 'Zoom' : t('wizard.inPerson')} onClick={() => setStep('mode')} />
+                      <Row label={t('wizard.mode')} value={mode === 'zoom' ? 'Zoom' : t('wizard.inPerson')} onClick={() => setStep('when')} />
                       <Row label={t('wizard.contact')} value={contactOptions.find((c) => c.id === contactId)?.label || '—'} onClick={() => setStep('contact')} />
                       <Row
                         label="Subjects"
@@ -886,11 +879,11 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                       />
                     </>
                   )}
-                  {startSlotIdx !== null && daySlots[startSlotIdx] && (
+                  {startSlotIdx !== null && whenSlots[startSlotIdx] && (
                     <Row
                       label={t('wizard.time')}
-                      value={`${daySlots[startSlotIdx].label} — ${durationSlots * 30} min`}
-                      onClick={() => setStep('time')}
+                      value={`${whenSlots[startSlotIdx].label} — ${durationSlots * 30} min`}
+                      onClick={() => setStep('when')}
                     />
                   )}
                 </div>
@@ -1013,7 +1006,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               {t('btn.back')}
             </Button>
           )}
-          {step !== 'confirm' && step !== 'activity' && (
+          {step !== 'confirm' && (
             <Button
               type="button"
               variant="outline"
@@ -1025,7 +1018,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               {t('btn.review')}
             </Button>
           )}
-          {step !== 'confirm' && step !== 'activity' && step !== 'mode' && (
+          {step !== 'confirm' && (
             <Button type="button" onClick={goNext} disabled={!canAdvance} className="ml-auto gap-2 touch-manipulation max-md:h-11">
               {t('btn.next')}
               <ArrowRight className="h-4 w-4" />
@@ -1073,7 +1066,15 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
               )}
               {/* CAL-6: hide save when viewer can't edit this booking. */}
               {canEditCurrent && selectedBooking?.status !== 'cancelled' && (
-                <Button type="button" onClick={handleSubmit} disabled={loading} className="ml-auto gap-2 touch-manipulation max-md:h-11">
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  // (F1) formComplete: Review can reach confirm early — the
+                  // primary action stays disabled until every required field
+                  // is set (the rows above show '—' for what's missing).
+                  disabled={loading || !formComplete}
+                  className="ml-auto gap-2 touch-manipulation max-md:h-11"
+                >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isEdit ? t('btn.saveChanges') : t('btn.createBooking')}
                 </Button>

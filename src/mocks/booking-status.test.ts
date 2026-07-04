@@ -263,3 +263,69 @@ describe('canSetBookingStatus matrix (pure helper)', () => {
     expect(canSetBookingStatus(otherMember, booking)).toBe(false);
   });
 });
+
+describe('teacher double-booking is server-rejected (Phase 4 ultracode-gate F6)', () => {
+  // The client cannot catch cross-area teacher conflicts (the wizard only
+  // sees the viewed area's bookings) — the server is the only layer that can.
+  it('same teacher, same slot, DIFFERENT area/room → 409 TEACHER_CONFLICT', async () => {
+    const contact = await createContact();
+    const slot = nextSlot();
+    await createStudyBooking(contact.id, { ...slot });
+    await tick();
+    const res = await getResponse(
+      handlers,
+      req('POST', '/bookings', {
+        areaId: 'area-virginia-beach',
+        roomId: 'rm-vb-sr1',
+        type: BookingType.UNBAPTIZED_CONTACT,
+        activity: 'bible_study',
+        title: 'Cross-area double-booking attempt',
+        createdBy: 'u-mem-1',
+        teacherId: 'u-mem-1',
+        contactId: contact.id,
+        participants: [],
+        ...slot,
+      }),
+    );
+    expect(res!.status).toBe(409);
+    const body = await jsonOf<{ code: string }>(res);
+    expect(body.code).toBe('TEACHER_CONFLICT');
+  });
+
+  it('a no-op edit does not self-conflict (excludeId), and a cancelled booking frees the teacher', async () => {
+    const contact = await createContact();
+    const slot = nextSlot();
+    const b1 = await createStudyBooking(contact.id, { ...slot });
+    // Self: PUT with unchanged time must not 409 against itself.
+    await tick();
+    const put = await getResponse(
+      handlers,
+      req('PUT', `/bookings/${b1.id}`, { editReason: 'no-op edit' }, 'u-michael'),
+    );
+    expect(put!.status).toBe(200);
+    // Cancel b1 → the same teacher/slot becomes bookable again.
+    await tick();
+    const cancel = await getResponse(
+      handlers,
+      req('POST', `/bookings/${b1.id}/cancel`, { reason: 'F6 test' }, 'u-michael'),
+    );
+    expect(cancel!.status).toBe(200);
+    await tick();
+    const res = await getResponse(
+      handlers,
+      req('POST', '/bookings', {
+        areaId: 'area-newport-news',
+        roomId: 'rm-nn-conf',
+        type: BookingType.UNBAPTIZED_CONTACT,
+        activity: 'bible_study',
+        title: 'Rebooked after cancel',
+        createdBy: 'u-mem-1',
+        teacherId: 'u-mem-1',
+        contactId: contact.id,
+        participants: [],
+        ...slot,
+      }),
+    );
+    expect(res!.status).toBe(201);
+  });
+});

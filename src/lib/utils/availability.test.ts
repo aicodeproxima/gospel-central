@@ -189,3 +189,89 @@ describe('findOverlappingBlockedSlot — empty / malformed', () => {
     expect(findOverlappingBlockedSlot(start, end, undefined, [broken])).toBeUndefined();
   });
 });
+
+/**
+ * Phase 4 self-conflict fix: when editing a booking, its OWN time window
+ * must not mark slots occupied — neither via the same-room check nor via
+ * the teacher-busy check. (The old behavior made a teacher-only edit fail
+ * with "time isn't available" because the booking collided with itself.)
+ */
+import { getDaySlots } from './availability';
+import { BookingType, type Booking } from '../types/booking';
+
+const mkBooking = (over: Partial<Booking>): Booking =>
+  ({
+    id: 'b-self',
+    roomId: 'room-1',
+    areaId: 'area-1',
+    type: BookingType.UNBAPTIZED_CONTACT,
+    title: 'Study: Self',
+    startTime: '2026-05-12T10:00:00',
+    endTime: '2026-05-12T11:00:00',
+    createdBy: 'u-1',
+    teacherId: 'teacher-1',
+    participants: [],
+    createdAt: '',
+    updatedAt: '',
+    ...over,
+  }) as Booking;
+
+describe('getDaySlots excludeBookingId (Phase 4 self-conflict fix)', () => {
+  const day = new Date('2026-05-12T00:00:00');
+  const own = mkBooking({});
+
+  test('edit-same-slot: own window occupies WITHOUT exclude, frees WITH it', () => {
+    const before = getDaySlots(day, 'room-1', [own]);
+    const at10 = before.find((s) => s.hour === 10 && s.minute === 0)!;
+    expect(at10.occupied).toBe(true);
+
+    const after = getDaySlots(day, 'room-1', [own], { excludeBookingId: 'b-self' });
+    expect(after.find((s) => s.hour === 10 && s.minute === 0)!.occupied).toBe(false);
+    expect(after.find((s) => s.hour === 10 && s.minute === 30)!.occupied).toBe(false);
+  });
+
+  test('teacher-swap: own window does not mark the incoming teacher busy, other bookings still do', () => {
+    // The edited booking sits in room-1 at 10:00; the NEW teacher also has a
+    // REAL other booking at 14:00 in another room, which must stay busy.
+    const otherBusy = mkBooking({
+      id: 'b-other',
+      roomId: 'room-9',
+      teacherId: 'teacher-2',
+      startTime: '2026-05-12T14:00:00',
+      endTime: '2026-05-12T15:00:00',
+    });
+    const editedNowTeacher2 = mkBooking({ teacherId: 'teacher-2' });
+    const slots = getDaySlots(day, 'room-1', [editedNowTeacher2, otherBusy], {
+      teacherId: 'teacher-2',
+      teacherBookings: [editedNowTeacher2, otherBusy],
+      excludeBookingId: 'b-self',
+    });
+    // Own 10:00 window: free (no self-conflict on the teacher axis either).
+    expect(slots.find((s) => s.hour === 10 && s.minute === 0)!.occupied).toBe(false);
+    // The teacher's genuinely-other booking at 14:00 still blocks.
+    const at14 = slots.find((s) => s.hour === 14 && s.minute === 0)!;
+    expect(at14.occupied).toBe(true);
+    expect(at14.teacherBusy).toBe(true);
+  });
+
+  test('exclude of a non-matching id changes nothing', () => {
+    const slots = getDaySlots(day, 'room-1', [own], { excludeBookingId: 'b-unrelated' });
+    expect(slots.find((s) => s.hour === 10 && s.minute === 0)!.occupied).toBe(true);
+  });
+});
+
+describe('getDaySlots ignores soft-cancelled bookings (ultracode-gate F5)', () => {
+  const day = new Date('2026-05-12T00:00:00');
+
+  test('a cancelled booking frees its room slot AND its teacher', () => {
+    const cancelled = mkBooking({ id: 'b-cxl', status: 'cancelled' } as Partial<Booking>);
+    const roomSlots = getDaySlots(day, 'room-1', [cancelled]);
+    expect(roomSlots.find((s) => s.hour === 10 && s.minute === 0)!.occupied).toBe(false);
+
+    const teacherSlots = getDaySlots(day, 'room-other', [cancelled], {
+      teacherId: 'teacher-1',
+      teacherBookings: [cancelled],
+    });
+    expect(teacherSlots.find((s) => s.hour === 10 && s.minute === 0)!.occupied).toBe(false);
+  });
+});
