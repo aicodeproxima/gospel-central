@@ -34,21 +34,32 @@
 >   borders + 4 statuses); confirm-step status controls gated canSetBookingStatus (verified on prod:
 >   member negative + admin No-Show transition e2e); gender editable (Settings + EditUserDialog,
 >   handler 400-guard); Day+Week header/body = ONE grid + subgrid rows (0px stagger at hostile
->   widths); `bookingStatusI18nKey()` helper. Suite 426/7 todo; e2e booking 5/5, mobile 14/14,
->   visual 6/6 (3% tolerance absorbed deltas — baselines unchanged).
+>   widths); `bookingStatusI18nKey()` helper.
+> - **Phase 4** wizard (deployed `2e15dfd`; ledger has the full ultracode-gate record): NEW
+>   WhenStep.tsx (Compact Time Range asset) + activity picker folded onto the always-first When
+>   page; steps = when→room→leader→contact→subject→confirm (study, 6) / 4 non-study; duration
+>   selector GONE (derives from the picked start→end range); slot-click prefills day+START only;
+>   self-conflict fix (getDaySlots excludeBookingId) — teacher-only edit VERIFIED saving on prod;
+>   baptized in-person now stores BAPTIZED_IN_PERSON; room step range-gates rooms, leader step
+>   busy-gates teachers; NEW server TEACHER_CONFLICT 409 (POST+PUT — cross-area teacher
+>   double-booking had NO catching layer); getDaySlots frees cancelled windows; formComplete gate
+>   on Create/Save; cancel-overlay stale-state fix; step-badge/X overlap fixed; e2e/booking.spec
+>   rewritten (7 tests) + wizard-when visual baselines (1440/412/275) COMMITTED. Suite 440/7 todo.
+>   The user's own commit `1e2db93` (Settings toggle-to-revert swatches) rode this deploy train.
 >
-> **NEXT: Phase 4 — Booking wizard** (routing rows): WhenStep.tsx from the "Booking When - Compact
-> Time Range" asset → sonnet FIRST (asset path + `{startTime,endTime,durationMinutes}` contract +
-> CSS-var theming inlined), escalate opus only on failed diff review; stepsNeeded machine
-> restructure + slot-click prefill rewiring → Fable inline (highest regression risk, 1112-line
-> flow); self-conflict fix CLIENT-SIDE ONLY (`excludeBookingId` into availability.ts getDaySlots +
-> wizard daySlots memo/probe/range checks — the server PUT half is ALREADY FIXED, don't
-> re-investigate) → Fable inline; step-counter/X overlap at 275px → sonnet; e2e/booking.spec
-> rewrite for the new flow → sonnet; phase gate = **ultracode** multi-lens booking regression
-> verify (create / edit-teacher-swap / cancel-restore / conflict lenses, opus verifiers). Wizard
-> gotchas that survive Phase 3: local-build version.json mismatch makes the UpdateBanner cover the
-> topbar in local e2e (run `node scripts/generate-version.mjs` first); prod /version.json is
-> pretty-printed (multi-line — don't single-line-grep it).
+> **NEXT: Phase 5 — Contacts page + contact details** (routing rows): Decision-10 permissions +
+> matrix tests + PERMISSIONS.md + bulk-delete gating → **Fable inline (NON-DELEGABLE)**; ContactCard
+> rebuild from `Assets/crm-contact-card-compact-grid.html` → sonnet; text-match.ts + HighlightedText
+> + unit tests → sonnet; scoped field search + leader-name filters → same sonnet cluster;
+> ContactDetailDialog (850-line multi-mode: curriculum checklist blue/purple, GL/TL fields, status
+> badges, Combobox edit fields) → **opus**; ContactForm teacher field + ImportCSV/Table re-key →
+> sonnet; conversion retention (retainUntil + handler + GL+ controls) → Fable inline; contacts CSV
+> export becomes GL+ (Decision 13); phase gate = **ultracode** adversarial permission verify
+> (member-bypass refuters via card/table/kanban-drag/bulk/API paths) + Fable browser pass.
+> Operational gotchas: run `node scripts/generate-version.mjs` before local e2e (UpdateBanner
+> overlay intercepts topbar clicks on version mismatch); prod /version.json is PRETTY-PRINTED
+> (multi-line — don't single-line-grep it); stale chrome-devtools-MCP Chrome can hold the profile
+> lock across sessions (kill only PIDs whose CommandLine matches chrome-devtools-mcp\chrome-profile).
 >
 > **Session-2 operational notes:** DESKTOP FREEZE LIFTED (verify 3 widths: ≥1280 / 412×915 /
 > 275×596@5.24). Frontend-to-main deploys are user-authorized but the permission classifier demands
