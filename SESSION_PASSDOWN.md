@@ -61,7 +61,36 @@
 >   + a defensive `canEdit` prop on ContactForm; assigned-teacher options scoped to manageable ∪
 >   self. Suite 459/7 todo; e2e chromium 51 + mobile 14.
 >
-> **NEXT: Phase 6 — Groups** (3 committable milestones; routing rows): **G1 quick wins** (list-view
+> - **Phase 6 G1+G2** groups (deployed `2758eab`; verified on prod): List view is now the DEFAULT +
+>   first in the toggle (`groupsDefaultView` pref, default 'list', one-time legacy-localStorage
+>   migration); Search/Jump auto-EXPAND the found person (`expandPath`); clickable Student-Pipeline
+>   sections (6 statuses + Primary Curriculum Foundation-complete/In-Growth + Study Milestones 1-4/5-10
+>   + Baptism Readiness) and Teacher-Metrics cells → shared `ContactListPopup` → existing
+>   ContactDetailDialog; "Baptized Since Studying" is now n/m; org-metrics gained totalMembers +
+>   totalContacts; teacher-header/toolbar overlap fixed. **Semantic correction (user, 2026-07-04):** a
+>   contact's "Branches" = up-to-3 PREACHING PARTNERS (`preachingPartnerIds`), NOT church — Branch
+>   search + All-Branches filter now match partner names; church stays under All fields (in CLAUDE.md).
+>   Suite 473/7 todo.
+>
+> **LEDGER NOTE:** `OVERHAUL_PROGRESS.md` (untracked-local) was LOST in a branch switch this session and
+> **reconstructed from `git log`** — it's a table of the deployed phase SHAs + the full Phase-6 G1+G2
+> entry. git is the true record; per-phase pre-6 detail lives in the commit messages.
+>
+> **DROPDOWN-TEAM WIP (do NOT touch, do NOT commit):** a separate human-directed team has UNCOMMITTED
+> work on main touching base-ui portal counter-zoom + PredictiveInput rewrite — 9 files
+> (`src/app/globals.css`, `src/components/shared/{Combobox,PredictiveInput,StepSubjectPicker}.tsx`,
+> `src/components/ui/{dropdown-menu,popover,select}.tsx`, `src/components/calendar/BookingSearchBar.tsx`,
+> `src/components/contacts/ContactCard.tsx`) + `tmp/`. Stage every commit by EXPLICIT path to exclude
+> them. When they land, re-run full e2e/visual (shared UI primitives).
+>
+> **NEXT: Phase 6 G3 is BLOCKED on assets** — the 5 "Branch Rail" node design assets are NOT in the
+> repo (`Assets/` = dropdown-team playwright logs only; `Organization Tree Ideas/` gone). Ask the user
+> to point at them OR approve deriving from the plan text + Decision-12. G3 also does: tree-layout gap
+> constants + collision tests, connector z-order (scene layer, NEVER CSS z-index in drei Html),
+> contacts-under-ANY-role (buildOrgTree + seed a 15-contact persona + org-tree.test case) → mostly
+> Fable inline (R3), opus prototype-first, ultracode judge.
+>
+> **Phase 6 G1/G2 detail below (ROUTING REFERENCE — G1/G2 are DONE; kept for G3 + context): G1 quick wins** (list-view
 > first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
 > once; teacher-performance header vs toolbar overlap at ~640–900px; re-verify the Phase-0
 > contact-delete + Groups-icon commit across tree AND list views) → sonnet. **G2** (starts AFTER
