@@ -47,19 +47,47 @@
 >   rewritten (7 tests) + wizard-when visual baselines (1440/412/275) COMMITTED. Suite 440/7 todo.
 >   The user's own commit `1e2db93` (Settings toggle-to-revert swatches) rode this deploy train.
 >
-> **NEXT: Phase 5 — Contacts page + contact details** (routing rows): Decision-10 permissions +
-> matrix tests + PERMISSIONS.md + bulk-delete gating → **Fable inline (NON-DELEGABLE)**; ContactCard
-> rebuild from `Assets/crm-contact-card-compact-grid.html` → sonnet; text-match.ts + HighlightedText
-> + unit tests → sonnet; scoped field search + leader-name filters → same sonnet cluster;
-> ContactDetailDialog (850-line multi-mode: curriculum checklist blue/purple, GL/TL fields, status
-> badges, Combobox edit fields) → **opus**; ContactForm teacher field + ImportCSV/Table re-key →
-> sonnet; conversion retention (retainUntil + handler + GL+ controls) → Fable inline; contacts CSV
-> export becomes GL+ (Decision 13); phase gate = **ultracode** adversarial permission verify
-> (member-bypass refuters via card/table/kanban-drag/bulk/API paths) + Fable browser pass.
-> Operational gotchas: run `node scripts/generate-version.mjs` before local e2e (UpdateBanner
-> overlay intercepts topbar clicks on version mismatch); prod /version.json is PRETTY-PRINTED
-> (multi-line — don't single-line-grep it); stale chrome-devtools-MCP Chrome can hold the profile
-> lock across sessions (kill only PIDs whose CommandLine matches chrome-devtools-mcp\chrome-profile).
+> - **Phase 5** contacts (deployed `0cd6905`; full ultracode-refuter record in the ledger):
+>   Decision-10 permissions — members edit/delete OWN CREATIONS only (assigned-teacher = view-only),
+>   TL+ write MANAGEABLE scope (creator OR teacher; BL own-branch; Overseer/Dev all); new
+>   canDeleteContact + canManageRetention (GL+); page/admin write gates use buildManageableScope;
+>   bulk stage/delete + kanban drag gate per row; Decision-13 export = GL+ (canExportMemberList).
+>   Prefix search (text-match.ts prefixMatch + HighlightedText) with matched-letter highlighting +
+>   scoped-field dropdown + leader-name filters; ContactCard rebuilt from crm-compact-grid asset;
+>   ContactDetailDialog = main-branch purple + derived GL/TL + 6-status badges + 35-study
+>   Foundation/Growth checklist (click-toggle, edit-gated) + retention section; convert stamps
+>   retainUntil (+6mo), GET flags retentionExpired. **CRITICAL refuter fix (verified on prod):** the
+>   `?edit=<id>` deep-link opened the ungated ContactForm for ANY contact — now gated on canEditAny
+>   + a defensive `canEdit` prop on ContactForm; assigned-teacher options scoped to manageable ∪
+>   self. Suite 459/7 todo; e2e chromium 51 + mobile 14.
+>
+> **NEXT: Phase 6 — Groups** (3 committable milestones; routing rows): **G1 quick wins** (list-view
+> first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
+> once; teacher-performance header vs toolbar overlap at ~640–900px; re-verify the Phase-0
+> contact-delete + Groups-icon commit across tree AND list views) → sonnet. **G2** (starts AFTER
+> Phase 5 — popups reuse the now-redesigned ContactDetailDialog): StudentPipeline re-key to 6
+> statuses + clickable pipelines w/ contact-list popups (Primary Curriculum ×2 / studies 1–4 /
+> studies 5–10 / baptism-readiness), TeacherMetrics "1/5" count + clickable icons → shared popup,
+> org-metrics.ts member+contact totals per TL+ leader (D1 MUST say: totalSessions is already
+> Completed-gated — extend from contact fields, never recompute from raw bookings), org search
+> auto-expand → sonnet. **G3** node redesign PROTOTYPE-FIRST: Branch Rail assets for
+> Overseer/GL/TL/Member/Contact + derived BL variant (Decision 12) → ONE role opus, then Fable
+> in-browser + ultracode judge, then sonnet converts the rest; tree-layout gap constants + collision
+> tests + connector z-order (scene layer, NEVER CSS z-index in Html) + contacts-under-ANY-role
+> (buildOrgTree; seed a 15-contact persona; org-tree.test case) → **Fable inline (R3 scene-core)**.
+> Gate: Fable browser at 3 widths. **CRITICAL /groups gotcha: keep chrome-devtools/Chrome MCP OFF
+> repeated /groups reloads — 2 WebGL contexts exhaust the GPU pool browser-wide → node cards stop
+> mounting; recover via a separate Chrome process. Use Playwright DOM .click() on WebGL, not
+> browser_click (drag-start).**
+> Operational gotchas (carry): run `node scripts/generate-version.mjs` before local e2e (UpdateBanner
+> overlay intercepts topbar clicks on version mismatch, and it caused a false e2e failure this
+> session); prod /version.json is PRETTY-PRINTED (multi-line — don't single-line-grep it; parse with
+> python json); stale chrome-devtools-MCP Chrome can hold the profile lock across sessions (kill only
+> PIDs whose CommandLine matches chrome-devtools-mcp\chrome-profile); MSW is SW-free/in-browser so a
+> Node fetch to `/api/*` returns the HTML shell, not JSON — probe via an in-page evaluate, never node;
+> React controlled inputs ignore synthetic `.value=`+input events in devtools — use the native value
+> setter or a fresh `?q=` URL load to test filters; the two `docs/qa/propagation*.json` files are
+> per-run artifacts — never commit them.
 >
 > **Session-2 operational notes:** DESKTOP FREEZE LIFTED (verify 3 widths: ≥1280 / 412×915 /
 > 275×596@5.24). Frontend-to-main deploys are user-authorized but the permission classifier demands
