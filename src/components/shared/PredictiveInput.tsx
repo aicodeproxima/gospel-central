@@ -62,7 +62,11 @@ export const PredictiveInput = forwardRef<HTMLInputElement, PredictiveInputProps
         <Input
           ref={ref}
           value={value}
-          onChange={onChange}
+          onChange={(e) => {
+            setFocused(true);
+            setActiveIndex(0);
+            onChange?.(e);
+          }}
           onFocus={(e) => {
             setFocused(true);
             setActiveIndex(0);
