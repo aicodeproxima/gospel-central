@@ -50,6 +50,39 @@
 > .click() no-ops). Suite at session end: 424 pass / 7 todo; branch ~60 commits ahead of its origin
 > counterpart (intentional — prod = origin/main).
 
+> **MULTI-MODEL ORCHESTRATION — HOW IT ACTUALLY RUNS (operational card; full protocol = the plan's
+> "Model routing & delegation protocol" section, which WINS on any conflict):**
+> - **Session prerequisite:** the MAIN LOOP must be **Fable 5 with ultracode on** (user sets via
+>   /model; the orchestrator cannot switch its own model mid-session). If you cold-start on a lower
+>   model, tell the user before doing overhaul work — the whole routing design assumes the smartest
+>   model holds full context and reviews everything.
+> - **Dispatch mechanics:** cheaper tiers run as SUBAGENTS via the Agent tool's `model` param or
+>   Workflow `agent(prompt, {model, effort})` — valid values `fable` / `opus` / `sonnet` / `haiku`.
+>   KNOWN GOTCHA: subagents cannot see these params on their own tool surface — a subagent auditing
+>   the harness will confidently (and wrongly) report they don't exist; it happened, it was refuted
+>   with run metadata. Don't let an agent talk you out of the routing table.
+> - **Who does what:** Fable inline = permissions/matrix/PERMISSIONS.md, persisted-store shapes &
+>   migrations, seed identities, ANY package.json dependency add, all git/deploys, ledger/passdown,
+>   all diff reviews + browser verification, and anything ≤2 files/<50 lines (D8 — dispatch overhead
+>   beats savings on trivia). sonnet = spec'd volume implementation (one ≤3-file cluster per agent,
+>   disjoint files across parallel agents). opus = the genuinely hard components (per routing table).
+>   haiku = READ-ONLY enumeration; its reports get re-grepped before anyone edits from them.
+> - **The gate every delegated edit passes (D3), in order:** agent returns → `git status` (no
+>   unexpected index/HEAD movement; agents NEVER commit) → hunk-by-hunk `git diff` review → tsc +
+>   FULL vitest → if any `e2e/**` file was touched, RUN the touched spec (e2e is invisible to
+>   vitest) → if `src/lib/i18n.ts` was touched, the en/es parity test must be in the run. Failed
+>   gate = fix inline or re-dispatch WITH the failure text; never accept an agent's own "it's green".
+> - **No agent→agent handoffs (D5):** sequential work routes through the orchestrator, which
+>   re-verifies outputs against the repo first. Before ANY dispatch, re-read that item's ROW in the
+>   plan's routing table (D6) — never dispatch from memory of it.
+> - **Ultracode (Fable + Workflow fan-outs)** is reserved for: the 4 marked phase gates (Phase 4
+>   booking-regression, Phase 5 permission-bypass refuters, Phase 6-G3 prototype judge, Phase 8
+>   close-out audit) and plan→grill→decide on real design forks. Two precedents shipped this
+>   session: the 2-church seed design (3 designers → 3 adversarial grills → judge, 7 agents) and
+>   the routing-protocol grill itself (opus risk lens + sonnet economy lens; 7 risk fixes applied,
+>   1 economy claim refuted). Phase 2 ran fully under this protocol — the per-item tier record is
+>   in the ledger and each phase MUST append one (D6).
+
 > This is the action-oriented handoff. `HANDOFF.md` is the authoritative packet (Mike + new devs); `MOBILE_AUDIT_PROGRESS.md` is the durable historical ledger. Where any doc disagrees with code, **code wins** (`src/lib/api/*`, `src/mocks/handlers.ts`). Trust `git` + live browser over any SHA/claim written here.
 
 ---
