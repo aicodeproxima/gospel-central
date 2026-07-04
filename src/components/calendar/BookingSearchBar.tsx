@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, ChevronRight, CalendarDays, Clock, MapPin } from 'lucide-react';
 import { format, parseISO, compareAsc } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -51,7 +52,13 @@ export function BookingSearchBar({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
+  const [panelRect, setPanelRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Build an index of teachers who have at least one booking in the
   // currently loaded bookings list. Keyed by userId so duplicates collapse.
@@ -90,22 +97,48 @@ export function BookingSearchBar({
         e.roleLabel.toLowerCase().includes(q),
     );
   }, [index, query]);
+  const safeActiveIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
+
+  useEffect(() => {
+    if (!open) return;
+    const updateRect = () => {
+      const anchor = containerRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setPanelRect({
+        left: rect.left,
+        top: rect.bottom + 4,
+        width: rect.width,
+      });
+    };
+
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [open, query, results.length]);
 
   // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
+      }
+      if (containerRef.current) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [results]);
 
   const handleSelect = (entry: TeacherEntry) => {
     setSelectedTeacherId(entry.userId);
@@ -116,13 +149,13 @@ export function BookingSearchBar({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+      setActiveIndex(Math.min(safeActiveIndex + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex(Math.max(safeActiveIndex - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (results[activeIndex]) handleSelect(results[activeIndex]);
+      if (results[safeActiveIndex]) handleSelect(results[safeActiveIndex]);
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
@@ -172,8 +205,16 @@ export function BookingSearchBar({
           )}
         </div>
 
-        {open && (
-          <div className="absolute left-0 right-0 top-full mt-1 rounded-md border border-border bg-popover shadow-xl z-50 overflow-hidden">
+        {typeof document !== 'undefined' && open && panelRect && createPortal(
+          <div
+            ref={panelRef}
+            className="fixed z-[60] overflow-hidden rounded-md border border-border bg-popover shadow-xl ring-1 ring-foreground/10"
+            style={{
+              left: panelRect.left,
+              top: panelRect.top,
+              width: panelRect.width,
+            }}
+          >
             {results.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                 {index.length === 0
@@ -183,7 +224,7 @@ export function BookingSearchBar({
             ) : (
               <ul className="max-h-80 overflow-y-auto py-1">
                 {results.map((entry, i) => {
-                  const isActive = i === activeIndex;
+                  const isActive = i === safeActiveIndex;
                   return (
                     <li key={entry.userId}>
                       <button
@@ -215,7 +256,8 @@ export function BookingSearchBar({
                 })}
               </ul>
             )}
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 
