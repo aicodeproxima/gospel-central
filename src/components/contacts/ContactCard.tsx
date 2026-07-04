@@ -8,7 +8,7 @@ import type { Contact, User } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { getAssignedTeacher, initialsOf, stepLabel } from '@/lib/utils/contact-helpers';
+import { getAssignedTeacher, initialsOf, stepLabel, resolvePartnerNames } from '@/lib/utils/contact-helpers';
 import { prefixMatch } from '@/lib/utils/text-match';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 
@@ -43,11 +43,9 @@ function ContactCardInner({
   const step = stepLabel(contact);
   const fullName = `${contact.firstName} ${contact.lastName}`.trim();
 
-  // Branches: reuse whatever branch/group display the card has today
-  // (contact.groupName). First branch gets the "main branch" purple highlight
-  // per the packet; there is currently only ever one branch value available
-  // to the card (no branches[] list on Contact), so the list is length <= 1.
-  const branches = contact.groupName ? [contact.groupName] : [];
+  // Branches: the contact's preaching partners (up to 3). The first partner
+  // is the "main branch" and is highlighted purple per the packet.
+  const branches = resolvePartnerNames(users, contact).slice(0, 3);
 
   const nameRanges = query ? prefixMatch(fullName, query) : null;
 
