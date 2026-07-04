@@ -56,6 +56,7 @@ export function BookingSearchBar({
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownRect, setDropdownRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const { time } = useTimeFormat();
@@ -122,8 +123,18 @@ export function BookingSearchBar({
   useLayoutEffect(() => {
     if (!open) return;
     const update = () => {
-      const r = containerRef.current?.getBoundingClientRect();
-      if (r) setDropdownRect({ left: r.left, top: r.bottom, width: r.width });
+      const r = inputRef.current?.getBoundingClientRect()
+        ?? containerRef.current?.getBoundingClientRect();
+      if (r) {
+        const rootZoom = Number.parseFloat(
+          window.getComputedStyle(document.documentElement).zoom || '1',
+        ) || 1;
+        setDropdownRect({
+          left: r.left / rootZoom,
+          top: r.bottom / rootZoom,
+          width: r.width / rootZoom,
+        });
+      }
     };
     update();
     window.addEventListener('resize', update);
@@ -134,9 +145,7 @@ export function BookingSearchBar({
     };
   }, [open]);
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [results]);
+  const safeActiveIndex = results.length === 0 ? -1 : Math.min(activeIndex, results.length - 1);
 
   const handleSelect = (entry: TeacherEntry) => {
     setSelectedTeacherId(entry.userId);
@@ -147,13 +156,13 @@ export function BookingSearchBar({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+      if (results.length > 0) setActiveIndex(Math.min(safeActiveIndex + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      if (results.length > 0) setActiveIndex(Math.max(safeActiveIndex - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (results[activeIndex]) handleSelect(results[activeIndex]);
+      if (results[safeActiveIndex]) handleSelect(results[safeActiveIndex]);
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
@@ -176,9 +185,11 @@ export function BookingSearchBar({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
+            ref={inputRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
+              setActiveIndex(0);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -218,7 +229,7 @@ export function BookingSearchBar({
             ) : (
               <ul className="max-h-80 overflow-y-auto py-1">
                 {results.map((entry, i) => {
-                  const isActive = i === activeIndex;
+                  const isActive = i === safeActiveIndex;
                   return (
                     <li key={entry.userId}>
                       <button

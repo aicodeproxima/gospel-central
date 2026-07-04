@@ -73,6 +73,15 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
     setQuery('');
   };
 
+  const handleSuggestionSelect = (subject: string) => {
+    const match = CURRICULUM.find(
+      (s) => s.title.toLowerCase() === subject.trim().toLowerCase(),
+    );
+    if (match) toggleSubject(match.title);
+    else if (!selectedSet.has(subject)) onChange([...value, subject]);
+    setQuery('');
+  };
+
   const removeSelected = (title: string) => {
     onChange(value.filter((v) => v !== title));
   };
@@ -86,6 +95,7 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
             suggestions={allTitles}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onSuggestionSelect={handleSuggestionSelect}
             placeholder={placeholder || 'Type or pick below'}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

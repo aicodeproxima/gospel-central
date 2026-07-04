@@ -61,7 +61,7 @@ function SelectContent({
   children,
   side = "bottom",
   sideOffset = 4,
-  align = "center",
+  align = "start",
   alignOffset = 0,
   // 2026-07 overhaul (packet: Contacts "Filter/Sort design issue"): base-ui's
   // default `alignItemWithTrigger` renders the popup OVER the trigger

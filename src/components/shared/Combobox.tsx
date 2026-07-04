@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export interface ComboOption {
@@ -75,7 +74,7 @@ export function Combobox({
         )}
       </div>
 
-      <div className="max-h-72 overflow-y-auto p-1">
+      <div className="max-h-72 overflow-y-auto px-2 pb-2 pt-1">
         {/* Add new row at TOP */}
         {allowAddNew && query.trim() && onAddNew && (
           <button
