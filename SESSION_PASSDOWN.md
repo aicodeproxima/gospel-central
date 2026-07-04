@@ -28,14 +28,27 @@
 >   first; Baptisms KPI = current MONTH (church-scoped). Seeded baptisms are 2024-dated → prod
 >   correctly shows 0 baptisms/empty fruit board until real in-window fruit.
 > - Calendar legend: "Baptized Persecuted" removed.
+> - **Phase 3** calendar (deployed `bb92f07`): BookingCard = teacher-gender bg (blue/pink) + baptism
+>   top-border (contact LIVE stage) + C./T.("L.")/activity/time/status lines; Day/Week/Month/Agenda/
+>   SearchBar re-keyed (calendar is BOOKING_TYPE_CONFIG-free); legend = 8 chips (2 genders + 2
+>   borders + 4 statuses); confirm-step status controls gated canSetBookingStatus (verified on prod:
+>   member negative + admin No-Show transition e2e); gender editable (Settings + EditUserDialog,
+>   handler 400-guard); Day+Week header/body = ONE grid + subgrid rows (0px stagger at hostile
+>   widths); `bookingStatusI18nKey()` helper. Suite 426/7 todo; e2e booking 5/5, mobile 14/14,
+>   visual 6/6 (3% tolerance absorbed deltas — baselines unchanged).
 >
-> **NEXT: Phase 3 — Calendar** (routing table rows): BookingCard rewrite is NOT a pure re-key — the
-> D1 prompt must carry the PROP CONTRACT (parents resolve teacher gender + contact live-baptism and
-> pass e.g. `teacherGender`/`contactBaptized` down; DayView/WeekView/AgendaView in scope; AgendaView
-> has a named NEVER-REBUILD DON'T); status controls in the detail dialog = Fable inline
-> (canSetBookingStatus exists; `bookingsApi.setBookingStatus()` ready); day-view column alignment →
-> opus; gender editability (Settings profile + admin EditUserDialog) → sonnet; legend rewrite to
-> 2 colors + baptism border + 4 statuses.
+> **NEXT: Phase 4 — Booking wizard** (routing rows): WhenStep.tsx from the "Booking When - Compact
+> Time Range" asset → sonnet FIRST (asset path + `{startTime,endTime,durationMinutes}` contract +
+> CSS-var theming inlined), escalate opus only on failed diff review; stepsNeeded machine
+> restructure + slot-click prefill rewiring → Fable inline (highest regression risk, 1112-line
+> flow); self-conflict fix CLIENT-SIDE ONLY (`excludeBookingId` into availability.ts getDaySlots +
+> wizard daySlots memo/probe/range checks — the server PUT half is ALREADY FIXED, don't
+> re-investigate) → Fable inline; step-counter/X overlap at 275px → sonnet; e2e/booking.spec
+> rewrite for the new flow → sonnet; phase gate = **ultracode** multi-lens booking regression
+> verify (create / edit-teacher-swap / cancel-restore / conflict lenses, opus verifiers). Wizard
+> gotchas that survive Phase 3: local-build version.json mismatch makes the UpdateBanner cover the
+> topbar in local e2e (run `node scripts/generate-version.mjs` first); prod /version.json is
+> pretty-printed (multi-line — don't single-line-grep it).
 >
 > **Session-2 operational notes:** DESKTOP FREEZE LIFTED (verify 3 widths: ≥1280 / 412×915 /
 > 275×596@5.24). Frontend-to-main deploys are user-authorized but the permission classifier demands
