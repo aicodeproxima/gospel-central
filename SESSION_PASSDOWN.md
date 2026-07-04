@@ -71,17 +71,50 @@
 >   contact's "Branches" = up-to-3 PREACHING PARTNERS (`preachingPartnerIds`), NOT church — Branch
 >   search + All-Branches filter now match partner names; church stays under All fields (in CLAUDE.md).
 >   Suite 473/7 todo.
+> - **ContactCard "Branches" = preaching partners on the cards** (deployed `c282893`): my Phase-5
+>   ContactCard had shipped `contact.groupName` (the church/LOCATION) under "Branches"; correct display
+>   is `resolvePartnerNames(users, contact).slice(0,3)` with partner[0] purple (main branch). VERIFIED
+>   on prod (Aaron -> Patrobas[purple], Agabus, Simeon Niger; no church names). NOTE: the card resolves
+>   partners via the `users` list ONLY -> free-text / custom-entity partners won't render on the card
+>   (the detail dialog + contacts search index resolve those too); fine for seed data (all real users).
 >
 > **LEDGER NOTE:** `OVERHAUL_PROGRESS.md` (untracked-local) was LOST in a branch switch this session and
 > **reconstructed from `git log`** — it's a table of the deployed phase SHAs + the full Phase-6 G1+G2
 > entry. git is the true record; per-phase pre-6 detail lives in the commit messages.
 >
-> **DROPDOWN-TEAM WIP (do NOT touch, do NOT commit):** a separate human-directed team has UNCOMMITTED
-> work on main touching base-ui portal counter-zoom + PredictiveInput rewrite — 9 files
-> (`src/app/globals.css`, `src/components/shared/{Combobox,PredictiveInput,StepSubjectPicker}.tsx`,
-> `src/components/ui/{dropdown-menu,popover,select}.tsx`, `src/components/calendar/BookingSearchBar.tsx`,
-> `src/components/contacts/ContactCard.tsx`) + `tmp/`. Stage every commit by EXPLICIT path to exclude
-> them. When they land, re-run full e2e/visual (shared UI primitives).
+> **DROPDOWN WORK — the full story (was mislabeled "do-not-touch WIP"; user asked me to fix + ship it):**
+> A prior team's dropdown/alignment work sat UNCOMMITTED in the working tree and the user believed it
+> was on prod. FORENSICS (this session): it was NEVER committed to ANY branch / stash / dangling commit
+> (searched `git log --all -S floating-portal-zoom` = empty) — those agents verified against
+> `localhost:3000` (proven by their console logs in `Assets/Kimi Assets/.playwright-mcp`), so it worked
+> locally but the commit+push never happened. NOTHING was lost.
+> - **ContactCard partners fix: SHIPPED** (`c282893`, on prod — see DONE list above).
+> - **The base-ui portal counter-zoom was BROKEN and is being replaced.** ROOT CAUSE (verified by live
+>   DOM injection on prod + a built localhost repro): `:root{zoom:0.9}` at ≥1280 + a
+>   `zoom:1.1111` (`--floating-portal-zoom`) on the base-ui **Portal** wrapper. The Portal wraps
+>   base-ui's `Positioner`, whose fixed/absolute coords the CSS `zoom` then SCALES — throwing Select/
+>   Popover/DropdownMenu popups off their anchor (EditUserDialog Role options rendered at y -329,
+>   entirely off-screen top; E4 e2e timed out). Below 1280 (zoom 1) it was fine; prod (no counter-zoom)
+>   positions correctly. **FIX (in working tree, NOT yet committed at this pause):** removed the
+>   `style={{ zoom }}` from all 3 base-ui portals (select/popover/dropdown-menu) + deleted the orphaned
+>   `--floating-portal-zoom` var from globals.css. popover.tsx & dropdown-menu.tsx are now BYTE-IDENTICAL
+>   to prod; select.tsx keeps only `align:"start"`. VERIFIED on built localhost @1440×676 (the broken
+>   dims): Role options now y 310–436, all on-screen, click selects "Branch Leader". Considered
+>   moving the zoom to the Popup instead (keeps 100% size) but rejected it — it inflates width 11% and
+>   risks bottom-overflow via `max-h-(--available-height)`; removal is the clean, prod-proven, no-side-
+>   effect fix. Dropdowns render at 90% (uniform with the whole zoomed app).
+> - **KEPT (genuine improvements, still in tree, shipping WITH the fix):** BookingSearchBar's OWN-portal
+>   `/rootZoom` positioning + keyboard-nav hardening; Combobox padding; PredictiveInput app-rendered-
+>   suggestions rewrite; StepSubjectPicker suggestion-select; select.tsx `align:"start"`.
+> - **PENDING at this pause (RESUME HERE):** e2e chromium 50 pass + **E4 NOW PASSES**; the ONLY red is
+>   the `wizard-when-desktop.png` VISUAL baseline (6% diff) — the diff image is a uniform sub-pixel
+>   SHIFT of the whole When dialog (content intact, not a broken layout — a zoom:0.9 re-baseline, not a
+>   regression). NEXT STEPS: regen visual baselines (`npx playwright test e2e/visual.spec.ts
+>   --project=chromium --update-snapshots`) → re-run visual+mobile green → commit the dropdown fix by
+>   EXPLICIT path (globals.css, ui/{select,popover,dropdown-menu}.tsx, shared/{Combobox,PredictiveInput,
+>   StepSubjectPicker}.tsx, calendar/BookingSearchBar.tsx — NOT `tmp/` or the qa/propagation*.json
+>   artifacts) → deploy → prod-verify dropdowns at ≥1280 across Select/Popover/DropdownMenu/Combobox/
+>   PredictiveInput/BookingSearchBar. Then update ledger.
 >
 > **NEXT: Phase 6 G3 is BLOCKED on assets** — the 5 "Branch Rail" node design assets are NOT in the
 > repo (`Assets/` = dropdown-team playwright logs only; `Organization Tree Ideas/` gone). Ask the user
