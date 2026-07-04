@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, Users, Contact, BookOpen, Settings, Shield } from 'lucide-react';
+import { Calendar, Users, Contact, BookOpen, Settings, Shield, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { canSeeAdminPage } from '@/lib/utils/permissions';
+import { useAlerts } from '@/lib/hooks/use-alerts';
 
 interface NavItem {
   href: string;
@@ -19,6 +20,7 @@ const baseItems: NavItem[] = [
   { href: '/contacts', label: 'Contacts', icon: Contact },
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/alerts', label: 'Alerts', icon: Bell },
 ];
 
 export function MobileNav() {
@@ -26,6 +28,7 @@ export function MobileNav() {
   // Bug C from Phase 2 audit — Admin link was missing here. Branch Leaders
   // on mobile had no way to reach /admin without typing the URL.
   const user = useAuthStore((s) => s.user);
+  const { unseen } = useAlerts();
   const items: NavItem[] = canSeeAdminPage(user)
     ? [...baseItems, { href: '/admin', label: 'Admin', icon: Shield }]
     : baseItems;
@@ -36,6 +39,7 @@ export function MobileNav() {
         {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
+          const showBadge = item.href === '/alerts' && unseen > 0;
           return (
             <Link
               key={item.href}
@@ -45,7 +49,17 @@ export function MobileNav() {
                 isActive ? 'text-primary' : 'text-muted-foreground'
               )}
             >
-              <Icon className="h-5 w-5" />
+              <span className="relative">
+                <Icon className="h-5 w-5" />
+                {showBadge && (
+                  <span
+                    className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
+                    aria-label={`${unseen} unread alerts`}
+                  >
+                    {unseen > 9 ? '9+' : unseen}
+                  </span>
+                )}
+              </span>
               {item.label}
             </Link>
           );

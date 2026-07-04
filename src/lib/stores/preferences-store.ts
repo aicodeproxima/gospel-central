@@ -199,9 +199,13 @@ export function migratePreferences(
   }
   if (version < 4) {
     p.colorTheme = 'marble';
-    if ((p.previousColorTheme as string | undefined) === 'default') {
-      p.previousColorTheme = 'basic';
-    }
+    // Sanitize the revert-history field too, or a later toggle-to-revert could
+    // strand colorTheme on a literal no longer in the ColorTheme union: rename
+    // the old default → 'basic', and drop the removed 'voronoi'/'smoke'
+    // (null = no revert target, which setColorTheme treats as a no-op).
+    const prev = p.previousColorTheme as string | undefined;
+    if (prev === 'default') p.previousColorTheme = 'basic';
+    else if (prev === 'voronoi' || prev === 'smoke') p.previousColorTheme = null;
   }
   return p as PreferencesState;
 }

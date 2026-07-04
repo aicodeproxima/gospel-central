@@ -20,6 +20,7 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.contacts': 'Contacts',
     'nav.groups': 'Groups',
     'nav.settings': 'Settings',
+    'nav.alerts': 'Alerts',
     'nav.reports': 'Reports',
     'nav.signOut': 'Sign Out',
 
@@ -260,6 +261,8 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.defaultView': 'Default View',
     'settings.timeFormat': 'Time Format',
     'settings.notifications': 'Notifications',
+    'settings.alerts': 'Alerts',
+    'settings.alerts.viewAll': 'View all alerts',
     'settings.notifications.bookingConfirm': 'Booking Confirmations',
     'settings.notifications.bookingConfirmDesc': 'Receive notifications when a booking is confirmed',
     'settings.notifications.bookingCancel': 'Booking Cancellations',
@@ -269,6 +272,16 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.notifications.weeklySummary': 'Weekly Summary',
     'settings.notifications.weeklySummaryDesc': 'Receive a weekly email summary of activity',
     'settings.notifications.deviceNote': 'Your choices are saved on this device. Email and push delivery turn on once the notification service is connected.',
+    'settings.feedback': 'Send Feedback',
+    'settings.feedback.subject': 'Subject',
+    'settings.feedback.category': 'Category',
+    'settings.feedback.message': 'Message',
+    'settings.feedback.send': 'Send',
+    'settings.feedback.sent': 'Thanks — your feedback was received.',
+    'settings.feedback.cat.bug': 'Bug',
+    'settings.feedback.cat.idea': 'Idea',
+    'settings.feedback.cat.question': 'Question',
+    'settings.feedback.cat.other': 'Other',
     'settings.avatar': '3D Avatar',
     'settings.avatarGospel': 'Pick a Gospel Worker avatar to represent you on the Organization tree.',
     'settings.avatarDefault': 'Pick a default character to represent you on the Organization tree.',
@@ -404,6 +417,11 @@ export const translations: Record<string, Record<string, string>> = {
     'bookingType.group_activities': 'Group Activities',
     'bookingType.team_activities': 'Team Activities',
 
+    // ── Alerts (2026-07 overhaul Phase 7) ────────────────────────
+    'alerts.title': 'Alerts',
+    'alerts.empty': 'No alerts yet.',
+    'alerts.settingsHint': 'Manage which alerts you see in Settings.',
+
     // ── Misc ────────────────────────────────────────────────────
     'misc.comingSoon': 'Coming soon',
     'misc.active': 'Active',
@@ -425,6 +443,7 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.contacts': 'Contactos',
     'nav.groups': 'Grupos',
     'nav.settings': 'Ajustes',
+    'nav.alerts': 'Alertas',
     'nav.reports': 'Informes',
     'nav.signOut': 'Cerrar Sesión',
 
@@ -663,6 +682,8 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.defaultView': 'Vista Predeterminada',
     'settings.timeFormat': 'Formato de Hora',
     'settings.notifications': 'Notificaciones',
+    'settings.alerts': 'Alertas',
+    'settings.alerts.viewAll': 'Ver todas las alertas',
     'settings.notifications.bookingConfirm': 'Confirmaciones de Reservas',
     'settings.notifications.bookingConfirmDesc': 'Recibir notificaciones cuando se confirma una reserva',
     'settings.notifications.bookingCancel': 'Cancelaciones de Reservas',
@@ -672,6 +693,16 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.notifications.weeklySummary': 'Resumen Semanal',
     'settings.notifications.weeklySummaryDesc': 'Recibir un resumen semanal por correo de la actividad',
     'settings.notifications.deviceNote': 'Tus elecciones se guardan en este dispositivo. La entrega por correo y notificaciones se activa cuando se conecte el servicio de notificaciones.',
+    'settings.feedback': 'Enviar comentarios',
+    'settings.feedback.subject': 'Asunto',
+    'settings.feedback.category': 'Categoría',
+    'settings.feedback.message': 'Mensaje',
+    'settings.feedback.send': 'Enviar',
+    'settings.feedback.sent': 'Gracias — recibimos tus comentarios.',
+    'settings.feedback.cat.bug': 'Error',
+    'settings.feedback.cat.idea': 'Idea',
+    'settings.feedback.cat.question': 'Pregunta',
+    'settings.feedback.cat.other': 'Otro',
     'settings.avatar': 'Avatar 3D',
     'settings.avatarGospel': 'Elige un avatar de Obrero del Evangelio para representarte en el Árbol de Organización.',
     'settings.avatarDefault': 'Elige un personaje predeterminado para representarte en el Árbol de Organización.',
@@ -804,6 +835,11 @@ export const translations: Record<string, Record<string, string>> = {
     'bookingType.baptized_zoom': 'Contacto Bautizado Zoom',
     'bookingType.group_activities': 'Actividades Grupales',
     'bookingType.team_activities': 'Actividades de Equipo',
+
+    // ── Alerts (2026-07 overhaul Phase 7) ────────────────────────
+    'alerts.title': 'Alertas',
+    'alerts.empty': 'Aún no hay alertas.',
+    'alerts.settingsHint': 'Gestiona qué alertas ves en Ajustes.',
 
     // ── Misc ────────────────────────────────────────────────────
     'misc.comingSoon': 'Próximamente',

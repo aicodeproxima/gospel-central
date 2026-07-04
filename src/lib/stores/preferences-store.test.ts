@@ -125,4 +125,13 @@ describe('migratePreferences — v4 (Marble force + default→basic rename)', ()
     expect(migratePreferences(undefined, 3).colorTheme).toBe('marble');
     expect(migratePreferences({}, 3).colorTheme).toBe('marble');
   });
+
+  test('a removed literal in the revert-history field is sanitized (not stranded)', () => {
+    // previousColorTheme carrying a since-removed palette would otherwise let a
+    // later toggle-to-revert set colorTheme to a value outside the union.
+    expect(migratePreferences({ previousColorTheme: 'voronoi' }, 3).previousColorTheme).toBeNull();
+    expect(migratePreferences({ previousColorTheme: 'smoke' }, 2).previousColorTheme).toBeNull();
+    // a still-valid revert target is preserved
+    expect(migratePreferences({ previousColorTheme: 'ocean' }, 3).previousColorTheme).toBe('ocean');
+  });
 });

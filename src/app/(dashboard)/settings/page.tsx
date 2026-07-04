@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
@@ -48,6 +50,7 @@ import {
   Sparkles,
   Settings2,
   Info,
+  MessageSquare,
 } from 'lucide-react';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { settingsHelp } from '@/components/shared/pageHelp';
@@ -129,6 +132,11 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
 
+  // Feedback (Phase 7 — no network call; Resend delivery deferred)
+  const [feedbackSubject, setFeedbackSubject] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'idea' | 'question' | 'other'>('bug');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+
   // Collapsible
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -193,6 +201,16 @@ export default function SettingsPage() {
     setCurrentPw('');
     setNewPw('');
     setConfirmPw('');
+  };
+
+  const handleSendFeedback = () => {
+    if (!feedbackSubject.trim() || !feedbackMessage.trim()) return;
+    // No network call yet — Resend delivery is deferred. This just confirms
+    // receipt to the user and resets the form.
+    toast.success(t('settings.feedback.sent'));
+    setFeedbackSubject('');
+    setFeedbackCategory('bug');
+    setFeedbackMessage('');
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -706,15 +724,23 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 6. Notifications */}
+      {/* 6. Alerts (formerly "Notifications" — Phase 7: renamed + links to the
+          new /alerts feed page. The 4 toggle rows are unchanged; they now gate
+          which audit events surface in that feed. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            {t('settings.notifications')}
+            {t('settings.alerts')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Link
+            href="/alerts"
+            className="inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            {t('settings.alerts.viewAll')}
+          </Link>
           <p className="text-xs text-muted-foreground">
             {t('settings.notifications.deviceNote')}
           </p>
@@ -738,6 +764,67 @@ export default function SettingsPage() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* 6b. Feedback (Phase 7) — no network call yet; Resend delivery is
+          deferred. Confirms receipt locally via toast and clears the form. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            {t('settings.feedback')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t('settings.feedback.subject')}</Label>
+            <Input
+              value={feedbackSubject}
+              onChange={(e) => setFeedbackSubject(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t('settings.feedback.category')}</Label>
+            <Select
+              value={feedbackCategory}
+              onValueChange={(v) => v && setFeedbackCategory(v as typeof feedbackCategory)}
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {feedbackCategory === 'bug'
+                    ? t('settings.feedback.cat.bug')
+                    : feedbackCategory === 'idea'
+                      ? t('settings.feedback.cat.idea')
+                      : feedbackCategory === 'question'
+                        ? t('settings.feedback.cat.question')
+                        : t('settings.feedback.cat.other')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bug">{t('settings.feedback.cat.bug')}</SelectItem>
+                <SelectItem value="idea">{t('settings.feedback.cat.idea')}</SelectItem>
+                <SelectItem value="question">{t('settings.feedback.cat.question')}</SelectItem>
+                <SelectItem value="other">{t('settings.feedback.cat.other')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('settings.feedback.message')}</Label>
+            <Textarea
+              value={feedbackMessage}
+              onChange={(e) => setFeedbackMessage(e.target.value)}
+              className="min-h-24"
+            />
+          </div>
+          <Button
+            onClick={handleSendFeedback}
+            disabled={!feedbackSubject.trim() || !feedbackMessage.trim()}
+            className="gap-2"
+          >
+            <MessageSquare className="h-4 w-4" />
+            {t('settings.feedback.send')}
+          </Button>
         </CardContent>
       </Card>
 

@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronLeft,
   Shield,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { canAccessReports, canSeeAdminPage } from '@/lib/utils/permissions';
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ROLE_LABELS } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
+import { useAlerts } from '@/lib/hooks/use-alerts';
 import { APP_VERSION } from '@/lib/version';
 
 const navItemDefs = [
@@ -29,6 +31,7 @@ const navItemDefs = [
   { href: '/contacts', i18nKey: 'nav.contacts', icon: Contact },
   { href: '/groups', i18nKey: 'nav.groups', icon: Users },
   { href: '/settings', i18nKey: 'nav.settings', icon: Settings },
+  { href: '/alerts', i18nKey: 'nav.alerts', icon: Bell },
 ];
 
 interface SidebarProps {
@@ -41,6 +44,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   const profilePhotoBase64 = usePreferencesStore((s) => s.profilePhotoBase64);
+  const { unseen } = useAlerts();
 
   // Avatar for the footer — the profile photo set in Settings now propagates
   // here (it used to live only on the Settings page). Falls back to initials.
@@ -96,6 +100,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
+          const showBadge = item.href === '/alerts' && unseen > 0;
           return (
             <Link
               key={item.href}
@@ -115,7 +120,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   transition={{ duration: 0.2 }}
                 />
               )}
-              <Icon className="relative z-10 h-5 w-5 shrink-0" />
+              <span className="relative z-10 shrink-0">
+                <Icon className="h-5 w-5" />
+                {showBadge && (
+                  <span
+                    className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
+                    aria-label={`${unseen} unread alerts`}
+                  >
+                    {unseen > 9 ? '9+' : unseen}
+                  </span>
+                )}
+              </span>
               {!collapsed && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10">
                   {item.label}
