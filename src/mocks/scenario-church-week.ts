@@ -850,6 +850,140 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
 });
 
 // ---------------------------------------------------------------------------
+// G3 tree personas (2026-07-04) — contacts under ANY role + the 15-contact
+// stress persona ("test 1 person with 15 contacts in varied situations").
+// The 3D layout used to DROP a branch node's own contacts (tree-layout
+// place() branch-path bug) and the 50 contacts above are assigned exclusively
+// to teacher-tagged MEMBERS, so leader-owned contacts were never exercised:
+//  - u-team-3 (a TL with member children → a BRANCH node when expanded) owns
+//    FIFTEEN contacts covering all 6 statuses with varied sessions/partners/
+//    recency — also stresses the CONTACT_COLS grid wrap + collision
+//    invariants pinned in tree-layout.test.ts.
+//  - u-overseer-gabriel + u-group-5 each own ONE direct contact — the
+//    packet's "overseer with a direct contact must show in the tree".
+// Every row is currentlyStudying:false ON PURPOSE — the weekly-booking
+// generator below creates bookings only for studying contacts, so these rows
+// add ZERO bookings and leave the KPI/booking-count world untouched.
+// ---------------------------------------------------------------------------
+const G3_DAY = 86400000;
+const g3UserById = new Map(scenarioUsers.map((u) => [u.id, u] as const));
+
+function g3AreaNameFor(ownerId: string): string {
+  // Walk the parent chain up to a branch leader; the overseer/dev tier sits
+  // ABOVE both churches, so it defaults to the first area.
+  let cur = g3UserById.get(ownerId);
+  for (let hop = 0; cur && hop < 6; hop++) {
+    const bl = branchLeaders.find((b) => b.id === cur!.id);
+    if (bl) return scenarioAreas.find((a) => a.id === areaIdForBranch(bl))?.name ?? 'Unknown';
+    cur = cur.parentId ? g3UserById.get(cur.parentId) : undefined;
+  }
+  return scenarioAreas[0].name;
+}
+
+interface G3ContactSpec {
+  first: string;
+  last: string;
+  stage: PipelineStage;
+  /** Days since the last logged session (undefined = never logged). */
+  lastSessionDaysAgo?: number;
+  sessions: number;
+  /** How many preaching partners to attach (1–3, first = the owner). */
+  partners: 1 | 2 | 3;
+  /** Surface an in-progress study step on the card (stage-derived). */
+  onStep?: boolean;
+}
+
+function g3Contact(ownerId: string, idx: number, spec: G3ContactSpec): Contact {
+  const owner = g3UserById.get(ownerId)!;
+  const ownerName = `${owner.firstName} ${owner.lastName}`.trim();
+  const isBaptized = spec.stage === PipelineStage.BAPTIZED;
+  const subject = subjectForStage(spec.stage, idx);
+  const created = new Date(mockNowMs() - 200 * G3_DAY);
+  const timeline: TimelineEntry[] = [
+    {
+      date: created.toISOString(),
+      action: 'created',
+      details: `Contact created by ${ownerName}`,
+      userId: owner.id,
+      userName: ownerName,
+    },
+  ];
+  if (spec.stage !== PipelineStage.FIRST_STUDY) {
+    timeline.push({
+      date: new Date(created.getTime() + 60 * G3_DAY).toISOString(),
+      action: 'stage_change',
+      details: `Pipeline stage changed to ${PIPELINE_STAGE_CONFIG[spec.stage].label}`,
+      userId: owner.id,
+      userName: ownerName,
+    });
+  }
+  const n = 51 + idx;
+  return {
+    id: `c-${n}`,
+    firstName: spec.first,
+    lastName: spec.last,
+    email: `contact${n}@diamond.org`,
+    phone: `757-${(1000 + n).toString().slice(-4)}`,
+    groupName: g3AreaNameFor(owner.id),
+    type: isBaptized ? BookingType.BAPTIZED_IN_PERSON : BookingType.UNBAPTIZED_CONTACT,
+    status: ContactStatus.ACTIVE,
+    pipelineStage: spec.stage,
+    assignedTeacherId: owner.id,
+    preachingPartnerIds: [
+      owner.id,
+      spec.partners >= 2 ? teacherPool[(idx + 3) % teacherPool.length].id : null,
+      spec.partners >= 3 ? teacherPool[(idx + 7) % teacherPool.length].id : null,
+    ],
+    totalSessions: spec.sessions,
+    lastSessionDate:
+      spec.lastSessionDaysAgo === undefined
+        ? undefined
+        : new Date(mockNowMs() - spec.lastSessionDaysAgo * G3_DAY).toISOString(),
+    currentlyStudying: false,
+    currentStep: spec.onStep ? subject.number : undefined,
+    currentSubject: spec.onStep ? subject.title : undefined,
+    subjectsStudied: subjectsStudiedForStage(spec.stage, idx),
+    notes: `Direct contact of ${ownerName}.`,
+    timeline,
+    createdBy: owner.id,
+    createdAt: created.toISOString(),
+    updatedAt: today(),
+  };
+}
+
+// 15 contacts on ONE person (u-team-3): 3×First Study, 3×Unbaptized,
+// 3×Potential, 2×Baptism Ready, 2×Needs Help, 2×Baptized — every status
+// present, mixed recency (2–75 days), mixed partner counts, mixed steps.
+const G3_TL_SPECS: G3ContactSpec[] = [
+  { first: 'Ahira', last: 'Ben-Enan', stage: F, sessions: 1, lastSessionDaysAgo: 3, partners: 1 },
+  { first: 'Nahshon', last: 'of Judah', stage: F, sessions: 2, lastSessionDaysAgo: 12, partners: 2, onStep: true },
+  { first: 'Zuriel', last: 'Ben-Abihail', stage: F, sessions: 1, partners: 1 },
+  { first: 'Elzaphan', last: 'Ben-Uzziel', stage: U, sessions: 6, lastSessionDaysAgo: 5, partners: 2, onStep: true },
+  { first: 'Elishama', last: 'Ben-Ammihud', stage: U, sessions: 9, lastSessionDaysAgo: 40, partners: 3 },
+  { first: 'Elizur', last: 'Ben-Shedeur', stage: U, sessions: 7, lastSessionDaysAgo: 2, partners: 2, onStep: true },
+  { first: 'Shelomith', last: 'of Dan', stage: P, sessions: 17, lastSessionDaysAgo: 6, partners: 3, onStep: true },
+  { first: 'Abidan', last: 'Ben-Gideoni', stage: P, sessions: 20, lastSessionDaysAgo: 25, partners: 2 },
+  { first: 'Shelumiel', last: 'of Simeon', stage: P, sessions: 15, lastSessionDaysAgo: 9, partners: 1, onStep: true },
+  { first: 'Ithamar', last: 'Ben-Aaron', stage: R, sessions: 28, lastSessionDaysAgo: 4, partners: 3, onStep: true },
+  { first: 'Ahiezer', last: 'Ben-Ammishaddai', stage: R, sessions: 26, lastSessionDaysAgo: 18, partners: 2 },
+  { first: 'Kemuel', last: 'of Ephraim', stage: N, sessions: 11, lastSessionDaysAgo: 50, partners: 1 },
+  { first: 'Gamaliel', last: 'of Manasseh', stage: N, sessions: 9, lastSessionDaysAgo: 65, partners: 2 },
+  { first: 'Pagiel', last: 'Ben-Ocran', stage: B, sessions: 34, lastSessionDaysAgo: 30, partners: 3 },
+  { first: 'Eliasaph', last: 'Ben-Deuel', stage: B, sessions: 38, lastSessionDaysAgo: 75, partners: 2 },
+];
+
+scenarioContacts.push(
+  ...G3_TL_SPECS.map((spec, i) => g3Contact('u-team-3', i, spec)),
+  // Leaders with a DIRECT contact — must render under ANY role in the tree.
+  g3Contact('u-overseer-gabriel', 15, {
+    first: 'Cornelius', last: 'of Caesarea', stage: P, sessions: 12, lastSessionDaysAgo: 8, partners: 2, onStep: true,
+  }),
+  g3Contact('u-group-5', 16, {
+    first: 'Lydia', last: 'of Thyatira', stage: U, sessions: 5, lastSessionDaysAgo: 14, partners: 1, onStep: true,
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Bookings — Bible studies + admin meetings spread across all 5 branches
 // (NO Sabbath service bookings — those live in scenarioBlockedSlots above.)
 // ---------------------------------------------------------------------------
