@@ -26,6 +26,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "interactive-aurora-background": "file:vendor/interactive-aurora-background",
     "interactive-constellation-background": "file:vendor/interactive-constellation-background",

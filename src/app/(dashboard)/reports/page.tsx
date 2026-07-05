@@ -32,8 +32,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { groupsApi } from '@/lib/api/groups';
+import { bookingsApi } from '@/lib/api/bookings';
+import { contactsApi } from '@/lib/api/contacts';
+import { usersApi } from '@/lib/api/users';
 import type { AuditLogEntry } from '@/lib/types';
 import { exportCSV as sharedExportCSV } from '@/lib/utils/csv';
+import { exportReportWorkbook } from '@/lib/utils/xlsx-export';
+import PerformanceReports from '@/components/reports/PerformanceReports';
 import {
   Ban,
   Download,
@@ -51,6 +56,8 @@ import {
   BarChart3,
   Filter,
   CalendarDays,
+  FileSpreadsheet,
+  TrendingUp,
 } from 'lucide-react';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { reportsHelp } from '@/components/shared/pageHelp';
@@ -62,6 +69,7 @@ import {
   startOfDay,
   endOfDay,
   subDays,
+  addDays,
   isAfter,
   isBefore,
 } from 'date-fns';
@@ -357,6 +365,40 @@ export default function ReportsPage() {
   };
   const hasFilters = !!(effectiveAction || effectiveEntity || effectiveUser || search || dateRange !== 'all');
 
+  // Full-workbook .xlsx export (Phase 8): fetch every entity across a wide
+  // window and hand plain arrays to the pure builder (which dynamically imports
+  // exceljs). The reports page is already Branch-Leader+ gated, and Decision 13
+  // puts export at GL+ — BL+ satisfies that, so no extra gate here.
+  const [xlsxBusy, setXlsxBusy] = useState(false);
+  const handleExportXlsx = async () => {
+    if (xlsxBusy) return;
+    setXlsxBusy(true);
+    const toastId = toast.loading(t('reports.xlsxBuilding'));
+    try {
+      const start = subDays(new Date(), 365).toISOString();
+      const end = addDays(new Date(), 90).toISOString();
+      const [bookings, contacts, users, areas, audit] = await Promise.all([
+        bookingsApi.getBookings({ start, end }),
+        contactsApi.getContacts(),
+        usersApi.getAll(),
+        bookingsApi.getAreas(),
+        groupsApi.getAuditLog({ limit: 9999 }),
+      ]);
+      await exportReportWorkbook({
+        bookings,
+        contacts,
+        users,
+        areas,
+        auditEntries: audit.entries,
+      });
+      toast.success(t('reports.xlsxDone'), { id: toastId });
+    } catch {
+      toast.error(t('reports.xlsxFailed'), { id: toastId });
+    } finally {
+      setXlsxBusy(false);
+    }
+  };
+
   // ── Filter bar (shared between tabs) ──────────────────────────
   const filterBar = (
     // mobile: controls stack single-column below md (each child w-full);
@@ -608,6 +650,16 @@ export default function ReportsPage() {
           <Download className="h-4 w-4" />
           {t('btn.exportCSV')}
         </Button>
+        <Button
+          variant="outline"
+          onClick={handleExportXlsx}
+          disabled={xlsxBusy}
+          className="gap-2"
+          title={t('reports.xlsxTitle')}
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          {t('btn.exportXlsx')}
+        </Button>
       </div>
 
       <Tabs defaultValue="dashboard" className="space-y-6">
@@ -615,10 +667,18 @@ export default function ReportsPage() {
           <TabsTrigger value="dashboard" className="gap-1.5">
             <BarChart3 className="h-3.5 w-3.5" /> {t('reports.dashboard')}
           </TabsTrigger>
+          <TabsTrigger value="performance" className="gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" /> {t('reports.performance')}
+          </TabsTrigger>
           <TabsTrigger value="changelog" className="gap-1.5">
             <FileText className="h-3.5 w-3.5" /> {t('reports.changeLog')}
           </TabsTrigger>
         </TabsList>
+
+        {/* ── Performance Tab ───────────────────────────────────── */}
+        <TabsContent value="performance" className="space-y-6 mt-0">
+          <PerformanceReports />
+        </TabsContent>
 
         {/* ── Dashboard Tab ─────────────────────────────────────── */}
         <TabsContent value="dashboard" className="space-y-6 mt-0">

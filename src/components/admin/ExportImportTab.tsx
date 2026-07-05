@@ -41,8 +41,10 @@ import { isApiError } from '@/lib/api/client';
  * render so admins see the whole picture, but read-only.
  *
  * NOTE: admin-tier (Branch Leader+) always has export/import via
- * canExportImport's short-circuit, so these toggles only change what
- * Group Leaders, Team Leaders, and Members get.
+ * canExportImport's short-circuit, and Decision 13 adds a GL+ FLOOR — a Team
+ * Leader or Member NEVER gets export/import regardless of any override. So
+ * these toggles only meaningfully change what GROUP LEADERS get; a toggle on a
+ * Team or Member node is inert (kept visible for the inheritance picture).
  */
 
 type TriValue = boolean | null; // true = On, false = Off, null = Inherit
