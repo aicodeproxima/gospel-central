@@ -34,7 +34,11 @@ export function MobileNav() {
     : baseItems;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-safe md:hidden">
+    // bg-background, NOT bg-card: --card is deliberately translucent under the
+    // glass-look themes (marble 0.75, animated 0.35–0.4 alpha), so a bg-card bar
+    // let scrolled content bleed through and collide with the nav labels at
+    // 275px (audit F-0001). --background is opaque in every theme.
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background pb-safe md:hidden">
       <div className="flex items-stretch justify-around">
         {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');

@@ -120,4 +120,49 @@ test.describe('mobile (S24 Ultra) fitment', () => {
     }
     expect(v, `actionable tap targets < 44px on S24:\n${JSON.stringify(v, null, 2)}`).toEqual([]);
   });
+
+  // F-0001 (UI audit run-20260704a) — the fixed bottom nav must OCCLUDE content
+  // scrolling beneath it. --card is deliberately translucent under the glass-look
+  // themes (marble 0.75 alpha, animated 0.35–0.4), so a bare bg-card nav let page
+  // text bleed through and collide with the nav labels on every mobile route.
+  // Guard: for one theme per alpha class, the nav's computed background must be
+  // fully opaque OR carry a real backdrop blur (the Topbar frosted-glass idiom).
+  // Fires again if a future theme ships a translucent --card and the nav regresses.
+  test('F-0001 bottom nav occludes scrolled content on every theme alpha class', async ({ page }) => {
+    await loginAs(page, 'member3');
+    for (const theme of ['basic', 'marble', 'galaxy']) {
+      await page.evaluate((t) => {
+        // Both keys required to force a theme headlessly: zustand-persist (v4) + next-themes.
+        localStorage.setItem(
+          'gospel-central-preferences',
+          JSON.stringify({ state: { colorTheme: t }, version: 4 }),
+        );
+        localStorage.setItem('theme', 'dark');
+      }, theme);
+      await page.goto('/dashboard');
+      await page.waitForLoadState('networkidle');
+      const nav = page.locator('nav.fixed.bottom-0');
+      await expect(nav).toBeVisible();
+      const { alpha, hasBlur, bg } = await nav.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const bgc = cs.backgroundColor;
+        // Computed color may serialize as rgb()/rgba() or oklch(... / a).
+        let a = 1;
+        const slash = bgc.match(/\/\s*([\d.]+)\s*\)/);
+        const rgba = bgc.match(/^rgba\([^)]*,\s*([\d.]+)\)$/);
+        if (slash) a = parseFloat(slash[1]);
+        else if (rgba) a = parseFloat(rgba[1]);
+        const bf =
+          cs.backdropFilter ||
+          (cs as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter ||
+          '';
+        return { alpha: a, hasBlur: /blur\(/.test(bf), bg: bgc };
+      });
+      expect(
+        alpha === 1 || hasBlur,
+        `theme "${theme}": bottom-nav background "${bg}" (alpha=${alpha}, blur=${hasBlur}) — a translucent, un-blurred nav lets content collide with the labels (F-0001)`,
+      ).toBe(true);
+      expect(await pageOverflowPx(page), `theme "${theme}" must not pan`).toBeLessThanOrEqual(1);
+    }
+  });
 });
