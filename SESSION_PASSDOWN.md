@@ -2,17 +2,35 @@
 
 > **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond`, historical/QA docs, and this file's siblings named `*diamond*`/`MOBILE_AUDIT_PROGRESS.md` keep the old name (records). **Do NOT re-introduce "Diamond" as the app's display name.**
 
-> **OVERHAUL IN PROGRESS (2026-07-03, session 1 ending — cold-start here):** the app is mid-way
-> through the user's full overhaul packet ("Gospel Central Overhaul and Deliverables - Final").
-> **Approved plan:** `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` — 13 locked
-> decisions, phase specs, the anti-hallucination/drift/context-rot protocol (rules 1–15), AND the
-> **MODEL-ROUTING & DELEGATION PROTOCOL** (D1–D8 + per-item routing table: Fable 5 orchestrates
-> inline and NEVER delegates permissions/store-shapes/seed-identities/dependency-adds/git/deploys;
-> sonnet does spec'd volume work; opus the hard components; haiku read-only sweeps; 4 marked
-> ultracode gates). READ THE PLAN + LEDGER BEFORE ANY EDIT; re-read the routing ROW before any
-> dispatch (D6) — never dispatch from memory.
-> **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root, untracked, append-only — THE resume point;
-> per-phase tier records live there).
+> **✅ OVERHAUL COMPLETE — ALL 8 PHASES SHIPPED + PROD-VERIFIED (2026-07-04).** Prod =
+> `git rev-parse origin/main` = **`fd5632e`** (verify vs `GET gospel-central.vercel.app/version.json .commit`).
+> The full overhaul packet ("Gospel Central Overhaul and Deliverables - Final") is delivered: Phase 0
+> foundation → 1 seed → 2 dashboard → 3 calendar → 4 wizard → 5 contacts → 6 groups (Branch Rail) →
+> 7 settings (Alerts + Marble v4 migration) → 8 reports/admin (.xlsx export + performance reports) →
+> final capstone ultracode audit + remediations + full e2e. Details per phase in the DONE list below +
+> the ledger. **There is NO next overhaul phase.**
+>
+> **OPEN ITEMS (non-blocking; the overhaul itself is done):**
+> 1. **MERGE `dc549c7`** — the concurrent user-spawned task `task_fd3f9baa` fixed the 3 hard-coded
+>    `'u-michael'` booking audit actors and committed to its OWN worktree branch (commit `dc549c7`
+>    "fix(mock): attribute booking edit/cancel/restore audit rows to the JWT actor"). It is **NOT on
+>    `main`** yet. It touches the SAME booking audit push sites the Phase-7 `pushAudit`/`relatedUserIds`
+>    conversion changed — merge it and re-run `npm run test` + the E4 e2e; reconcile any conflict.
+> 2. **Feedback form** is toast-only — its `/feedback` mock endpoint (audit row via `pushAudit`) + Resend
+>    delivery are deliberately DEFERRED.
+> 3. **Backend-authz gaps** (documented in `docs/BACKEND_GAPS.md`, Mike's Go-backend job — do NOT "fix" in
+>    the mock, it masks the gap): contacts POST/PUT/DELETE ungated; GET /contacts, GET /audit-log,
+>    GET /metrics/teachers ungated/unscoped; GET /audit-log `relatedTo` must become viewer-enforced.
+>
+> **DURABLE LESSON (this overhaul):** run the **full `npm run e2e` per phase, not just vitest** — a rename
+> or a UI-add can pass every unit test yet break an e2e selector or the mobile 44px tap floor. The Phase-7
+> `default`→`basic` rename and the Alerts "View all" link both did exactly that; only the capstone e2e
+> caught them.
+>
+> **Reference (plan + protocol, still authoritative if reopening any surface):**
+> `C:\Users\aicod\.claude\plans\structured-scribbling-steele.md` (13 decisions, phase specs, rules 1–15,
+> the model-routing/delegation protocol D1–D8). **Progress ledger:** `OVERHAUL_PROGRESS.md` (repo root,
+> untracked, append-only — per-phase tier records). Trust `git` + prod `/version.json` over any SHA here.
 >
 > **DONE + DEPLOYED (verify prod SHA vs `git rev-parse origin/main`, don't trust this list blindly):**
 > - **Phase 0** foundation: 6-status contact model, booking outcome statuses w/ status-gated metrics
@@ -106,7 +124,7 @@
 > - **KEPT (genuine improvements, still in tree, shipping WITH the fix):** BookingSearchBar's OWN-portal
 >   `/rootZoom` positioning + keyboard-nav hardening; Combobox padding; PredictiveInput app-rendered-
 >   suggestions rewrite; StepSubjectPicker suggestion-select; select.tsx `align:"start"`.
-> - **PENDING at this pause (RESUME HERE):** e2e chromium 50 pass + **E4 NOW PASSES**; the ONLY red is
+> - **[RESOLVED — shipped `2617fa9`/`8d3376c`; historical narrative only, NOT a resume point]:** e2e chromium 50 pass + **E4 NOW PASSES**; the ONLY red is
 >   the `wizard-when-desktop.png` VISUAL baseline (6% diff) — the diff image is a uniform sub-pixel
 >   SHIFT of the whole When dialog (content intact, not a broken layout — a zoom:0.9 re-baseline, not a
 >   regression). NEXT STEPS: regen visual baselines (`npx playwright test e2e/visual.spec.ts
