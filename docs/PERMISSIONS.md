@@ -194,12 +194,17 @@ already gated by the admin page; the Reports-dashboard export keeps its own
 
 | Action | Member | Team L | Group L | Branch L | Overseer | Dev |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
-| Export / import CSV (calendar, contacts) | per-group | per-group | per-group | ✓ | ✓ | ✓ |
+| Export / import CSV (calendar, contacts) | ❌ | ❌ | per-group | ✓ | ✓ | ✓ |
 
+> **Decision 13 GL+ floor (2026-07 overhaul):** export/import surfaces gate on
+> **Group Leader and up**. A Member or Team Leader NEVER gets the affordance,
+> **regardless of their group's per-group override** (anti-scraping) — the
+> floor short-circuits before the flag is read.
+>
 > **Admin-tier (Branch Leader+) always has access** regardless of any setting.
 >
-> For everyone else (Group Leader, Team Leader, Member) access is resolved
-> **per group, at every org level**:
+> For **Group Leaders** (the only non-admin tier at/above the floor) access is
+> resolved **per group, at every org level**:
 >
 > - Admins set an **On / Off / Inherit** switch on any Branch, Group, or Team
 >   node from the **Export / Import** admin tab.
@@ -281,7 +286,7 @@ canSetBookingStatus(viewer, booking)   // outcome status (Completed/No Show/Resc
 
 canAccessReports(viewer)
 canExportReports(viewer)
-canExportImport(viewer)                // CSV export/import on shared pages; admin-tier OR viewer.exportImportEnabled (per-group)
+canExportImport(viewer)                // CSV export/import on shared pages; admin-tier OR (GL+ floor AND viewer.exportImportEnabled per-group) — Decision 13
 resolveExportImportEnabled(userId, users, overrides)   // walk parentId; nearest On/Off override wins, else EXPORT_IMPORT_FOR_NON_ADMINS
 resolveExportImportDetailed(userId, users, overrides)  // same, but also returns which node decided it (for the admin tab's "inheriting from X")
 

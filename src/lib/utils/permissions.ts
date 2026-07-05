@@ -647,6 +647,12 @@ export const EXPORT_IMPORT_FOR_NON_ADMINS = false;
  * and attached on /login + /me, so this gate stays a pure field read and the
  * call sites (calendar, contacts) never change.
  *
+ * **Decision 13 (2026-07 overhaul) — GL+ FLOOR:** export/import surfaces gate
+ * on Group Leader and up; a Member or Team Leader NEVER gets an export/import
+ * affordance, regardless of their group's `exportImportEnabled` override
+ * (anti-scraping). The per-group flag can only grant import/export ABOVE the
+ * floor (i.e. to a GL whose group is enabled); admin-tier always has it.
+ *
  * NOTE: the export buttons inside `/admin` tabs (Users / Groups / Contacts /
  * Audit) are already gated by canSeeAdminPage, so they do NOT call this. The
  * Reports-dashboard export keeps its own canExportReports gate.
@@ -654,6 +660,8 @@ export const EXPORT_IMPORT_FOR_NON_ADMINS = false;
 export function canExportImport(viewer: User | null | undefined): boolean {
   if (!viewer) return false;
   if (isAdminTier(viewer)) return true;
+  // Decision 13 floor: below Group Leader, the per-group flag can never grant it.
+  if (getRoleLevel(viewer.role) < getRoleLevel(UserRole.GROUP_LEADER)) return false;
   return viewer.exportImportEnabled ?? EXPORT_IMPORT_FOR_NON_ADMINS;
 }
 

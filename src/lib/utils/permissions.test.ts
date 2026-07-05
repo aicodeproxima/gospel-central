@@ -801,18 +801,25 @@ describe('export / import (CSV)', () => {
     expect(canExportImport(null)).toBe(false);
     expect(canExportImport(undefined)).toBe(false);
   });
-  test('non-admin honors the server-computed effective flag', () => {
-    expect(canExportImport(mkUser('m', UserRole.MEMBER, { exportImportEnabled: true }))).toBe(true);
+  test('Decision 13 GL+ floor: the per-group flag only grants export/import at Group Leader and up', () => {
+    // Below the floor, the flag NEVER grants it (anti-scraping) — even if a
+    // group's override was turned on for a Member or Team Leader.
+    expect(canExportImport(mkUser('m', UserRole.MEMBER, { exportImportEnabled: true }))).toBe(false);
+    expect(canExportImport(mkUser('t', UserRole.TEAM_LEADER, { exportImportEnabled: true }))).toBe(false);
+    // At/above the floor, the flag is honored.
     expect(canExportImport(mkUser('g', UserRole.GROUP_LEADER, { exportImportEnabled: true }))).toBe(true);
-    expect(canExportImport(mkUser('m2', UserRole.MEMBER, { exportImportEnabled: false }))).toBe(false);
+    expect(canExportImport(mkUser('g2', UserRole.GROUP_LEADER, { exportImportEnabled: false }))).toBe(false);
   });
   test('admin-tier ignores the flag (always allowed)', () => {
     expect(canExportImport(mkUser('b', UserRole.BRANCH_LEADER, { exportImportEnabled: false }))).toBe(true);
     expect(canExportImport(mkUser('o', UserRole.OVERSEER, { exportImportEnabled: false }))).toBe(true);
   });
-  test('missing flag falls back to the global default', () => {
-    // mkUser leaves exportImportEnabled undefined → EXPORT_IMPORT_FOR_NON_ADMINS (OFF)
-    expect(canExportImport(mkUser('m3', UserRole.MEMBER))).toBe(EXPORT_IMPORT_FOR_NON_ADMINS);
+  test('a Group Leader with no explicit flag falls back to the global default', () => {
+    // mkUser leaves exportImportEnabled undefined → EXPORT_IMPORT_FOR_NON_ADMINS (OFF).
+    // (A Member is denied by the floor regardless, so test the fallback at the floor.)
+    expect(canExportImport(mkUser('g3', UserRole.GROUP_LEADER))).toBe(EXPORT_IMPORT_FOR_NON_ADMINS);
+    // And a Member is always denied, floor or flag notwithstanding.
+    expect(canExportImport(mkUser('m3', UserRole.MEMBER))).toBe(false);
   });
 });
 
