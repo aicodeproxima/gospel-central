@@ -133,13 +133,38 @@
 > NOT re-verified on prod: 3D view (WebGL GPU caution — list view covers the same OrgNode DOM); the
 > concurrent session verified 3D + es-275px on a deployed preview (identical code+seed).
 >
-> **NEXT: Phase 7 — Settings** (Alerts page: `relatedUserIds` on AuditLogEntry at every push site + per-type
-> toggles + Sidebar/MobileNav red badge vs `alertsLastSeenAt`; **v4 prefs migration = force Marble +
-> 'default'→'basic' rename, NON-DELEGABLE Fable inline w/ blob unit tests**; feedback form UI-only;
-> **regenerate the FULL Playwright visual baseline set once — Marble default changes every page**). Then
-> **Phase 8 Reports/Admin** (audit-export per-row timestamps, exceljs multi-sheet export, teacher/member
-> performance reports + anomaly flags, GL+ export gate everywhere, BookingType close-out grep sweep) →
-> final overhaul ultracode gate (correctness/permissions/packet-completeness) + docs sweep + full e2e.
+> **PHASE 7 COMPLETE — SETTINGS SHIPPED + PROD-VERIFIED** (`3b70cba` foundation + `a96eb10` Alerts UI +
+> `b552f11` mobile-nav fix; deployed, HEAD==origin/main==prod `b552f11`). Fable-orchestrated (v4 migration +
+> relatedUserIds finish inline; haiku audit-site enumeration; sonnet Alerts UI). Shipped:
+> - **v4 prefs migration (NON-DELEGABLE):** ColorTheme `'default'`→`'basic'` (attribute-less DOM behavior
+>   preserved), new-user default + one-time FORCE = Marble for every pre-v4 blob (Decision 8), `migrate()`
+>   extracted to exported `migratePreferences()` w/ 7 blob unit tests (incl. a refuter-found fix: sanitize a
+>   removed literal left in `previousColorTheme`). **PROVEN ON PROD** against a real returning session:
+>   persisted blob migrated to `version:4`, `colorTheme:'marble'`, `data-theme=marble`.
+> - **relatedUserIds audit plumbing:** optional field on AuditLogEntry + a `pushAudit()` choke point whose
+>   input type makes it compile-time REQUIRED (omission-proofing); all 40 handler sites converted (each
+>   deriving affected users) + seed + a producer-coverage test. GET /audit-log gained a `relatedTo` filter +
+>   API param — the data path the Alerts feed uses. (NOTE: the sonnet plumbing agent collided with a stray
+>   delegated agent on handlers.ts and died mid-run; Fable finished the last 14 sites inline. 3 booking
+>   handlers still hard-code the actor as `'u-michael'` — pre-existing, flagged as a separate task, untouched.)
+> - **Alerts feature:** new `/alerts` per-user feed (relatedTo-scoped, toggle-filtered, day-grouped, mark-seen
+>   on load), `src/lib/utils/alerts.ts` + `use-alerts` hook (refetch on nav so the badge stays live), red
+>   unseen badge on Sidebar + MobileNav, Settings Notifications card → Alerts + "View all" link. Feedback
+>   card added (toast-only; Resend + a `/feedback` audit row DEFERRED). i18n en+es (parity green).
+> - **FULL visual baseline set regenerated** (10 snapshots — Marble changes every page).
+> - Suite **504/7 todo**; tsc + build clean. **VERIFIED ON PROD `b552f11`:** Marble default (fresh + migrated
+>   sessions), Alerts nav badge shows unseen count → /alerts feed renders → badge CLEARS on visit; feedback
+>   form + renamed card present; theme picker = Marble/Basic/Ocean (no "Default"); mobile 275px 7-item BL+ nav
+>   fits unclipped, no pan. NOT run: local full e2e (skipped at user direction — browser-truth verified on
+>   prod instead); real iOS Safari (standing rule).
+>
+> **NEXT: Phase 8 — Reports + Admin** (audit-export per-row timestamps [reproduce first: reports/page.tsx
+> per-action sub-rows the flat export drops], exceljs multi-sheet export via dynamic import, teacher/member
+> performance reports + anomaly flags, **Export restriction GL+ everywhere (Decision 13)** across Admin/
+> Reports/contacts-CSV/Your-Group + PERMISSIONS.md + matrix + e2e, BookingType close-out grep sweep) → final
+> overhaul ultracode gate (correctness/permissions/packet-completeness) + docs sweep + full e2e.
+> **CARRY-FORWARD (Phase 7 deferred):** feedback `/feedback` audit-row + Resend wiring; the 3 hard-coded
+> `'u-michael'` booking audit actors (task chip spawned).
 >
 > **Phase 6 G1/G2 detail below (ROUTING REFERENCE — G1/G2 are DONE; kept for G3 + context): G1 quick wins** (list-view
 > first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
