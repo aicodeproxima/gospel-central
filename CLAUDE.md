@@ -78,15 +78,23 @@ this repo — keep it current.
   error shapes.
 
 ## Themes
-- **18 themes:** 6 toggleable (default, ocean, purple, forest, sunset, rose) + 12 mode-fixed (marble + 11
-  animated: starfield, aurora, galaxy, jellyfish, rain, matrix, voronoi, constellation, smoke, synapse,
-  deepspace). Mode-fixed themes disable the dark/light/system toggle.
+- **16 themes** (per the `ColorTheme` union in `src/lib/stores/preferences-store.ts` — the source of
+  truth): 6 toggleable (basic [renamed from 'default' in the v4 prefs migration], ocean, purple, forest,
+  sunset, rose) + 10 mode-fixed (marble [the app default since Phase 7] + 9 animated: starfield, aurora,
+  galaxy, jellyfish, rain, matrix, constellation, synapse, deepspace). `voronoi` and `smoke` were REMOVED
+  in the v2→v3 persist migration (their vendor packages linger in package.json unreferenced). Mode-fixed
+  themes disable the dark/light/system toggle.
 - Cascade in `src/app/globals.css` keyed by `[data-theme="X"]` on `<html>`. `ANIMATED_DARK_THEMES` /
   `ANIMATED_LIGHT_THEMES` + the theme→background dispatch live in
   `src/components/shared/ThemedBackground.tsx`; each animated theme wraps a `vendor/interactive-*` package via
   `dynamic({ ssr:false })`.
 - **Theme state lives in TWO localStorage keys** — to force a theme headlessly set BOTH then reload:
-  `diamond-preferences` (zustand-persist; set `state.colorTheme`) AND `theme` (next-themes; `'dark'`/`'light'`).
+  `gospel-central-preferences` (zustand-persist v4 — write `{"state":{"colorTheme":"<t>"},"version":4}`;
+  the legacy `diamond-preferences` key is only migrated FROM) AND `theme` (next-themes; `'dark'`/`'light'`).
+- The fixed mobile bottom nav (and any future fixed/sticky chrome content scrolls under) must use an
+  opaque `bg-background` or a real backdrop blur — `--card` is deliberately translucent under marble
+  (0.75) and the animated themes (0.35–0.4), which caused audit finding F-0001 (nav bleed-through).
+  Guarded by the `F-0001` e2e test in `e2e/mobile.spec.ts`.
 
 ## Groups 3D tree
 - Layout `src/lib/utils/tree-layout.ts` · scene `src/components/groups/Tree3D.tsx` · toolbar/focus
