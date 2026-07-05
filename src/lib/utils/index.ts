@@ -9,7 +9,6 @@
  */
 export * from './availability';
 export * from './cn';
-export * from './colors';
 export * from './csv';
 export * from './date';
 export * from './org-metrics';
