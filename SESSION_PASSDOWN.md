@@ -158,23 +158,26 @@
 >   fits unclipped, no pan. NOT run: local full e2e (skipped at user direction — browser-truth verified on
 >   prod instead); real iOS Safari (standing rule).
 >
-> **PHASE 8 — Reports/Admin: IN PROGRESS (3/6 items shipped + prod-verified `320b7ad`+`2c3c83a`).**
+> **PHASE 8 — Reports/Admin: COMPLETE + prod-verified. OVERHAUL PHASES 0–8 ALL SHIPPED (HEAD `8fc051d`).**
 > - ✅ **Decision 13 GL+ export floor** (`320b7ad`, security): `canExportImport` had no GL+ floor → a Member/TL
->   whose group's `exportImportEnabled` override was on could export calendar / import contacts. Added the
->   floor (short-circuits before the flag); test matrix flipped + PERMISSIONS.md updated. (Contacts export +
->   Your-Group already used `canExportMemberList` = GL+.)
-> - ✅ **Audit-export timestamps: ALREADY RESOLVED** (reproduce-first) — `exportAuditCSV` timestamps every row
->   + fetches `limit:9999`; Phase-2 EXPORT-4 fixed it; no per-study sub-rows exist. Invented nothing.
-> - ✅ **BookingType close-out** (`2c3c83a`): deleted orphaned `utils/colors.ts` (`BOOKING_COLORS_CSS` +
->   `getBookingColor`) + barrel line. `BOOKING_TYPE_CONFIG` kept (live display consumers).
-> - ⏳ **REMAINING:** (1) **exceljs multi-sheet export** — Fable adds the dep (NON-DELEGABLE) → sonnet builds
->   the builder (dynamic import; sheets Bookings/Contacts+curriculum/Users&Groups/Audit; styled) + test, GL+
->   gated; KEEP IT OUT OF handlers.ts (see task_fd3f9baa below). (2) **Teacher/member performance reports +
->   anomaly flags** — sonnet; reuse Completed-gated metrics. (3) **Final overhaul ultracode gate**
->   (correctness/permissions/packet-completeness) + **docs sweep** (CLAUDE.md/HANDOFF/passdown) + **full e2e**.
-> **CARRY-FORWARD:** feedback `/feedback` audit-row + Resend wiring (Phase-7 deferred); the 3 hard-coded
-> `'u-michael'` booking audit actors — a concurrent user-spawned task (`task_fd3f9baa`, isolated worktree) is
-> fixing these in handlers.ts and WILL NEED MERGING; reconcile before/with the exceljs work.
+>   whose group's `exportImportEnabled` override was on could export. Added the floor; matrix flipped + PERMISSIONS.md.
+> - ✅ **Audit-export timestamps: ALREADY RESOLVED** (reproduce-first) — `exportAuditCSV` timestamps every row.
+> - ✅ **BookingType close-out** (`2c3c83a`): deleted orphaned `utils/colors.ts`. `BOOKING_TYPE_CONFIG` kept.
+> - ✅ **exceljs multi-sheet export** (`9a8c992`): dynamic-imported `exceljs@4.4.0`; pure `buildReportWorkbook`
+>   (4 styled sheets) + "Export .xlsx" on /reports. 15 tests.
+> - ✅ **Teacher/member performance reports** (`9a8c992`): pure `performance-metrics.ts` + `PerformanceReports`
+>   in a /reports "Performance" tab (anomaly flags). 15 tests. Both sonnet-built (disjoint files), Fable-wired.
+> - ✅ **Final capstone ultracode gate** (`b5bf52f`+`8fc051d`): 3-lens adversarial audit (8/10 confirmed) →
+>   fixed 4 real Phase-7/8 defects (xlsx enum labels, no-show window no-op, over-broad alert toggle, CSV
+>   timestamp guard); documented the 4 KNOWN backend-authz gaps (Mike's — NOT fixed in the mock). **Full e2e
+>   58/2-skip/0-fail** — it caught + I fixed a 44px tap-target regression (Alerts "View all" link) and a stale
+>   S3 theme e2e (post-rename). Suite **535/7 todo**.
+> **CARRY-FORWARD (optional, non-blocking):** feedback `/feedback` audit-row + Resend wiring (Phase-7 deferred);
+> the 3 hard-coded `'u-michael'` booking audit actors — concurrent task `task_fd3f9baa` (isolated worktree) is
+> fixing these in handlers.ts, WILL NEED MERGING; the documented backend-authz gaps await Mike's Go cutover.
+> **LESSON (durable): run the FULL e2e per phase, not just vitest** — a rename or UI-add can pass unit tests
+> yet break an e2e selector or the mobile 44px tap floor (both happened this session, caught only at the
+> capstone e2e).
 >
 > **Phase 6 G1/G2 detail below (ROUTING REFERENCE — G1/G2 are DONE; kept for G3 + context): G1 quick wins** (list-view
 > first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
