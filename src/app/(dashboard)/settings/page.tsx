@@ -737,8 +737,9 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <Link
             href="/alerts"
-            className="inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
           >
+            <ChevronRight className="h-4 w-4" />
             {t('settings.alerts.viewAll')}
           </Link>
           <p className="text-xs text-muted-foreground">

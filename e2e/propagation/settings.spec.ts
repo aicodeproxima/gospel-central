@@ -97,7 +97,9 @@ test('S2 language en→es → Sidebar nav labels (same-page i18n)', async ({ pag
 });
 
 // ── S3: colorTheme → html[data-theme] (same-page, immediate) + INVERSE ──
-test('S3 colorTheme default→ocean→default → html[data-theme] (same-page)', async ({ page }) => {
+// Phase 7 v4 migration renamed the attribute-less palette 'default' → 'basic'
+// (same DOM behavior: no data-theme attribute). Swatch is now labelled "Basic".
+test('S3 colorTheme basic→ocean→basic → html[data-theme] (same-page)', async ({ page }) => {
   await loginAs(page, 'member3');
   await page.goto('/settings');
   await page.waitForLoadState('networkidle');
@@ -107,19 +109,19 @@ test('S3 colorTheme default→ocean→default → html[data-theme] (same-page)',
   await page.getByRole('button', { name: /ocean theme/i }).first().click();
   await page.waitForTimeout(250);
   const afterSet = await page.evaluate(themeAttr);
-  // inverse: back to default
-  await page.getByRole('button', { name: /default theme/i }).first().click();
+  // inverse: back to the attribute-less 'basic' palette
+  await page.getByRole('button', { name: /basic theme/i }).first().click();
   await page.waitForTimeout(250);
   const afterClear = await page.evaluate(themeAttr);
 
-  // applyThemeToDOM REMOVES data-theme for 'default' (preferences-store.ts:82-90),
-  // so the inverse returns to null (attribute absent), NOT the string 'default'.
+  // applyThemeToDOM REMOVES data-theme for 'basic' (the attribute-less palette),
+  // so the inverse returns to null (attribute absent), NOT any string.
   const setOk = afterSet === 'ocean';
   const inverseOk = afterClear === null;
   const verdict = setOk && inverseOk ? 'PASS' : 'LEAK';
   await log(page, {
     id: 'S3', domain: 'settings', mutation: 'colorTheme set+inverse', actor_role: 'member3', trigger_surface: '/settings theme swatches',
-    expected_reflections: [{ site_id: 'html.data-theme', site: 'applyThemeToDOM → <html data-theme>', instance: 'desktop', observe_how: 'DOM attribute', expected_delta: 'default→ocean→default', source_citation: 'preferences-store.ts:126-128 setColorTheme→applyThemeToDOM' }],
+    expected_reflections: [{ site_id: 'html.data-theme', site: 'applyThemeToDOM → <html data-theme>', instance: 'desktop', observe_how: 'DOM attribute', expected_delta: 'basic→ocean→basic', source_citation: 'preferences-store.ts setColorTheme→applyThemeToDOM' }],
     expected_site_count: 1, must_NOT_change: [], verdict,
     leak_sites: verdict === 'LEAK' ? ['html.data-theme'] : [], classification: verdict === 'LEAK' ? 'FRONTEND' : null,
     evidence: { before, afterSet, afterClear }, dedup_vs_prior: 'new (inverse pair)',
