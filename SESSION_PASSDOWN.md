@@ -158,13 +158,23 @@
 >   fits unclipped, no pan. NOT run: local full e2e (skipped at user direction — browser-truth verified on
 >   prod instead); real iOS Safari (standing rule).
 >
-> **NEXT: Phase 8 — Reports + Admin** (audit-export per-row timestamps [reproduce first: reports/page.tsx
-> per-action sub-rows the flat export drops], exceljs multi-sheet export via dynamic import, teacher/member
-> performance reports + anomaly flags, **Export restriction GL+ everywhere (Decision 13)** across Admin/
-> Reports/contacts-CSV/Your-Group + PERMISSIONS.md + matrix + e2e, BookingType close-out grep sweep) → final
-> overhaul ultracode gate (correctness/permissions/packet-completeness) + docs sweep + full e2e.
-> **CARRY-FORWARD (Phase 7 deferred):** feedback `/feedback` audit-row + Resend wiring; the 3 hard-coded
-> `'u-michael'` booking audit actors (task chip spawned).
+> **PHASE 8 — Reports/Admin: IN PROGRESS (3/6 items shipped + prod-verified `320b7ad`+`2c3c83a`).**
+> - ✅ **Decision 13 GL+ export floor** (`320b7ad`, security): `canExportImport` had no GL+ floor → a Member/TL
+>   whose group's `exportImportEnabled` override was on could export calendar / import contacts. Added the
+>   floor (short-circuits before the flag); test matrix flipped + PERMISSIONS.md updated. (Contacts export +
+>   Your-Group already used `canExportMemberList` = GL+.)
+> - ✅ **Audit-export timestamps: ALREADY RESOLVED** (reproduce-first) — `exportAuditCSV` timestamps every row
+>   + fetches `limit:9999`; Phase-2 EXPORT-4 fixed it; no per-study sub-rows exist. Invented nothing.
+> - ✅ **BookingType close-out** (`2c3c83a`): deleted orphaned `utils/colors.ts` (`BOOKING_COLORS_CSS` +
+>   `getBookingColor`) + barrel line. `BOOKING_TYPE_CONFIG` kept (live display consumers).
+> - ⏳ **REMAINING:** (1) **exceljs multi-sheet export** — Fable adds the dep (NON-DELEGABLE) → sonnet builds
+>   the builder (dynamic import; sheets Bookings/Contacts+curriculum/Users&Groups/Audit; styled) + test, GL+
+>   gated; KEEP IT OUT OF handlers.ts (see task_fd3f9baa below). (2) **Teacher/member performance reports +
+>   anomaly flags** — sonnet; reuse Completed-gated metrics. (3) **Final overhaul ultracode gate**
+>   (correctness/permissions/packet-completeness) + **docs sweep** (CLAUDE.md/HANDOFF/passdown) + **full e2e**.
+> **CARRY-FORWARD:** feedback `/feedback` audit-row + Resend wiring (Phase-7 deferred); the 3 hard-coded
+> `'u-michael'` booking audit actors — a concurrent user-spawned task (`task_fd3f9baa`, isolated worktree) is
+> fixing these in handlers.ts and WILL NEED MERGING; reconcile before/with the exceljs work.
 >
 > **Phase 6 G1/G2 detail below (ROUTING REFERENCE — G1/G2 are DONE; kept for G3 + context): G1 quick wins** (list-view
 > first in the nav toggle + `groupsDefaultView` pref migrating localStorage `gospel-central-tree-view`
