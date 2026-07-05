@@ -46,6 +46,19 @@ function toIso(value: string | undefined | null): string {
   return d.toISOString();
 }
 
+/** Title-Case an enum slug for a human-readable cell, e.g.
+ *  'baptism_ready' -> 'Baptism Ready', 'unbaptized_contact' -> 'Unbaptized
+ *  Contact'. Matches the PIPELINE_STAGE_CONFIG labels for all 6 stages and the
+ *  BookingType labels, without importing the deprecated BOOKING_TYPE_CONFIG
+ *  display map (Phase 8 close-out kept that out of new consumers). */
+function humanizeEnum(value: string | undefined | null): string {
+  if (!value) return '';
+  return value
+    .split('_')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ''))
+    .join(' ');
+}
+
 function userName(user: User | undefined): string {
   if (!user) return '';
   return `${user.firstName} ${user.lastName}`.trim();
@@ -98,7 +111,7 @@ export async function buildReportWorkbook(data: WorkbookData): Promise<import('e
       status: statusLabel,
       teacher: userName(teacher),
       contact: contact ? `${contact.firstName} ${contact.lastName}`.trim() : '',
-      type: booking.type ?? '',
+      type: humanizeEnum(booking.type),
     });
   }
   styleHeaderRow(bookingsSheet.getRow(1));
@@ -129,9 +142,9 @@ export async function buildReportWorkbook(data: WorkbookData): Promise<import('e
       .join(', ');
     contactsSheet.addRow({
       name: `${contact.firstName} ${contact.lastName}`.trim(),
-      status: contact.status ?? '',
-      pipelineStage: contact.pipelineStage ?? '',
-      type: contact.type ?? '',
+      status: humanizeEnum(contact.status),
+      pipelineStage: humanizeEnum(contact.pipelineStage),
+      type: humanizeEnum(contact.type),
       groupName: contact.groupName ?? '',
       assignedTeacher: userName(assignedTeacher),
       currentStep: contact.currentStep ?? '',

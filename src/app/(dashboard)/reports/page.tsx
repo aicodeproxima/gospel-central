@@ -162,6 +162,16 @@ const DATE_RANGE_LABELS = {
 // (EXPORT-4: replaces the prior hand-rolled local exportCSV which mishandled
 // names containing literal quotes.)
 // ---------------------------------------------------------------------------
+/** date-fns format() throws RangeError on an invalid/absent timestamp, which
+ *  would abort the WHOLE CSV export mid-map. Guard it (mirrors the xlsx path's
+ *  toIso NaN-guard) so one bad row from a future real backend can't kill the
+ *  export — that row just gets an empty Timestamp cell. */
+function safeFormat(iso: string | undefined | null, fmt: string): string {
+  if (!iso) return '';
+  const d = parseISO(iso);
+  return Number.isNaN(d.getTime()) ? '' : format(d, fmt);
+}
+
 function exportAuditCSV(entries: AuditLogEntry[], filename = 'gospel-central-audit-log.csv') {
   const headers = [
     'Timestamp',
@@ -175,7 +185,7 @@ function exportAuditCSV(entries: AuditLogEntry[], filename = 'gospel-central-aud
     'Reason',
   ];
   const rows = entries.map((e) => [
-    format(parseISO(e.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+    safeFormat(e.timestamp, 'yyyy-MM-dd HH:mm:ss'),
     e.action,
     e.entityType,
     e.entityId,
@@ -365,9 +375,12 @@ export default function ReportsPage() {
   };
   const hasFilters = !!(effectiveAction || effectiveEntity || effectiveUser || search || dateRange !== 'all');
 
-  // Full-workbook .xlsx export (Phase 8): fetch every entity across a wide
-  // window and hand plain arrays to the pure builder (which dynamically imports
-  // exceljs). The reports page is already Branch-Leader+ gated, and Decision 13
+  // Full-workbook .xlsx export (Phase 8): a COMPLETE snapshot of every entity —
+  // hand plain arrays to the pure builder (which dynamically imports exceljs).
+  // The date bounds are intentionally huge (a full report includes all history,
+  // not a window); today the mock GET /bookings returns everything regardless,
+  // and if the real backend later honors the range these bounds keep the export
+  // complete. The reports page is already Branch-Leader+ gated, and Decision 13
   // puts export at GL+ — BL+ satisfies that, so no extra gate here.
   const [xlsxBusy, setXlsxBusy] = useState(false);
   const handleExportXlsx = async () => {
@@ -375,8 +388,8 @@ export default function ReportsPage() {
     setXlsxBusy(true);
     const toastId = toast.loading(t('reports.xlsxBuilding'));
     try {
-      const start = subDays(new Date(), 365).toISOString();
-      const end = addDays(new Date(), 90).toISOString();
+      const start = subDays(new Date(), 3650).toISOString();
+      const end = addDays(new Date(), 3650).toISOString();
       const [bookings, contacts, users, areas, audit] = await Promise.all([
         bookingsApi.getBookings({ start, end }),
         contactsApi.getContacts(),

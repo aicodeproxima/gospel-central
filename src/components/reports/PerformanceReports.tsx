@@ -60,7 +60,18 @@ export default function PerformanceReports() {
 
         if (cancelled) return;
 
-        setTeacherRows(computeTeacherPerformance(metrics, users, bookings));
+        // The mock GET /bookings ignores start/end (returns all), so enforce
+        // the no-show lookback window client-side — otherwise the rate + the
+        // MIN_BOOKINGS_FOR_NO_SHOW_FLAG threshold would silently run over the
+        // ENTIRE booking history rather than the intended BOOKING_LOOKBACK_DAYS.
+        const startMs = start.getTime();
+        const endMs = end.getTime();
+        const windowed = bookings.filter((b) => {
+          const t = new Date(b.startTime).getTime();
+          return !Number.isNaN(t) && t >= startMs && t <= endMs;
+        });
+
+        setTeacherRows(computeTeacherPerformance(metrics, users, windowed));
         setMemberRows(computeMemberPerformance(users, contacts));
       } catch {
         if (cancelled) return;

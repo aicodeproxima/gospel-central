@@ -252,6 +252,19 @@ describe('buildReportWorkbook', () => {
     expect(row.getCell(11).value).toBe('Stephen Phillips, Michael Cardoza');
   });
 
+  it('humanizes contact status/pipelineStage/type + booking type (no raw enum slugs)', async () => {
+    const workbook = await buildReportWorkbook(fixtures);
+    const contacts = workbook.getWorksheet('Contacts')!;
+    const row = contacts.getRow(2); // contact1: ACTIVE / FIRST_STUDY
+    expect(row.getCell(2).value).toBe('Active'); // not 'active'
+    expect(row.getCell(3).value).toBe('First Study'); // not 'first_study'
+    // contact type is humanized (not the raw slug)
+    expect(String(row.getCell(4).value)).not.toMatch(/_/);
+    // Bookings 'Type' column (9th) is humanized too
+    const bookings = workbook.getWorksheet('Bookings')!;
+    expect(String(bookings.getRow(2).getCell(9).value)).not.toMatch(/_/);
+  });
+
   it('resolves a user parent name and role label in Users & Groups', async () => {
     const workbook = await buildReportWorkbook(fixtures);
     const sheet = workbook.getWorksheet('Users & Groups')!;

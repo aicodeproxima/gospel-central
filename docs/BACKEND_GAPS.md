@@ -145,12 +145,19 @@ see. The backend should compute the same scope server-side and apply it as:
 
 - `GET /api/groups` — `200 Group[]`.
 - `GET /api/groups/tree` — `200 OrgNode[]` (assembled tree).
-- `GET /api/metrics/teachers?userId=` — `200 TeacherMetrics[]`.
+- `GET /api/metrics/teachers?userId=` — `200 TeacherMetrics[]`. **AUTHZ (capstone audit 2026-07-04):** must be
+  gated at `canAccessReports` (Branch Leader+) or scope-filtered — the MSW mock returns org-wide teacher
+  performance to ANY authenticated caller (a Team Leader with no Reports access can read it). Powers the
+  Phase-8 `/reports` Performance tab, which is BL+-gated UI-side only.
 
 ## Audit log
 
-- `GET /api/audit-log?page&limit&action&entityType&userId&search&startDate&endDate&branchId` — `200 { entries, total, page, limit }` (envelope shape — BE-7 locks this in).
+- `GET /api/audit-log?page&limit&action&entityType&userId&relatedTo&search&startDate&endDate&branchId` — `200 { entries, total, page, limit }` (envelope shape — BE-7 locks this in).
 - Branch Leaders pass `branchId=viewer.branchId`; server filters entries whose entity resolves into that branch's subtree.
+- **`relatedTo` (Phase 7 Alerts feed) MUST be viewer-enforced, not caller-honored.** The mock treats it as a
+  free client filter, so a Member can pass `relatedTo=<anyone>` to read another user's private alert feed, or
+  omit it to dump the whole org log. The real backend must scope the feed to the JWT viewer (return only
+  entries where the viewer is the actor or in `relatedUserIds`), ignoring/validating a supplied `relatedTo`.
 - **No** `POST` / `PUT` / `DELETE` for audit log — append-only.
 - `GET /api/audit-log/:id` — single entry fetch. **(Missing in MSW — for the Phase 7 audit-detail drawer.)**
 
