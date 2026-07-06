@@ -1,4 +1,4 @@
-import { api, API_BASE } from './client';
+import { api } from './client';
 import type { Area, BlockedSlot, Booking, BookingFormData } from '../types';
 
 export const bookingsApi = {
@@ -97,21 +97,10 @@ export const bookingsApi = {
   updateBlockedSlot(id: string, data: Partial<BlockedSlot> & { actorId?: string }) {
     return api.put<BlockedSlot>(`/blocked-slots/${id}`, data);
   },
-  // Phase 4: deleteBlockedSlot now accepts actorId so the audit row
-  // attributes the deletion to the right user. Server-side gate is BLOCK-3
-  // (Mike). The shared `api` wrapper doesn't carry a body on DELETE
-  // (RequestOptions has no `body` field), so we fetch directly here.
-  deleteBlockedSlot(id: string, actorId?: string) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(`${API_BASE}/blocked-slots/${id}`, {
-      method: 'DELETE',
-      headers,
-      body: JSON.stringify({ actorId }),
-    }).then((r) => {
-      if (!r.ok) throw new Error(`Delete blocked slot failed: ${r.status}`);
-      return undefined as void;
-    });
+  // Soft-deletes the slot (is_active=false). Routes through `api` so the Supabase
+  // router intercepts it in real-backend mode; the actor is derived from auth.uid()
+  // server-side (the old actorId body was dead weight and is dropped).
+  deleteBlockedSlot(id: string, _actorId?: string) {
+    return api.delete<void>(`/blocked-slots/${id}`);
   },
 };

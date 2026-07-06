@@ -19,12 +19,16 @@ const strip = (b: Record<string, unknown> | undefined) => {
 // mock derives retentionExpired on read (retainUntil < now); Postgres doesn't return it.
 const deriveRetention = <T extends { retainUntil?: string | null }>(rows: T[]): T[] =>
   rows.map((c) => (c.retainUntil && Date.parse(c.retainUntil) < Date.now() ? { ...c, retentionExpired: true } : c));
-// teacher_metrics_guarded returns 4 of the 7 TeacherMetrics fields; fill the rest safely.
-const mapMetrics = (r: { userId: string; totalStudents: number; currentlyStudying: number; totalSessionsLed: number }): TeacherMetrics => ({
+// teacher_metrics_guarded (0007) returns 6 of the 7 fields; activeStudents mirrors total (mock parity).
+const mapMetrics = (r: { userId: string; totalStudents: number; currentlyStudying: number; continuedStudying: number; baptizedSinceStudying: number; totalSessionsLed: number }): TeacherMetrics => ({
   userId: r.userId, totalStudents: r.totalStudents, activeStudents: r.totalStudents,
-  currentlyStudying: r.currentlyStudying, continuedStudying: 0, baptizedSinceStudying: 0,
-  totalSessionsLed: r.totalSessionsLed,
+  currentlyStudying: r.currentlyStudying, continuedStudying: r.continuedStudying,
+  baptizedSinceStudying: r.baptizedSinceStudying, totalSessionsLed: r.totalSessionsLed,
 });
+// temp password for admin-created / converted / reset users (must_change_password forces rotation).
+const tempPassword = () => 'Gc-' + Math.random().toString(36).slice(2, 10) + 'X9';
+const genUsername = (first: string, last: string) =>
+  (`${first}${last}`.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user').slice(0, 24) + Math.floor(Math.random() * 900 + 100);
 async function authUid(): Promise<string> {
   const { data } = await supabase().auth.getUser();
   if (!data.user) throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'No session' });
@@ -142,12 +146,54 @@ const R: Route[] = [
   { method: 'POST', re: /^\/bookings\/([^/?]+)\/restore$/, h: ({ id }) => sb(supabase().from('bookings').update({ status: 'bible_study', cancelled_at: null, cancel_reason: null, cancelled_by: null } as never).eq('id', id!).select().single()) },
   { method: 'PATCH', re: /^\/bookings\/([^/?]+)\/status$/, h: ({ id, body }) => sb(supabase().from('bookings').update({ status: body.status } as never).eq('id', id!).select().single()) },
   { method: 'POST', re: /^\/contacts$/, h: ({ body }) => rpc('create_contact', { p: snakeize(strip(body)) }) },
-  { method: 'PUT', re: /^\/contacts\/([^/?]+)$/, h: ({ id, body }) => sb(supabase().from('contacts').update(snakeize(strip(body)) as never).eq('id', id!).select().single()) },
+  { method: 'PUT', re: /^\/contacts\/([^/?]+)$/, h: async ({ id, body }) => {
+    const b = strip(body) as Record<string, unknown>;
+    // assigned_teacher_id / created_by are NOT update-granted; teacher reassign goes via RPC.
+    if ('assignedTeacherId' in b) { await rpc('set_contact_teacher', { cid: id, teacher: b.assignedTeacherId }); delete b.assignedTeacherId; }
+    delete b.createdBy;
+    return Object.keys(b).length
+      ? sb(supabase().from('contacts').update(snakeize(b) as never).eq('id', id!).select().single())
+      : sb(supabase().from('contacts').select('*').eq('id', id!).single());
+  } },
   { method: 'DELETE', re: /^\/contacts\/([^/?]+)$/, h: ({ id }) => rpc('set_contact_inactive', { cid: id }) },
+  { method: 'POST', re: /^\/contacts\/([^/?]+)\/convert$/, h: async ({ id, body }) => {
+    const contact = await sb<{ firstName: string; lastName: string; email?: string }>(supabase().from('contacts').select('*').eq('id', id!).single());
+    const username = genUsername(contact.firstName, contact.lastName);
+    const p = { ...strip(body), username, email: contact.email || `${username}@diamond.org`, password: tempPassword(), mustChangePassword: true };
+    const user = await rpc('convert_contact', { cid: id, p: snakeize(p) });
+    return { user, contact: await sb(supabase().from('contacts').select('*').eq('id', id!).single()) };
+  } },
+  { method: 'POST', re: /^\/users$/, h: ({ body }) => {
+    const b = strip(body) as Record<string, unknown>;
+    const username = (b.username as string) || genUsername(String(b.firstName || ''), String(b.lastName || ''));
+    return rpc('create_user', { p: snakeize({ ...b, username, email: b.email || `${username}@diamond.org`, password: tempPassword(), mustChangePassword: true }) });
+  } },
+  { method: 'POST', re: /^\/users\/([^/?]+)\/reset-password$/, h: async ({ id }) => {
+    const pw = tempPassword();
+    await rpc('reset_user_password', { target: id, new_password: pw });
+    return { tempPassword: pw, user: await sb(supabase().from('users').select('*').eq('id', id!).single()) };
+  } },
+  { method: 'POST', re: /^\/users\/([^/?]+)\/change-password$/, h: async ({ id, body }) => {
+    await sb(supabase().auth.updateUser({ password: String(body.newPassword) }));
+    return sb(supabase().from('users').update({ must_change_password: false } as never).eq('id', id!).select().single());
+  } },
   { method: 'PUT', re: /^\/users\/([^/?]+)\/tags$/, h: ({ id, body }) => rpc('set_user_tags', { target: id, new_tags: body.tags }) },
   { method: 'PUT', re: /^\/users\/([^/?]+)\/username$/, h: ({ id, body }) => rpc('change_username', { target: id, new_name: body.username }) },
-  { method: 'POST', re: /^\/users\/([^/?]+)\/deactivate$/, h: ({ id }) => rpc('deactivate_user', { target: id }) },
-  { method: 'POST', re: /^\/users\/([^/?]+)\/restore$/, h: ({ id }) => rpc('restore_user', { target: id }) },
+  { method: 'POST', re: /^\/users\/([^/?]+)\/deactivate$/, h: async ({ id, body }) => {
+    if (body.cascade) { const n = await rpc<number>('deactivate_user_cascade', { target: id }); return { ...(await sb(supabase().from('users').select('*').eq('id', id!).single()) as object), deactivatedCount: n }; }
+    return rpc('deactivate_user', { target: id });
+  } },
+  { method: 'POST', re: /^\/users\/([^/?]+)\/restore$/, h: async ({ id, body }) => {
+    if (body.cascade) { const n = await rpc<number>('restore_user_cascade', { target: id }); return { ...(await sb(supabase().from('users').select('*').eq('id', id!).single()) as object), restoredCount: n }; }
+    return rpc('restore_user', { target: id });
+  } },
+  { method: 'PUT', re: /^\/settings\/export-import$/, h: async ({ body }) => {
+    await rpc('set_export_import_override', { node: body.nodeId, val: body.value });
+    const users = await sb<{ id: string; exportImportEnabled: boolean | null }[]>(supabase().from('users').select('id, export_import_enabled'));
+    const overrides: Record<string, boolean> = {};
+    for (const u of users) if (u.exportImportEnabled != null) overrides[u.id] = u.exportImportEnabled;
+    return { overrides, default: false };
+  } },
   { method: 'PUT', re: /^\/users\/([^/?]+)$/, h: ({ id, body }) => {
     const SAFE = ['firstName', 'lastName', 'phone', 'avatarUrl', 'gender'];
     const patch: Record<string, unknown> = {};
