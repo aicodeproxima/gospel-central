@@ -121,6 +121,19 @@ class ApiClient {
     // Keep skipAuthRedirect out of the actual fetch init — it's our own
     // option, not a RequestInit field.
     const { skipAuthRedirect, ...fetchInit } = init;
+
+    // Supabase mode: route through the RLS-enforced adapter instead of fetch.
+    // Dynamic import so supabase-js only loads when NOT in mock mode (keeps the
+    // mock/demo bundle lean). The router throws typed ApiError on failure, so the
+    // caller's catch semantics (e.status === 409, e.code === 'PERMISSION_DENIED')
+    // are preserved. See src/lib/api/supabase-router.ts.
+    if (!IS_MOCK) {
+      const { supabaseRouter } = await import('./supabase-router');
+      const method = (fetchInit.method || 'GET').toUpperCase();
+      const body = fetchInit.body ? JSON.parse(fetchInit.body as string) : undefined;
+      return (await supabaseRouter(method, path, body)) as T;
+    }
+
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
