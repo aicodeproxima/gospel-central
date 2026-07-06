@@ -41,19 +41,47 @@ interface Route { method: string; re: RegExp; h: Handler }
 
 /* ---- routes (ordered: concrete before param before collection) ---- */
 const R: Route[] = [
-  // ---------- AUTH (minimal; full httpOnly cutover is Phase C) ----------
+  // ---------- AUTH (Phase C: cookie sessions via @supabase/ssr in supabase.ts) ----------
   // username -> email convention (seed uses <username>@diamond.org). signInWithPassword
   // establishes the supabase-js session that authenticates every subsequent router read.
+  // Both outcomes are mirrored into public.audit_log via the anon-executable
+  // log_login_attempt RPC (migration 0008) — fire-and-forget so a missing/old
+  // backend can never break login itself.
   { method: 'POST', re: /^\/login$/, h: async ({ body }) => {
     const username = String(body.username || '');
     const email = username.includes('@') ? username : `${username}@diamond.org`;
     const { data, error } = await supabase().auth.signInWithPassword({ email, password: String(body.password || '') });
-    if (error || !data.session) throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Invalid credentials', details: error });
+    if (error || !data.session) {
+      void supabase().rpc('log_login_attempt', { uname: username.slice(0, 64), success: false }).then(() => {}, () => {});
+      throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: 'Invalid credentials', details: error });
+    }
+    void supabase().rpc('log_login_attempt', { uname: username.slice(0, 64), success: true }).then(() => {}, () => {});
     const profile = await sb<User>(supabase().from('users').select('*').eq('id', data.user!.id).single());
     const flag = await rpc<boolean>('can_export_import').catch(() => false);
     return { token: data.session.access_token, user: { ...profile, exportImportEnabled: flag } };
   } },
   { method: 'POST', re: /^\/logout$/, h: async () => { await supabase().auth.signOut(); return {}; } },
+  // ErrorBoundary/WebGLGuard crash reports -> public.error_log (migration 0008).
+  // Explicit field mapping (NOT blind snakeize): viewerId is 'anonymous' or a mock
+  // slug in some payloads — only a real uuid may reach the uuid column.
+  { method: 'POST', re: /^\/error-log$/, h: async ({ body }) => {
+    const vid = typeof body.viewerId === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewerId)
+      ? body.viewerId : null;
+    const s = (v: unknown, max: number) => (v == null ? null : String(v).slice(0, max));
+    const { error } = await supabase().from('error_log').insert({
+      user_id: vid,
+      user_role: s(body.viewerRole, 32),
+      username: s(body.viewerUsername, 64),
+      url: s(body.url, 512),
+      message: s(body.message, 2000) ?? 'unknown',
+      stack: s(body.stack, 8000),
+      component_stack: s(body.componentStack, 8000),
+      user_agent: s(body.userAgent, 512),
+    } as never);
+    if (error) throw pgErrorToApiError(error);
+    return { ok: true };
+  } },
   // ---------- READS ----------
   { method: 'GET', re: /^\/me$/, h: async () => {
     const uid = await authUid();

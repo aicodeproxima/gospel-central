@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode } from 'react';
 import type { User } from '@/lib/types';
+import { api } from '@/lib/api/client';
 
 /**
  * ErrorBoundary — durable insurance for per-user bugs.
@@ -31,7 +32,7 @@ interface Props {
   /** Current URL — usePathname() in the parent. */
   url: string;
   children: ReactNode;
-  /** Optional override for the report endpoint. Defaults to /api/error-log. */
+  /** Optional override for the report path (api-client path). Defaults to /error-log. */
   endpoint?: string;
 }
 
@@ -50,8 +51,10 @@ export class ErrorBoundary extends Component<Props, State> {
     // Best-effort POST to the error-log endpoint. We deliberately do not
     // await — if the network is also down (the most common reason a real
     // production user surfaces a render bug), the boundary still renders
-    // its fallback UI without blocking on a failed fetch.
-    const endpoint = this.props.endpoint ?? '/api/error-log';
+    // its fallback UI without blocking on a failed fetch. Routed through the
+    // api client so it reaches MSW in mock mode and public.error_log via the
+    // supabase router in real mode (Phase C observability floor).
+    const endpoint = this.props.endpoint ?? '/error-log';
     const payload = {
       message: error.message,
       stack: error.stack ?? null,
@@ -64,13 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
         typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
       timestamp: new Date().toISOString(),
     };
-    fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      // Keep credentials so MSW can resolveViewer in dev / prod alike.
-      credentials: 'same-origin',
-    }).catch(() => {
+    api.post(endpoint, payload).catch(() => {
       /* swallow — we already have the fallback rendered */
     });
 

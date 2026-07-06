@@ -62,3 +62,6 @@ next-env.d.ts
 
 # local vendor packages' installed deps (source is tracked, node_modules is not)
 vendor/*/node_modules/
+
+# masked-PAT capture artifacts from browser-automation sessions (SEC-7)
+.playwright-mcp/

@@ -6,12 +6,24 @@
 // (P0001 + token) errors → the typed ApiError the UI already handles. Used only when
 // NEXT_PUBLIC_MOCK_API !== 'true'; mock mode keeps the fetch layer in client.ts.
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { ApiError, type ApiErrorCode } from './client';
 
 let _client: SupabaseClient | null = null;
 
-/** Lazily-created browser client. Phase C swaps this for @supabase/ssr cookie sessions. */
+/**
+ * Lazily-created browser client (Phase C: @supabase/ssr cookie sessions).
+ *
+ * createBrowserClient stores the session in chunked `sb-<ref>-auth-token*`
+ * COOKIES instead of localStorage, so src/proxy.ts (middleware) can validate
+ * and refresh the same session server-side. NOTE: these cookies are set from
+ * JS and therefore cannot be httpOnly — that is inherent to the browser-side
+ * data plane (supabase-js talks to PostgREST directly from the page). What
+ * Phase C retires is the app-managed localStorage token + hand-rolled
+ * `gospel-central-session` cookie mirror (audit C-2's worst half); full
+ * httpOnly would require proxying all data access through server routes.
+ */
 export function supabase(): SupabaseClient {
   if (_client) return _client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,9 +34,7 @@ export function supabase(): SupabaseClient {
       message: 'Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing)',
     });
   }
-  _client = createClient(url, anon, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
-  });
+  _client = createBrowserClient(url, anon);
   return _client;
 }
 

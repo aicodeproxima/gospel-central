@@ -55,10 +55,15 @@ describe('ApiClient typed errors (network vs 401, skipAuthRedirect)', () => {
     windowStub = { location: { href: '' } };
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('window', windowStub);
+    // These tests pin the MOCK fetch path. request() reads the flag lazily so
+    // this per-test stub keeps it off the Supabase router (vitest is env-less;
+    // an unset flag means "real mode" since the Phase B dispatch).
+    vi.stubEnv('NEXT_PUBLIC_MOCK_API', 'true');
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('(a) fetch rejection → ApiError status 0, code NETWORK_ERROR', async () => {

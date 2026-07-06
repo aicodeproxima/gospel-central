@@ -127,7 +127,12 @@ class ApiClient {
     // mock/demo bundle lean). The router throws typed ApiError on failure, so the
     // caller's catch semantics (e.status === 409, e.code === 'PERMISSION_DENIED')
     // are preserved. See src/lib/api/supabase-router.ts.
-    if (!IS_MOCK) {
+    //
+    // Read the env HERE (not the module-level IS_MOCK const): Next.js inlines
+    // NEXT_PUBLIC_* wherever it appears so browser behavior is identical, but a
+    // lazy read lets vitest (which runs env-less) opt into the mock fetch path
+    // per-test via vi.stubEnv — see client-errors.test.ts.
+    if (process.env.NEXT_PUBLIC_MOCK_API !== 'true') {
       const { supabaseRouter } = await import('./supabase-router');
       const method = (fetchInit.method || 'GET').toUpperCase();
       const body = fetchInit.body ? JSON.parse(fetchInit.body as string) : undefined;

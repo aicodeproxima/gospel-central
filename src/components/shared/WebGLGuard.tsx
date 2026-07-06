@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { api } from '@/lib/api/client';
 
 // WebGL availability is stable for the life of a page load; cache the probe
 // so remounts (e.g. the groups 3d/list toggle) don't create a new orphan
@@ -65,10 +66,8 @@ export class WebGLGuard extends React.Component<WebGLGuardProps, State> {
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     // GL available yet the canvas crashed → genuine bug, not Lockdown Mode.
     if (!detectWebGL()) return;
-    fetch('/api/error-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    api
+      .post('/error-log', {
         message: `[WebGLGuard] canvas crashed with WebGL available: ${error.message}`,
         stack: error.stack ?? null,
         componentStack: info?.componentStack ?? null,
@@ -76,11 +75,10 @@ export class WebGLGuard extends React.Component<WebGLGuardProps, State> {
         userAgent:
           typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
         timestamp: new Date().toISOString(),
-      }),
-      credentials: 'same-origin',
-    }).catch(() => {
-      /* swallow — the fallback is already rendered */
-    });
+      })
+      .catch(() => {
+        /* swallow — the fallback is already rendered */
+      });
   }
 
   componentDidMount() {
