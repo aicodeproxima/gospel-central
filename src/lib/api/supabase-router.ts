@@ -81,7 +81,8 @@ const R: Route[] = [
     return deriveRetention([c])[0];
   } },
   { method: 'GET', re: /^\/contacts$/, h: async ({ qs }) => {
-    let q = supabase().from('contacts').select('*');
+    // Hide soft-deleted contacts (status='inactive') from the main list — matches the mock.
+    let q = supabase().from('contacts').select('*').neq('status', 'inactive');
     const type = qs.get('type'), stage = qs.get('stage'), search = qs.get('search') || qs.get('q');
     if (type && type !== 'all') q = q.eq('type', type);
     if (stage && stage !== 'all') q = q.eq('pipeline_stage', stage);
