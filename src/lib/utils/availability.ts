@@ -2,6 +2,18 @@ import type { BlockedSlot, Booking } from '../types';
 import { formatClock, type Clock } from './date';
 
 /**
+ * Human-friendly duration label from a minute count.
+ * 30 -> "30 min", 60 -> "1 hr", 90 -> "1 hr 30 min", 120 -> "2 hr".
+ */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} hr`;
+  return `${h} hr ${m} min`;
+}
+
+/**
  * Compute 30-minute time slots for a given day and mark which are occupied
  * by existing bookings in a specific room.
  *

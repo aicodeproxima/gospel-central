@@ -18,7 +18,7 @@ import { useCustomEntitiesStore, isBackendManagedId } from '@/lib/stores/custom-
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { Activity, BookingType, ContactStatus, PipelineStage } from '@/lib/types';
 import type { Area, BlockedSlot, Booking, BookingFormData, Contact, User } from '@/lib/types';
-import { getDaySlots, DEFAULT_SLOT_START_HOUR } from '@/lib/utils/availability';
+import { getDaySlots, DEFAULT_SLOT_START_HOUR, formatDuration } from '@/lib/utils/availability';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { isApiError } from '@/lib/api/client';
 import { contactsApi } from '@/lib/api/contacts';
@@ -882,7 +882,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   {startSlotIdx !== null && whenSlots[startSlotIdx] && (
                     <Row
                       label={t('wizard.time')}
-                      value={`${whenSlots[startSlotIdx].label} — ${durationSlots * 30} min`}
+                      value={`${whenSlots[startSlotIdx].label} – ${whenSlots[startSlotIdx + durationSlots]?.label ?? 'end of day'} · ${formatDuration(durationSlots * 30)}`}
                       onClick={() => setStep('when')}
                     />
                   )}
