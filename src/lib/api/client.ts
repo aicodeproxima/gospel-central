@@ -1,4 +1,3 @@
-const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
 // The mock network layer is SW-free since Loop 10: src/mocks/browser.ts
 // patches window.fetch/XHR in-page via @mswjs/interceptors — there is NO
 // MSW service worker, so interception is synchronous and active before the
@@ -11,9 +10,20 @@ const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
 // block (http://localhost from an HTTPS page is silently blocked on WebKit).
 //
 // Single source of truth for the API base — import this; never re-derive
-// this expression elsewhere.
+// this expression elsewhere. Both BROWSER modes resolve same-origin '/api':
+//   - mock: @mswjs/interceptors matches the request in-page (SW-free).
+//   - real (Phase C): the request hits the Next Route Handler at
+//     src/app/api/[...path]/route.ts, which runs the RLS router server-side
+//     against HttpOnly cookies. (The dead localhost:8080 backend is retired as
+//     a browser target.)
+// In Node (vitest / SSR) there is no page origin, so a relative '/api' can't be
+// used with new URL()/fetch(); fall back to an absolute base. api.* is only ever
+// called browser-side, so this Node value is used ONLY by the mock integration
+// tests (which register MSW handlers against this same base) and by
+// isDeadBackendBuild's localhost sentinel — never by real SSR/route handlers.
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || (IS_MOCK ? '/api' : 'http://localhost:8080/api');
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window === 'undefined' ? 'http://localhost:8080/api' : '/api');
 
 /**
  * Thin fetch wrapper with:
@@ -122,23 +132,12 @@ class ApiClient {
     // option, not a RequestInit field.
     const { skipAuthRedirect, ...fetchInit } = init;
 
-    // Supabase mode: route through the RLS-enforced adapter instead of fetch.
-    // Dynamic import so supabase-js only loads when NOT in mock mode (keeps the
-    // mock/demo bundle lean). The router throws typed ApiError on failure, so the
-    // caller's catch semantics (e.status === 409, e.code === 'PERMISSION_DENIED')
-    // are preserved. See src/lib/api/supabase-router.ts.
-    //
-    // Read the env HERE (not the module-level IS_MOCK const): Next.js inlines
-    // NEXT_PUBLIC_* wherever it appears so browser behavior is identical, but a
-    // lazy read lets vitest (which runs env-less) opt into the mock fetch path
-    // per-test via vi.stubEnv — see client-errors.test.ts.
-    if (process.env.NEXT_PUBLIC_MOCK_API !== 'true') {
-      const { supabaseRouter } = await import('./supabase-router');
-      const method = (fetchInit.method || 'GET').toUpperCase();
-      const body = fetchInit.body ? JSON.parse(fetchInit.body as string) : undefined;
-      return (await supabaseRouter(method, path, body)) as T;
-    }
-
+    // Both modes fetch same-origin API_BASE ('/api'). Mock: @mswjs/interceptors
+    // answers in-page. Real (Phase C): the fetch reaches the Next Route Handler,
+    // which runs the RLS router SERVER-SIDE; the session travels as an HttpOnly
+    // cookie — there is no client-side supabase-js and no bearer token. getToken()
+    // is a mock-only leftover (null in real mode, since auth-store never persists
+    // a token there), so no Authorization header is sent in real mode.
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -151,6 +150,9 @@ class ApiClient {
       res = await fetch(`${API_BASE}${path}`, {
         ...fetchInit,
         headers,
+        // Send the HttpOnly session cookie on same-origin /api requests (real
+        // mode). 'same-origin' is the fetch default, set explicitly for intent.
+        credentials: 'same-origin',
       });
     } catch (err) {
       if (isAbortError(err)) throw err;

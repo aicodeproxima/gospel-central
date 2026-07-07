@@ -14,4 +14,10 @@ export const authApi = {
   me() {
     return api.get<AuthResponse['user']>('/me');
   },
+  // Real mode (Phase C): clears the HttpOnly session cookie server-side via the
+  // route handler → supabase-router /logout → auth.signOut(). No-op-safe if the
+  // session is already gone. Mock mode never calls this (auth-store resets MSW).
+  logout() {
+    return api.post<Record<string, never>>('/logout');
+  },
 };

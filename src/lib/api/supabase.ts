@@ -1,42 +1,17 @@
-// Supabase transport adapter (Phase B of the FE↔BE cutover).
+// Supabase transport adapter (Phase B→C of the FE↔BE cutover).
 //
 // The rest of src/lib/api/* keeps speaking camelCase + the ApiError contract. This
-// module is the single boundary that: (1) instantiates the browser client, (2) deep-
-// converts snake_case DB rows ↔ camelCase app shapes, and (3) maps PostgREST / PG
-// (P0001 + token) errors → the typed ApiError the UI already handles. Used only when
-// NEXT_PUBLIC_MOCK_API !== 'true'; mock mode keeps the fetch layer in client.ts.
+// module is the pure, CLIENT-AGNOSTIC boundary that: (1) deep-converts snake_case DB
+// rows ↔ camelCase app shapes, and (2) maps PostgREST / PG (P0001 + token) errors →
+// the typed ApiError the UI already handles. A SupabaseClient is INJECTED by the
+// caller — Phase C runs the router SERVER-SIDE (src/app/api/[...path]/route.ts) with
+// an @supabase/ssr client bound to HttpOnly cookies (supabase-server.ts), so the
+// access token never reaches browser JS (closes audit C-2). There is no browser
+// Supabase client anymore. Used only when NEXT_PUBLIC_MOCK_API !== 'true'; mock mode
+// keeps the fetch layer in client.ts.
 
-import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ApiError, type ApiErrorCode } from './client';
-
-let _client: SupabaseClient | null = null;
-
-/**
- * Lazily-created browser client (Phase C: @supabase/ssr cookie sessions).
- *
- * createBrowserClient stores the session in chunked `sb-<ref>-auth-token*`
- * COOKIES instead of localStorage, so src/proxy.ts (middleware) can validate
- * and refresh the same session server-side. NOTE: these cookies are set from
- * JS and therefore cannot be httpOnly — that is inherent to the browser-side
- * data plane (supabase-js talks to PostgREST directly from the page). What
- * Phase C retires is the app-managed localStorage token + hand-rolled
- * `gospel-central-session` cookie mirror (audit C-2's worst half); full
- * httpOnly would require proxying all data access through server routes.
- */
-export function supabase(): SupabaseClient {
-  if (_client) return _client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) {
-    throw new ApiError({
-      status: 0, code: 'NETWORK_ERROR',
-      message: 'Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing)',
-    });
-  }
-  _client = createBrowserClient(url, anon);
-  return _client;
-}
 
 /* ---------------------------------------------------------------- case transforms */
 const toCamel = (s: string) => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -108,6 +83,10 @@ export async function sb<T = unknown>(
 }
 
 /** Call a SECURITY-DEFINER RPC with a camelCase arg object (snakeized for the DB). */
-export async function rpc<T = unknown>(fn: string, args?: Record<string, unknown>): Promise<T> {
-  return sb<T>(supabase().rpc(fn, args ? (snakeize(args) as Record<string, unknown>) : undefined));
+export async function rpc<T = unknown>(
+  client: SupabaseClient,
+  fn: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return sb<T>(client.rpc(fn, args ? (snakeize(args) as Record<string, unknown>) : undefined));
 }

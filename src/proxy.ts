@@ -16,14 +16,14 @@ import { createServerClient } from '@supabase/ssr';
  * NOT httpOnly (audit C-2, accepted for the demo layer) and this gate only
  * checks presence, not validity.
  *
- * SUPABASE MODE (Phase C of the cutover): the session lives in supabase's
- * own `sb-*` auth cookies (set by createBrowserClient in
- * src/lib/api/supabase.ts). Here we build an @supabase/ssr server client
- * bound to the request cookies and call getUser(), which BOTH validates the
- * session against GoTrue AND refreshes an expired access token — the
- * refreshed cookies are written onto the response. A request with no valid
- * session is redirected to /login. This replaces the presence-only check
- * with real validation; the legacy gospel-central-session cookie is ignored
+ * SUPABASE MODE (Phase C — httpOnly server proxy): the session lives in
+ * HttpOnly `sb-*` auth cookies set SERVER-SIDE by the login Route Handler
+ * (src/app/api/[...path]/route.ts). Here we build an @supabase/ssr server
+ * client bound to the request cookies and call getUser(), which BOTH validates
+ * the session against GoTrue AND refreshes an expired access token — the
+ * refreshed cookies are re-written onto the response with the SAME HttpOnly
+ * flags (see cookieOptions below). A request with no valid session is
+ * redirected to /login. The legacy gospel-central-session cookie is ignored
  * in this mode.
  *
  * Role-based gating (Reports/Admin = Branch Leader+) remains client-side
@@ -78,6 +78,11 @@ export async function proxy(request: NextRequest) {
     // whatever we ultimately return (the documented @supabase/ssr pattern).
     let response = NextResponse.next({ request });
     const supabase = createServerClient(supabaseUrl, supabaseAnon, {
+      // Force HttpOnly (mirrors SUPABASE_COOKIE_OPTIONS in supabase-server.ts —
+      // duplicated to keep next/headers out of the middleware bundle). The
+      // refreshed session cookies must carry the SAME flags the login handler
+      // set, else the browser would hold two cookies with different attributes.
+      cookieOptions: { httpOnly: true, secure: true, sameSite: 'lax', path: '/' },
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {

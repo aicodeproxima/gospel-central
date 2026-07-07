@@ -9,14 +9,13 @@ import type { User } from '../types';
  * live in localStorage plus a non-httpOnly `gospel-central-session` cookie so
  * src/proxy.ts can gate routes (audit C-2's known, accepted demo-mode risk).
  *
- * SUPABASE MODE (real backend): the session is OWNED by supabase-js.
- * `createBrowserClient` (src/lib/api/supabase.ts) persists it in
- * `sb-<ref>-auth-token*` cookies that the middleware validates + refreshes.
- * This store no longer writes any token to localStorage and no longer mirrors
- * a session cookie — it only caches the PROFILE (`user`) for fast first paint
- * and re-derives truth from `supabase.auth.getSession()` + `/me` on hydrate.
- * Residual C-2 note: supabase's cookies are JS-set and thus not httpOnly;
- * that is inherent to the browser-side data plane (see supabase.ts).
+ * SUPABASE MODE (real backend, Phase C — httpOnly server proxy): the session
+ * is an HttpOnly `sb-<ref>-auth-token*` cookie set by the server Route Handler
+ * (src/app/api/[...path]/route.ts) — browser JS CANNOT read it (closes C-2).
+ * There is no browser supabase-js client. This store never persists a token or
+ * a session-cookie mirror; it caches only the PROFILE (`user`) for fast first
+ * paint and re-derives truth from GET /api/me (which the server answers from
+ * the HttpOnly cookie) on hydrate. Logout hits POST /api/logout to revoke it.
  */
 
 const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_API === 'true';
@@ -64,10 +63,8 @@ interface AuthState {
 }
 
 // Supabase-mode single-flight guard: many components call hydrate() on mount;
-// only one getSession()+/me round should run at a time.
+// only one GET /api/me round should run at a time.
 let hydrating = false;
-// onAuthStateChange must be registered exactly once per page lifetime.
-let authListenerRegistered = false;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -108,10 +105,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .then((m) => m.resetMockState?.())
           .catch(() => {});
       } else {
-        // Revoke the real session (clears the sb-* auth cookies). Fire-and-
+        // Revoke the real session server-side (clears the HttpOnly sb-* cookies)
+        // via POST /api/logout → supabase-router → auth.signOut(). Fire-and-
         // forget: local state is already cleared below either way.
-        import('@/lib/api/supabase')
-          .then((m) => m.supabase().auth.signOut())
+        import('@/lib/api/auth')
+          .then((m) => m.authApi.logout())
           .catch(() => {});
       }
       import('@/lib/stores/custom-entities-store')
@@ -164,65 +162,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Supabase mode: truth = the supabase session (cookie-backed). Async, but
-    // getSession() reads local cookie state (no network), so `hydrated` settles
-    // within a tick; /me then refreshes the cached profile in the background.
+    // Supabase mode (Phase C — httpOnly server proxy): the session cookie is
+    // HttpOnly, so browser JS cannot read it. "Who am I / am I signed in?" is
+    // answered ONLY by the server via GET /api/me (it reads the cookie).
+    //
+    // We call /me with skipAuthRedirect so a signed-out 401 does NOT trigger
+    // client.ts's global /login redirect — the /login page ALSO hydrates, and a
+    // hard redirect there would loop. Routing to /login for a real expired
+    // session is handled by proxy.ts on full loads (and by data-call 401s during
+    // in-app nav, which keep the redirect).
     if (hydrating) return;
     hydrating = true;
     (async () => {
+      const cached = readCachedUser();
+      if (cached) {
+        // Instant paint from the cached profile; /me refreshes it below.
+        set({ token: '', user: cached, isAuthenticated: true, hydrated: true });
+      }
       try {
-        const { supabase } = await import('@/lib/api/supabase');
-        const client = supabase();
-
-        if (!authListenerRegistered) {
-          authListenerRegistered = true;
-          client.auth.onAuthStateChange((event, session) => {
-            // SIGNED_OUT covers cross-tab logout AND a failed token refresh
-            // (revoked session): drop local state; layouts route to /login.
-            if (event === 'SIGNED_OUT') {
-              try {
-                localStorage.removeItem('user');
-              } catch {
-                /* noop */
-              }
-              set({ token: null, user: null, isAuthenticated: false, hydrated: true });
-            } else if (event === 'TOKEN_REFRESHED' && session) {
-              set({ token: session.access_token });
-            }
-          });
-        }
-
-        const { data } = await client.auth.getSession();
-        const session = data.session;
-        if (!session) {
+        const { api } = await import('@/lib/api/client');
+        const fresh = await api.get<User>('/me', { skipAuthRedirect: true });
+        get().setUser(fresh); // persists + updates state
+        set({ token: '', isAuthenticated: true, hydrated: true });
+      } catch (e) {
+        const status =
+          e && typeof e === 'object' && typeof (e as { status?: unknown }).status === 'number'
+            ? (e as { status: number }).status
+            : 0;
+        if (status === 0 && cached) {
+          // Transient network blip WITH a cached profile — stay optimistic;
+          // proxy.ts still gates full navigations and /me retries next hydrate.
+          set({ hydrated: true });
+        } else {
+          // Real 401 (server refused the session) or nothing cached to fall back
+          // on → signed out rather than presenting a stale/empty shell.
+          try {
+            localStorage.removeItem('user');
+          } catch {
+            /* noop */
+          }
           set({ token: null, user: null, isAuthenticated: false, hydrated: true });
-          return;
         }
-
-        const cached = readCachedUser();
-        if (cached) {
-          // Instant paint from cache, then refresh the profile from the DB
-          // (role/tags may have changed since last visit).
-          set({ token: session.access_token, user: cached, isAuthenticated: true, hydrated: true });
-        }
-        try {
-          const { authApi } = await import('@/lib/api/auth');
-          const fresh = await authApi.me();
-          get().setUser(fresh);
-          if (!cached) {
-            set({ token: session.access_token, isAuthenticated: true, hydrated: true });
-          }
-        } catch {
-          // /me failed. With a cached profile we stay optimistic (transient
-          // network blip); without one we cannot render the app — treat as
-          // signed out rather than presenting an empty shell.
-          if (!cached) {
-            set({ token: null, user: null, isAuthenticated: false, hydrated: true });
-          }
-        }
-      } catch {
-        // supabase client unavailable (misconfigured build) — fail closed.
-        set({ token: null, user: null, isAuthenticated: false, hydrated: true });
       } finally {
         hydrating = false;
       }
