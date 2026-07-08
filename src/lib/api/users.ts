@@ -39,12 +39,21 @@ export interface ResetPasswordResponse {
   user: User;
 }
 
+export interface CreateUserResponse {
+  user: User;
+  /** Plaintext temp password the account was ACTUALLY created with (server-
+   *  generated) — shown ONCE in the wizard, then forced through first-login.
+   *  The frontend must display THIS, not a locally-generated string, or the new
+   *  user can't log in with what the admin was given. Never persisted. */
+  tempPassword: string;
+}
+
 export const usersApi = {
   getAll() {
     return api.get<User[]>('/users');
   },
   create(payload: CreateUserPayload) {
-    return api.post<User>('/users', payload);
+    return api.post<CreateUserResponse>('/users', payload);
   },
 
   // Phase 3 admin-tab actions.

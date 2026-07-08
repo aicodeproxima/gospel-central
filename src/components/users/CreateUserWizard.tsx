@@ -62,13 +62,6 @@ function suggestUsername(first: string, last: string, existing: User[]): string 
   return base + Date.now();
 }
 
-function generatePassword(): string {
-  const adj = ['Bright', 'Quiet', 'Eager', 'Kind', 'Steady', 'Bold', 'Humble'];
-  const noun = ['River', 'Mountain', 'Lantern', 'Harbor', 'Garden', 'Compass', 'Anchor'];
-  const n = Math.floor(Math.random() * 90) + 10;
-  return `${adj[Math.floor(Math.random() * adj.length)]}${noun[Math.floor(Math.random() * noun.length)]}${n}`;
-}
-
 export function CreateUserWizard({
   open,
   onClose,
@@ -169,8 +162,10 @@ export function CreateUserWizard({
   async function submit() {
     setSubmitting(true);
     try {
-      const password = generatePassword();
-      const newUser = await usersApi.create({
+      // Use the temp password the SERVER actually created the account with —
+      // a locally-generated one is never sent, so the new user couldn't log in
+      // with it (the account's real password comes from the backend).
+      const { user: newUser, tempPassword } = await usersApi.create({
         username: username.trim().toLowerCase(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -181,7 +176,7 @@ export function CreateUserWizard({
         createdById: creator.id,
       });
       setCreatedUser(newUser);
-      setCreatedPassword(password);
+      setCreatedPassword(tempPassword);
       setStep('success');
       onCreated?.(newUser);
       toast.success(`Created ${newUser.firstName} ${newUser.lastName}`);

@@ -199,10 +199,12 @@ const R: Route[] = [
     const user = await rpc(db, 'convert_contact', { cid: id, p: snakeize(p) });
     return { user, contact: await sb(db.from('contacts').select('*').eq('id', id!).single()) };
   } },
-  { method: 'POST', re: /^\/users$/, h: ({ db, body }) => {
+  { method: 'POST', re: /^\/users$/, h: async ({ db, body }) => {
     const b = strip(body) as Record<string, unknown>;
     const username = (b.username as string) || genUsername(String(b.firstName || ''), String(b.lastName || ''));
-    return rpc(db, 'create_user', { p: snakeize({ ...b, username, email: b.email || `${username}@diamond.org`, password: tempPassword(), mustChangePassword: true }) });
+    const pw = tempPassword();  // the account's REAL initial password — return it so the admin can hand it over
+    const user = await rpc(db, 'create_user', { p: snakeize({ ...b, username, email: b.email || `${username}@diamond.org`, password: pw, mustChangePassword: true }) });
+    return { user, tempPassword: pw };
   } },
   { method: 'POST', re: /^\/users\/([^/?]+)\/reset-password$/, h: async ({ db, id }) => {
     const pw = tempPassword();

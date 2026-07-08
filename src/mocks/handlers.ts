@@ -1918,7 +1918,12 @@ export const handlers = [
       relatedUserIds: relatedUsers(actor.id, newUser.id, newUser.parentId),
     });
 
-    return HttpResponse.json(newUser, { status: 201 });
+    // Return the temp password alongside the user (parity with the Supabase
+    // router) so the wizard shows the ACTUAL initial credential, not a
+    // locally-generated string. Mock login accepts any seeded pw ('admin') and
+    // resets on reload, so this is demo-cosmetic here — but the shape must match.
+    const tempPassword = 'Gc-' + Math.random().toString(36).slice(2, 10) + 'X9';
+    return HttpResponse.json({ user: newUser, tempPassword }, { status: 201 });
   }),
 
   // PUT /users/:id — partial update (firstName, lastName, email, phone, role,
