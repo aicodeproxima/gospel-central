@@ -23,6 +23,13 @@ const strip = (b: Record<string, unknown> | undefined) => {
 // mock derives retentionExpired on read (retainUntil < now); Postgres doesn't return it.
 const deriveRetention = <T extends { retainUntil?: string | null }>(rows: T[]): T[] =>
   rows.map((c) => (c.retainUntil && Date.parse(c.retainUntil) < Date.now() ? { ...c, retentionExpired: true } : c));
+// Postgres `time` columns return 'HH:mm:ss'; the UI + mock use 'HH:mm'. Normalize blocked-slot
+// times on read/write so the real app-shape matches the mock (parity finding, 2026-07-07).
+const normSlot = <T extends { startTime?: string | null; endTime?: string | null }>(s: T): T => ({
+  ...s,
+  startTime: s.startTime ? s.startTime.slice(0, 5) : s.startTime,
+  endTime: s.endTime ? s.endTime.slice(0, 5) : s.endTime,
+});
 // teacher_metrics_guarded (0007) returns 6 of the 7 fields; activeStudents mirrors total (mock parity).
 const mapMetrics = (r: { userId: string; totalStudents: number; currentlyStudying: number; continuedStudying: number; baptizedSinceStudying: number; totalSessionsLed: number }): TeacherMetrics => ({
   userId: r.userId, totalStudents: r.totalStudents, activeStudents: r.totalStudents,
@@ -137,7 +144,7 @@ const R: Route[] = [
     let q = db.from('blocked_slots').select('*').eq('is_active', true);
     const a = qs.get('areaId');
     if (a) q = q.or(`scope.eq.global,area_id.eq.${a}`);
-    return sb(q);
+    return (await sb<Parameters<typeof normSlot>[0][]>(q)).map(normSlot);
   } },
   { method: 'GET', re: /^\/groups\/tree$/, h: async ({ db }) => {
     const users = await sb<User[]>(db.from('users').select('*'));
@@ -247,9 +254,9 @@ const R: Route[] = [
   { method: 'PUT', re: /^\/rooms\/([^/?]+)$/, h: ({ db, id, body }) => sb(db.from('rooms').update(snakeize(strip(body)) as never).eq('id', id!).select().single()) },
   { method: 'POST', re: /^\/rooms\/([^/?]+)\/deactivate$/, h: ({ db, id }) => sb(db.from('rooms').update({ is_active: false } as never).eq('id', id!).select().single()) },
   { method: 'POST', re: /^\/rooms\/([^/?]+)\/restore$/, h: ({ db, id }) => sb(db.from('rooms').update({ is_active: true } as never).eq('id', id!).select().single()) },
-  { method: 'POST', re: /^\/blocked-slots$/, h: ({ db, body }) => sb(db.from('blocked_slots').insert(snakeize(strip(body)) as never).select().single()) },
-  { method: 'PUT', re: /^\/blocked-slots\/([^/?]+)$/, h: ({ db, id, body }) => sb(db.from('blocked_slots').update(snakeize(strip(body)) as never).eq('id', id!).select().single()) },
-  { method: 'DELETE', re: /^\/blocked-slots\/([^/?]+)$/, h: ({ db, id }) => sb(db.from('blocked_slots').update({ is_active: false } as never).eq('id', id!).select().single()) },
+  { method: 'POST', re: /^\/blocked-slots$/, h: async ({ db, body }) => normSlot(await sb(db.from('blocked_slots').insert(snakeize(strip(body)) as never).select().single())) },
+  { method: 'PUT', re: /^\/blocked-slots\/([^/?]+)$/, h: async ({ db, id, body }) => normSlot(await sb(db.from('blocked_slots').update(snakeize(strip(body)) as never).eq('id', id!).select().single())) },
+  { method: 'DELETE', re: /^\/blocked-slots\/([^/?]+)$/, h: async ({ db, id }) => normSlot(await sb(db.from('blocked_slots').update({ is_active: false } as never).eq('id', id!).select().single())) },
 ];
 
 /** Dispatch a REST-style call to Supabase with an injected (server) client.
