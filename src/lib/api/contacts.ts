@@ -11,6 +11,9 @@ export interface ConvertContactPayload {
 export interface ConvertContactResponse {
   user: User;
   contact: Contact;
+  /** Plaintext temp password the new account was created with (server-generated).
+   *  Shown ONCE to the admin, then forced through first-login. Never persisted. */
+  tempPassword: string;
 }
 
 export const contactsApi = {

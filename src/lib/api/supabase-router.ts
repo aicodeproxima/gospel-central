@@ -195,9 +195,10 @@ const R: Route[] = [
   { method: 'POST', re: /^\/contacts\/([^/?]+)\/convert$/, h: async ({ db, id, body }) => {
     const contact = await sb<{ firstName: string; lastName: string; email?: string }>(db.from('contacts').select('*').eq('id', id!).single());
     const username = genUsername(contact.firstName, contact.lastName);
-    const p = { ...strip(body), username, email: contact.email || `${username}@diamond.org`, password: tempPassword(), mustChangePassword: true };
+    const pw = tempPassword();  // the converted account's REAL initial password — return it so the admin can hand it over
+    const p = { ...strip(body), username, email: contact.email || `${username}@diamond.org`, password: pw, mustChangePassword: true };
     const user = await rpc(db, 'convert_contact', { cid: id, p: snakeize(p) });
-    return { user, contact: await sb(db.from('contacts').select('*').eq('id', id!).single()) };
+    return { user, contact: await sb(db.from('contacts').select('*').eq('id', id!).single()), tempPassword: pw };
   } },
   { method: 'POST', re: /^\/users$/, h: async ({ db, body }) => {
     const b = strip(body) as Record<string, unknown>;

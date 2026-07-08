@@ -1727,7 +1727,10 @@ export const handlers = [
       relatedUserIds: relatedUsers(actor.id, newUser.id, contact.assignedTeacherId),
     });
 
-    return HttpResponse.json({ user: newUser, contact: updatedContact }, { status: 201 });
+    // Parity with the Supabase router: return the temp password so the admin
+    // can hand the converted user their initial credential (mock is demo-cosmetic).
+    const tempPassword = 'Gc-' + Math.random().toString(36).slice(2, 10) + 'X9';
+    return HttpResponse.json({ user: newUser, contact: updatedContact, tempPassword }, { status: 201 });
   }),
 
   // Groups / Org

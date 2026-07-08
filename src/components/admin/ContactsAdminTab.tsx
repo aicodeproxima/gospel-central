@@ -11,7 +11,17 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  Check,
+  KeyRound,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -80,6 +90,10 @@ export function ContactsAdminTab() {
   const [page, setPage] = useState(1);
 
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
+  // Credentials of a just-converted contact — shown ONCE so the admin can hand
+  // over the initial password (mirrors ResetPasswordDialog; see handleConvert).
+  const [convertedCreds, setConvertedCreds] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [credsCopied, setCredsCopied] = useState(false);
 
   const reload = () => {
     setLoading(true);
@@ -194,7 +208,11 @@ export function ContactsAdminTab() {
     payload: { role: string; parentId?: string; groupId?: string; actorId?: string },
   ) => {
     try {
-      await contactsApi.convertToUser(id, payload as never);
+      const res = await contactsApi.convertToUser(id, payload as never);
+      // Surface the initial credentials ONCE — without this the admin can't give
+      // the converted user their password (they'd need a follow-up reset).
+      setConvertedCreds({ username: res.user.username, tempPassword: res.tempPassword });
+      setCredsCopied(false);
       toast.success('Converted to user account');
       reload();
     } catch (e) {
@@ -529,6 +547,53 @@ export function ContactsAdminTab() {
         subtreeUserIds={manageScope.userIds}
         onConvert={handleConvert}
       />
+
+      {/* Converted-contact credentials reveal — shown ONCE (mirrors ResetPasswordDialog). */}
+      <Dialog open={!!convertedCreds} onOpenChange={(o) => !o && setConvertedCreds(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" /> Account created
+            </DialogTitle>
+            <DialogDescription>
+              The contact is now a user. Give them these credentials via a secure channel — they&apos;ll
+              set their own password on first login.
+            </DialogDescription>
+          </DialogHeader>
+          {convertedCreds && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                <strong>Save this now.</strong> The temporary password cannot be retrieved after you close this dialog.
+              </div>
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Username</div>
+                <div className="font-mono text-sm">{convertedCreds.username}</div>
+                <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">Temp password</div>
+                <div className="font-mono text-sm">{convertedCreds.tempPassword}</div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full touch-manipulation max-md:h-11"
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(`Username: ${convertedCreds.username}\nPassword: ${convertedCreds.tempPassword}`)
+                    .then(() => {
+                      setCredsCopied(true);
+                      toast.success('Credentials copied');
+                      setTimeout(() => setCredsCopied(false), 2000);
+                    });
+                }}
+              >
+                {credsCopied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                {credsCopied ? 'Copied' : 'Copy credentials'}
+              </Button>
+              <Button className="w-full touch-manipulation max-md:h-11" onClick={() => setConvertedCreds(null)}>
+                Done
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
