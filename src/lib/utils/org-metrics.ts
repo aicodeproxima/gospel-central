@@ -10,7 +10,7 @@ import type { TeacherMetrics } from '../types/user';
 export interface LiveNodeMetrics {
   currentlyStudying: number; // contacts with a session in last 30 days
   totalStudies: number; // sum of totalSessions of all contacts under this node
-  bearingFruit: number; // number of baptized contacts (from teacher metrics)
+  bearingFruit: number; // number of baptized contacts in the subtree (live)
   totalMembers: number; // users in the subtree, excluding the node itself
   totalContacts: number; // contacts assigned to anyone in the subtree (node included)
 }
@@ -58,16 +58,22 @@ export function filterRecentlyStudying(contacts: Contact[]): Contact[] {
 export function computeNodeMetrics(
   node: OrgNode,
   contacts: Contact[],
-  teacherMetrics: TeacherMetrics[],
+  // Retained for signature stability (callers still pass the teacher-metrics
+  // rollup); no longer used now that Bearing Fruit is computed live from contacts.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _teacherMetrics: TeacherMetrics[] = [],
 ): LiveNodeMetrics {
   const subtreeContacts = getContactsForSubtree(node, contacts);
   const recent = filterRecentlyStudying(subtreeContacts);
   const totalStudies = subtreeContacts.reduce((sum, c) => sum + (c.totalSessions || 0), 0);
 
   const subtreeIds = new Set(collectSubtreeUserIds(node));
-  const bearingFruit = teacherMetrics
-    .filter((m) => subtreeIds.has(m.userId))
-    .reduce((sum, m) => sum + (m.baptizedSinceStudying || 0), 0);
+  // Bearing Fruit is a LIVE count of baptized contacts in the subtree — matching
+  // its badge label ("baptized contacts"), its drill-down list (pipelineStage
+  // === 'baptized'), and the page's "all metrics are live" promise. It was
+  // previously summed from the static teacherMetrics rollup, so the number never
+  // moved when a contact was baptized while the drill-down list did.
+  const bearingFruit = subtreeContacts.filter((c) => c.pipelineStage === 'baptized').length;
 
   const totalMembers = subtreeIds.size - 1; // exclude the node itself
   const totalContacts = subtreeContacts.length;
