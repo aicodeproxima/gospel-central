@@ -71,10 +71,41 @@ describe('adversarial: §7 SHIM permission gates', () => {
     ).toBe(403);
   });
 
-  // KNOWN mock-permissive gaps — backend-acceptance criteria for Mike's Go backend
-  // (the mock is intentionally permissive here; documenting, not asserting).
-  it.todo('backend: POST /contacts by a Member must reject mass-assigned createdBy/convertedToUserId');
-  it.todo('backend: POST /contacts/:id/convert by a Member must not mint an elevated user (priv-esc)');
+  // NOW ENFORCED (2026-07-09, built to real-backend parity: create_contact RPC
+  // gate + convert_contact RPC gate + create_user role ceiling).
+  it('POST /contacts enforces canCreateContact on the owner + strips mass-assigned server fields', async () => {
+    const member = await login('member3');
+    // owner = someone else → 403 (a Member may only own their own creations)
+    expect(
+      (await authed('POST', '/contacts', member.token, { firstName: 'Mass', lastName: 'Assign', createdBy: 'u-branch-1' })).status,
+    ).toBe(403);
+    // anon → 401
+    expect((await authed('POST', '/contacts', null, { firstName: 'X', lastName: 'Y' })).status).toBe(401);
+    // own contact → 201; createdBy forced to the actor, convertedToUserId NOT mass-assignable
+    const ok = await authed('POST', '/contacts', member.token, {
+      firstName: 'Mass', lastName: 'Own', createdBy: member.user.id, convertedToUserId: 'u-branch-1',
+    });
+    expect(ok.status).toBe(201);
+    const c = await ok.json();
+    expect(c.createdBy).toBe(member.user.id);
+    expect(c.convertedToUserId).toBeUndefined();
+    await authed('DELETE', `/contacts/${c.id}`, member.token).catch(() => {}); // best-effort cleanup
+  });
+
+  it('POST /contacts/:id/convert enforces leader-scope + the create_user role ceiling (no priv-esc)', async () => {
+    const member = await login('member3');   // not a leader
+    const overseer = await login('overseer1'); // leader; canEditContact allows any
+    const raw = await (await authed('GET', '/contacts', overseer.token)).json();
+    const list = Array.isArray(raw) ? raw : raw.data || raw.contacts || [];
+    const c = list.find((x: { id: string; status: string }) => x.status !== 'converted');
+    expect(c).toBeTruthy();
+    // a Member cannot convert at all → 403
+    expect((await authed('POST', `/contacts/${c.id}/convert`, member.token, { role: 'member' })).status).toBe(403);
+    // even an Overseer cannot mint a user at or above their own level → 403 (ceiling)
+    expect((await authed('POST', `/contacts/${c.id}/convert`, overseer.token, { role: 'dev' })).status).toBe(403);
+    // anon → 401
+    expect((await authed('POST', `/contacts/${c.id}/convert`, null, { role: 'member' })).status).toBe(401);
+  });
   // NOW ENFORCED in the mock (2026-07-09, built to real-backend parity: the real
   // cancel_booking RPC gates by canEditBooking + attributes cancelledBy=auth.uid()).
   it('POST /bookings/:id/cancel: rejects an out-of-scope actor (403) and attributes to the JWT actor, not a hardcoded Michael', async () => {

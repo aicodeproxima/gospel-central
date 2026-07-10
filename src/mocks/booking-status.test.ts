@@ -79,7 +79,9 @@ async function createContact(over: Partial<Contact> = {}): Promise<Contact> {
       subjectsStudied: [],
       createdBy: 'u-mem-1',
       ...over,
-    }),
+    },
+    'u-michael', // admin-tier actor — POST /contacts now enforces canCreateContact
+    ),
   );
   expect(res!.status).toBe(201);
   return jsonOf<Contact>(res);

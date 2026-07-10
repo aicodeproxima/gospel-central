@@ -15,6 +15,11 @@ import {
   canChangeRole,
   canEditBooking,
   canSetBookingStatus,
+  canCreateContact,
+  canConvertContact,
+  canChangeUsername,
+  canAccessReports,
+  assignableRoles,
   canCreateArea,
   canCreateRoom,
   canCreateUser,
@@ -31,6 +36,7 @@ import {
   EXPORT_IMPORT_FOR_NON_ADMINS,
 } from '../lib/utils/permissions';
 import type { User } from '../lib/types/user';
+import type { Contact } from '../lib/types/contact';
 import { UserRole } from '../lib/types/user';
 import { PipelineStage } from '../lib/types/contact';
 import { BOOKING_STATUS_CONFIG, type Booking, type BookingStatus } from '../lib/types/booking';
@@ -1539,28 +1545,45 @@ export const handlers = [
 
   http.post(`${API}/contacts`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the create_contact RPC: JWT actor + canCreateContact on the
+    // owner (v_owner = body.createdBy ?? auth.uid()). A caller may only set an
+    // owner they are (self), or that falls in their subtree (leader), or any
+    // (admin-tier). Server-owned fields (convertedToUserId, id) are NOT mass-
+    // assignable — a new contact is never pre-converted.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
+    const owner = typeof body.createdBy === 'string' ? body.createdBy : viewer.id;
+    if (!canCreateContact(viewer, owner, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied('You can only create contacts you own or within your scope');
+    }
+    const {
+      actorId: _actorId,
+      convertedToUserId: _cvt,
+      createdBy: _cb,
+      id: _id,
+      ...safe
+    } = body;
+    void _actorId; void _cvt; void _cb; void _id;
     const newContact = {
       id: 'c' + Date.now(),
-      ...body,
+      ...safe,
+      createdBy: owner,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as typeof contactsState[number];
     contactsState.push(newContact);
-    // §7 SHIM (H-01 audit gap): emit contact.create row.
-    const actor = resolveActor(
-      typeof body.actorId === 'string' ? body.actorId : undefined,
-    );
+    // §7 SHIM (H-01 audit gap): emit contact.create row, attributed to the actor.
     pushAudit({
       id: 'al-' + Date.now() + '-cc',
       action: 'create',
       entityType: 'contact',
       entityId: newContact.id,
-      userId: actor.id,
-      userName: actor.name,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Created contact: ${newContact.firstName} ${newContact.lastName}`,
       after: { type: newContact.type, pipelineStage: newContact.pipelineStage },
       relatedUserIds: relatedUsers(
-        actor.id,
+        viewer.id,
         typeof newContact.assignedTeacherId === 'string' ? newContact.assignedTeacherId : undefined,
         ...(Array.isArray(newContact.preachingPartnerIds) ? newContact.preachingPartnerIds : []),
       ),
@@ -1667,9 +1690,23 @@ export const handlers = [
       groupId?: string;
       actorId?: string;
     };
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const cidx = contactsState.findIndex((c) => c.id === params.id);
     if (cidx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const contact = contactsState[cidx];
+    // Parity with convert_contact RPC: a leader in-scope may convert
+    // (canConvertContact), AND the new user's role must be strictly below the
+    // actor's own level (create_user ceiling) -- a Member cannot convert, and
+    // no one may mint a user at or above their level (was priv-esc: a Member
+    // could pass role:'dev').
+    if (!canConvertContact(viewer, contact as Contact, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied('Only a leader in scope can convert this contact');
+    }
+    const requestedRole = (typeof body.role === 'string' && body.role ? body.role : 'member') as UserRole;
+    if (!assignableRoles(viewer.role).includes(requestedRole)) {
+      return permissionDenied(`You cannot create a user with role '${requestedRole}'`);
+    }
 
     // Critical scenario #13 fix: idempotency check. Pre-fix, calling
     // /convert twice on the same contact created TWO users and orphaned
@@ -1713,7 +1750,7 @@ export const handlers = [
       lastName: contact.lastName,
       email: contact.email ?? `${username}@diamond.local`,
       phone: contact.phone,
-      role: body.role,
+      role: requestedRole,
       groupId: typeof body.groupId === 'string' ? body.groupId : undefined,
       parentId: typeof body.parentId === 'string' ? body.parentId : undefined,
       tags: [],
@@ -1736,7 +1773,7 @@ export const handlers = [
     } as typeof contactsState[number];
     contactsState[cidx] = updatedContact;
 
-    const actor = resolveActor(body.actorId);
+    const actor = { id: viewer.id, name: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username };
     // Pair the audit rows under the same Date.now() prefix so they sort
     // together in the Reports table.
     const ts = Date.now();
@@ -1812,6 +1849,8 @@ export const handlers = [
   // Audit — supports filtering, search, and pagination
   http.get(`${API}/audit-log`, ({ request }) => {
     const url = new URL(request.url);
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
     const action = url.searchParams.get('action');
     const entityType = url.searchParams.get('entityType');
     const userId = url.searchParams.get('userId');
@@ -1854,6 +1893,15 @@ export const handlers = [
       filtered = filtered.filter((e) => new Date(e.timestamp).getTime() <= en);
     }
 
+    // Parity with the audit_select RLS: admin-tier (Branch Leader+) see the whole
+    // log; everyone else sees ONLY rows where they are the actor or a related
+    // party (the Alerts feed). The mock previously returned the whole log to any
+    // authed user (self-documented authz gap).
+    if (!canAccessReports(viewer)) {
+      filtered = filtered.filter(
+        (e) => e.userId === viewer.id || (e.relatedUserIds?.includes(viewer.id) ?? false),
+      );
+    }
     const total = filtered.length;
     const start = (page - 1) * limit;
     const entries = filtered.slice(start, start + limit);
@@ -2468,6 +2516,8 @@ export const handlers = [
   // PUT /users/:id/username — rename with collision check (case-insensitive).
   http.put(`${API}/users/:id/username`, async ({ request, params }) => {
     const body = (await request.json()) as { username: string; actorId?: string };
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const desired = String(body.username || '').trim().toLowerCase();
     if (!desired) return HttpResponse.json({ message: 'Username required' }, { status: 400 });
     if (!/^[a-z0-9_.-]{3,32}$/.test(desired)) {
@@ -2478,13 +2528,18 @@ export const handlers = [
     }
     const idx = usersState.findIndex((u) => u.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    // Parity: canChangeUsername (Overseer+, and only a Dev may rename a peer
+    // Overseer/above) -- the handler was ungated (anyone could rename anyone).
+    if (!canChangeUsername(viewer, usersState[idx] as User)) {
+      return permissionDenied('Only an Overseer or Dev in scope can rename this user');
+    }
     const taken = usersState.some(
       (u) => u.id !== params.id && u.username.toLowerCase() === desired,
     );
     if (taken) return HttpResponse.json({ message: 'Username already taken' }, { status: 409 });
     const previousUsername = usersState[idx].username;
     usersState[idx] = { ...usersState[idx], username: desired, updatedAt: new Date().toISOString() };
-    const actor = resolveActor(body.actorId);
+    const actor = { id: viewer.id, name: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username };
     // AUDIT-1: dedicated entityType='username_change' + action='rename'.
     pushAudit({
       id: 'al-' + Date.now(),

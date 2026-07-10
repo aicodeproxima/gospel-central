@@ -68,9 +68,34 @@ describe('List B INT — gated-endpoint authz (negative path)', () => {
     expect((await authed('PUT', `/users/${branch.user.id}/tags`, member.token, { tags: ['teacher'] })).status).toBe(403);
   });
 
-  // Backend-acceptance: UI-ONLY-enforced gaps (mock allows; the real backend MUST gate).
-  it.todo('backend: PUT /users/:id/username must enforce canChangeUsername (Overseer+, peer-Overseer→Dev-only) — handler ungated');
-  it.todo('backend: GET /audit-log must enforce canAccessReports (Branch Leader+) — handler returns to any authed user');
+  // NOW ENFORCED (2026-07-09, built to real-backend parity).
+  it('PUT /users/:id/username enforces canChangeUsername (Overseer+; below-Overseer rejected)', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1');
+    const overseer = await login('overseer1');
+    const target = overseer.user.id; // renaming someone else, not self
+    // below Overseer → 403
+    expect((await authed('PUT', `/users/${target}/username`, member.token, { username: 'hacked1' })).status).toBe(403);
+    expect((await authed('PUT', `/users/${target}/username`, branch.token, { username: 'hacked2' })).status).toBe(403);
+    // anon → 401
+    expect((await authed('PUT', `/users/${target}/username`, null, { username: 'x' })).status).toBe(401);
+  });
+
+  it('GET /audit-log row-scopes non-admins to their own/related events (audit_select RLS parity)', async () => {
+    const member = await login('member3');
+    const overseer = await login('overseer1');
+    expect((await authed('GET', '/audit-log?limit=500', null)).status).toBe(401);
+    const mem = await (await authed('GET', '/audit-log?limit=500', member.token)).json();
+    const memList = mem.data ?? mem.entries ?? mem.rows ?? mem;
+    const ov = await (await authed('GET', '/audit-log?limit=500', overseer.token)).json();
+    const ovList = ov.data ?? ov.entries ?? ov.rows ?? ov;
+    // a Member sees ONLY rows where they are the actor or a related party
+    expect(memList.every((e: { userId: string; relatedUserIds?: string[] }) =>
+      e.userId === member.user.id || (e.relatedUserIds ?? []).includes(member.user.id))).toBe(true);
+    // an admin-tier viewer sees strictly more (the whole log)
+    expect(ovList.length).toBeGreaterThan(memList.length);
+  });
+
   it.todo('backend: PUT /contacts/:id {assignedTeacherId} must enforce canReassignContact — handler spreads body ungated');
   // NOW ENFORCED (2026-07-09): the mock's PUT/cancel/delete/restore booking handlers
   // gate by canEditBooking, matching the real bookings_update RLS policy.
