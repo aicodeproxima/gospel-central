@@ -75,5 +75,30 @@ describe('adversarial: §7 SHIM permission gates', () => {
   // (the mock is intentionally permissive here; documenting, not asserting).
   it.todo('backend: POST /contacts by a Member must reject mass-assigned createdBy/convertedToUserId');
   it.todo('backend: POST /contacts/:id/convert by a Member must not mint an elevated user (priv-esc)');
-  it.todo('backend: POST /bookings/:id/cancel must reject an out-of-scope actor (UI gates via canEditBooking; handler does not)');
+  // NOW ENFORCED in the mock (2026-07-09, built to real-backend parity: the real
+  // cancel_booking RPC gates by canEditBooking + attributes cancelledBy=auth.uid()).
+  it('POST /bookings/:id/cancel: rejects an out-of-scope actor (403) and attributes to the JWT actor, not a hardcoded Michael', async () => {
+    const member = await login('member3'); // plain Member — no subtree
+    const branch = await login('branch1'); // admin-tier (branch_leader)
+    const raw = await (await authed('GET', '/bookings', branch.token)).json();
+    const all = Array.isArray(raw) ? raw : raw.data || raw.bookings || [];
+    // a SCHEDULED booking member3 neither created nor teaches (out of scope)
+    const b = all.find(
+      (x: { id: string; status: string; createdBy?: string; teacherId?: string }) =>
+        x.status === 'bible_study' && x.createdBy !== member.user.id && x.teacherId !== member.user.id,
+    );
+    expect(b).toBeTruthy();
+    // out-of-scope Member → 403 (authz gate mirrors the RLS bookings_update policy)
+    expect((await authed('POST', `/bookings/${b.id}/cancel`, member.token, { reason: 'nope' })).status).toBe(403);
+    // anonymous → 401 (JWT-only actor resolution)
+    expect((await authed('POST', `/bookings/${b.id}/cancel`, null, { reason: 'nope' })).status).toBe(401);
+    // admin-tier actor → 200, and cancelledBy is the REAL actor (B3 regression guard)
+    const ok = await authed('POST', `/bookings/${b.id}/cancel`, branch.token, { reason: 'QA parity' });
+    expect(ok.status).toBe(200);
+    const cancelled = await ok.json();
+    expect(cancelled.cancelledBy).toBe(branch.user.id);
+    expect(cancelled.cancelledBy).not.toBe('u-michael');
+    // restore to leave the shared seed state net-zero
+    await authed('POST', `/bookings/${b.id}/restore`, branch.token);
+  });
 });

@@ -72,5 +72,20 @@ describe('List B INT — gated-endpoint authz (negative path)', () => {
   it.todo('backend: PUT /users/:id/username must enforce canChangeUsername (Overseer+, peer-Overseer→Dev-only) — handler ungated');
   it.todo('backend: GET /audit-log must enforce canAccessReports (Branch Leader+) — handler returns to any authed user');
   it.todo('backend: PUT /contacts/:id {assignedTeacherId} must enforce canReassignContact — handler spreads body ungated');
-  it.todo('backend: PUT /bookings/:id + POST /bookings/:id/cancel must enforce canEditBooking — handler checks only slot conflicts');
+  // NOW ENFORCED (2026-07-09): the mock's PUT/cancel/delete/restore booking handlers
+  // gate by canEditBooking, matching the real bookings_update RLS policy.
+  it('PUT /bookings/:id + POST /bookings/:id/cancel enforce canEditBooking (out-of-scope actor → 403, anon → 401)', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1');
+    const raw = await (await authed('GET', '/bookings', branch.token)).json();
+    const all = Array.isArray(raw) ? raw : raw.data || raw.bookings || [];
+    const b = all.find(
+      (x: { id: string; status: string; createdBy?: string; teacherId?: string }) =>
+        x.status !== 'cancelled' && x.createdBy !== member.user.id && x.teacherId !== member.user.id,
+    );
+    expect(b).toBeTruthy();
+    expect((await authed('PUT', `/bookings/${b.id}`, member.token, { editReason: 'x' })).status).toBe(403);
+    expect((await authed('POST', `/bookings/${b.id}/cancel`, member.token, { reason: 'x' })).status).toBe(403);
+    expect((await authed('PUT', `/bookings/${b.id}`, null, { editReason: 'x' })).status).toBe(401);
+  });
 });

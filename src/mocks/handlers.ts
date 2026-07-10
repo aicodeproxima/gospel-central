@@ -13,6 +13,7 @@ import {
   buildVisibilityScope,
   buildManageableScope,
   canChangeRole,
+  canEditBooking,
   canSetBookingStatus,
   canCreateArea,
   canCreateRoom,
@@ -1221,8 +1222,18 @@ export const handlers = [
 
   http.put(`${API}/bookings/:id`, async ({ request, params }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the real backend: JWT-resolved actor + the bookings_update RLS
+    // scope (canEditBooking = owner/teacher/admin-tier/in-scope leader). The real
+    // backend gates every booking UPDATE; the mock must too — no body.actorId trust.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    if (!canEditBooking(viewer, bookingsState[idx] as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can edit this booking',
+      );
+    }
     // BLOCK-2/BE-2: reject 409 on edit-into-blocked-slot.
     const conflict = findBookingBlockedConflict({ ...bookingsState[idx], ...body });
     if (conflict) {
@@ -1278,11 +1289,11 @@ export const handlers = [
         action: 'update',
         entityType: 'booking',
         entityId: updated.id,
-        userId: 'u-michael',
-        userName: 'Michael',
+        userId: viewer.id,
+        userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
         details: `Edited booking: ${reason}`,
         relatedUserIds: relatedUsers(
-          'u-michael',
+          viewer.id,
           typeof updated.teacherId === 'string' ? updated.teacherId : undefined,
         ),
         timestamp: new Date().toISOString(),
@@ -1355,33 +1366,41 @@ export const handlers = [
   // #7 in PERMISSIONS.md ("Soft delete only") applies.
   http.delete(`${API}/bookings/:id`, async ({ request, params }) => {
     const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    // Parity: JWT-resolved actor + canEditBooking scope, matching the real
+    // bookings_update RLS. Do NOT trust body.actorId (it was spoofable).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = bookingsState[idx];
+    if (!canEditBooking(viewer, before as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can delete this booking',
+      );
+    }
     // Deleting an already-Completed study takes its session back off the
     // contact card / teacher log (defensive guard for the status-gated metrics).
-    if (before.status === 'completed') reverseStudyCompletion(before, body.actorId);
+    if (before.status === 'completed') reverseStudyCompletion(before, viewer.id);
     const updated = {
       ...before,
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
       cancelReason: 'Booking deleted',
-      cancelledBy: typeof body.actorId === 'string' ? body.actorId : 'unknown',
+      cancelledBy: viewer.id,
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
-    const actor = resolveActor(body.actorId);
     pushAudit({
       id: 'al-' + Date.now(),
       action: 'delete',
       entityType: 'booking',
       entityId: before.id,
-      userId: actor.id,
-      userName: actor.name,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Deleted booking "${before.title}" (soft-cancelled, history preserved)`,
       before,
       relatedUserIds: relatedUsers(
-        actor.id,
+        viewer.id,
         typeof before.teacherId === 'string' ? before.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
@@ -1392,17 +1411,28 @@ export const handlers = [
   // Cancel a booking (soft-delete with reason tracking + audit log)
   http.post(`${API}/bookings/:id/cancel`, async ({ request, params }) => {
     const body = (await request.json()) as { reason?: string };
+    // Parity with the real cancel_booking RPC: gate by canEditBooking (owner/
+    // teacher/admin-tier/in-scope leader) and attribute cancelledBy + the audit
+    // row to the JWT-resolved actor — NOT a hardcoded 'u-michael' (was B3: every
+    // cancel credited Michael on Reports Top Contributors regardless of actor).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    if (!canEditBooking(viewer, booking as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can cancel this booking',
+      );
+    }
     // Cancelling an already-Completed study reverses its metrics side-effects.
-    if (booking.status === 'completed') reverseStudyCompletion(booking);
+    if (booking.status === 'completed') reverseStudyCompletion(booking, viewer.id);
     const updated = {
       ...booking,
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
       cancelReason: (body.reason || '').trim(),
-      cancelledBy: 'u-michael',
+      cancelledBy: viewer.id,
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
@@ -1411,11 +1441,11 @@ export const handlers = [
       action: 'cancel',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Cancelled booking "${booking.title}": ${body.reason || 'No reason'}`,
       relatedUserIds: relatedUsers(
-        'u-michael',
+        viewer.id,
         typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
@@ -1424,10 +1454,19 @@ export const handlers = [
   }),
 
   // Restore a cancelled booking
-  http.post(`${API}/bookings/:id/restore`, ({ params }) => {
+  http.post(`${API}/bookings/:id/restore`, ({ request, params }) => {
+    // Parity: JWT-resolved actor + canEditBooking scope (the real restore path
+    // is a bookings_update, gated by the same RLS policy as cancel/edit).
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    if (!canEditBooking(viewer, booking as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can restore this booking',
+      );
+    }
     const updated = {
       ...booking,
       // Restore always lands back on 'bible_study' (scheduled) — if the study
@@ -1444,11 +1483,11 @@ export const handlers = [
       action: 'update',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Restored cancelled booking "${booking.title}"`,
       relatedUserIds: relatedUsers(
-        'u-michael',
+        viewer.id,
         typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
