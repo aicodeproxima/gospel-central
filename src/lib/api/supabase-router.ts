@@ -23,6 +23,11 @@ const strip = (b: Record<string, unknown> | undefined) => {
 // mock derives retentionExpired on read (retainUntil < now); Postgres doesn't return it.
 const deriveRetention = <T extends { retainUntil?: string | null }>(rows: T[]): T[] =>
   rows.map((c) => (c.retainUntil && Date.parse(c.retainUntil) < Date.now() ? { ...c, retentionExpired: true } : c));
+// Embed contact_timeline as a `timeline` array so contact reads carry the same
+// shape as the mock ({date, action, details, userId, userName} after deep-camelize).
+// Rows are written by the 0010 contacts_stage_timeline trigger (+ future timeline
+// RPCs); the client Contact Detail timeline + church.ts fruit/baptism scan read it.
+const CONTACT_SELECT = '*, timeline:contact_timeline(date:created_at, action, details, user_id, user_name)';
 // Postgres `time` columns return 'HH:mm:ss'; the UI + mock use 'HH:mm'. Normalize blocked-slot
 // times on read/write so the real app-shape matches the mock (parity finding, 2026-07-07).
 const normSlot = <T extends { startTime?: string | null; endTime?: string | null }>(s: T): T => ({
@@ -118,13 +123,13 @@ const R: Route[] = [
     return sb(q.order('start_time'));
   } },
   { method: 'GET', re: /^\/contacts\/([^/?]+)$/, h: async ({ db, id }) => {
-    const c = await sb<{ retainUntil?: string | null } | null>(db.from('contacts').select('*').eq('id', id).maybeSingle());
+    const c = await sb<{ retainUntil?: string | null } | null>(db.from('contacts').select(CONTACT_SELECT).eq('id', id).maybeSingle());
     if (!c) throw new ApiError({ status: 404, code: 'NOT_FOUND', message: 'Contact not found' });
     return deriveRetention([c])[0];
   } },
   { method: 'GET', re: /^\/contacts$/, h: async ({ db, qs }) => {
     // Hide soft-deleted contacts (status='inactive') from the main list — matches the mock.
-    let q = db.from('contacts').select('*').neq('status', 'inactive');
+    let q = db.from('contacts').select(CONTACT_SELECT).neq('status', 'inactive');
     const type = qs.get('type'), stage = qs.get('stage'), search = qs.get('search') || qs.get('q');
     if (type && type !== 'all') q = q.eq('type', type);
     if (stage && stage !== 'all') q = q.eq('pipeline_stage', stage);
