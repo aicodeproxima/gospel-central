@@ -17,6 +17,8 @@ import {
   canSetBookingStatus,
   canCreateContact,
   canConvertContact,
+  canEditContact,
+  canDeleteContact,
   canChangeUsername,
   canAccessReports,
   assignableRoles,
@@ -172,10 +174,11 @@ function pushAudit(entry: AuditInput): void {
 }
 
 /**
- * Resolve the full viewer User record for permission checks. Tries
- * `actorId` body field first (the FE's convention), then falls back to
- * the mock JWT in the Authorization header (`mock-jwt-token-${userId}`)
- * so a malicious direct-API call without an `actorId` is still gated.
+ * Resolve the full viewer User record for permission checks. The mock JWT in
+ * the Authorization header (`mock-jwt-token-${userId}`) is the ONLY canonical
+ * source — `body.actorId` is deliberately IGNORED (see the impersonation-hole
+ * fix below), so a spoofed actorId can never override the authenticated user.
+ * The `_body` param is retained only for call-site signature compatibility.
  *
  * §7 SHIM: returning `undefined` on no match means the permission helpers
  * receive a missing viewer and return false → 403 PERMISSION_DENIED.
@@ -274,9 +277,25 @@ function methodNotAllowed(reason: string) {
   );
 }
 
-/** Helper for visibility-scope-restricted permission checks. */
+/** Helper for visibility-scope-restricted permission checks (READ scope; a
+ *  Branch Leader sees the whole org, so this returns an EMPTY userIds set for a
+ *  BL — kind 'all'). Correct for READ gates and for helpers that short-circuit
+ *  on isAdminTier (canEditBooking, canCreateContact). WRONG for the contact
+ *  edit/delete/convert gates below — those helpers have NO isAdminTier
+ *  short-circuit, so an empty set false-403s a Branch Leader. Use
+ *  `viewerManageableUserIds` there. */
 function viewerSubtreeUserIds(viewer: User): string[] {
   return buildVisibilityScope(viewer, usersState as User[]).userIds;
+}
+
+/** Helper for WRITE-scope permission checks — the subtree a viewer may
+ *  *administer* (buildManageableScope). Unlike the visibility scope, a Branch
+ *  Leader gets a POPULATED own-branch set here (never 'all'), which is exactly
+ *  what the real backend's `subtree_user_ids(auth.uid())` returns inside the
+ *  contacts_update RLS / set_contact_teacher / set_contact_inactive RPCs. Pass
+ *  this to canEditContact / canDeleteContact / canConvertContact. */
+function viewerManageableUserIds(viewer: User): string[] {
+  return buildManageableScope(viewer, usersState as User[]).userIds;
 }
 
 /**
@@ -1594,15 +1613,55 @@ export const handlers = [
 
   http.put(`${API}/contacts/:id`, async ({ request, params }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the real PUT /contacts/:id path (supabase-router.ts:192 +
+    // contacts_update RLS + set_contact_teacher RPC):
+    //   • JWT actor ONLY — body.actorId is ignored (spoof-proof).
+    //   • Row edit gate = canEditContact against the viewer's MANAGEABLE subtree.
+    //     canEditContact has NO isAdminTier short-circuit, so the visibility
+    //     scope (EMPTY for a Branch Leader) would false-403 a BL on an own-branch
+    //     contact they didn't create — use viewerManageableUserIds, never
+    //     viewerSubtreeUserIds. (This is the bug the convert handler shipped with.)
+    //   • created_by / assigned_teacher_id are NOT column-update-granted (0005):
+    //     created_by is stripped; a teacher REASSIGN is re-gated exactly like
+    //     set_contact_teacher (edit gate + the new teacher must be admin-assignable
+    //     or inside the viewer's manageable subtree). Other server-owned fields
+    //     (id, convertedToUserId, createdAt) are stripped. type/status ARE granted
+    //     — do NOT strip them.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = contactsState.findIndex((c) => c.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = contactsState[idx];
-    const updated = { ...before, ...body, updatedAt: new Date().toISOString() };
+    const scope = viewerManageableUserIds(viewer);
+    if (!canEditContact(viewer, before as Contact, scope)) {
+      return permissionDenied('You can only edit contacts within your scope');
+    }
+    // set_contact_teacher parity: a teacher reassignment additionally requires the
+    // new teacher to be admin-assignable or in the viewer's manageable subtree.
+    const reassigning =
+      typeof body.assignedTeacherId === 'string' &&
+      body.assignedTeacherId !== before.assignedTeacherId;
+    if (reassigning) {
+      const newTeacher = body.assignedTeacherId as string;
+      if (!(isAdminTier(viewer) || scope.includes(newTeacher))) {
+        return permissionDenied('You can only assign a teacher within your scope');
+      }
+    }
+    // Mass-assignment strip (mirror supabase-router.strip() + withheld columns).
+    const {
+      actorId: _actorId,
+      id: _id,
+      createdBy: _createdBy,
+      convertedToUserId: _cvt,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...safe
+    } = body;
+    void _actorId; void _id; void _createdBy; void _cvt; void _createdAt; void _updatedAt;
+    const updated = { ...before, ...safe, updatedAt: new Date().toISOString() };
     contactsState[idx] = updated as typeof contactsState[number];
-    // §7 SHIM (H-01 audit gap): emit contact.update row.
-    const actor = resolveActor(
-      typeof body.actorId === 'string' ? body.actorId : undefined,
-    );
+    // §7 SHIM (H-01 audit gap): emit contact.update row, attributed to the JWT actor.
+    const actor = resolveActor(viewer.id);
     pushAudit({
       id: 'al-' + Date.now() + '-cu',
       action: 'update',
@@ -1619,10 +1678,7 @@ export const handlers = [
     // F1: distinct `reassign` audit row when the owner (assignedTeacherId) changed,
     // so reports/audit can trace contact hand-offs (was previously folded into a
     // generic `update`). The real backend should do the same.
-    if (
-      typeof body.assignedTeacherId === 'string' &&
-      body.assignedTeacherId !== before.assignedTeacherId
-    ) {
+    if (reassigning) {
       const nameOf = (uid?: string) => {
         const u = usersState.find((x) => x.id === uid);
         return u ? `${u.firstName} ${u.lastName}` : uid || 'Unassigned';
@@ -1651,16 +1707,24 @@ export const handlers = [
   // (line 621-625 of the AUDIT_REPORT.md repro).
   http.delete(`${API}/contacts/:id`, async ({ request, params }) => {
     const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    // Parity with set_contact_inactive RPC (0002:200): JWT actor + the same
+    // row gate as edit (canDeleteContact === canEditContact against the MANAGEABLE
+    // subtree — never the visibility scope, per the BL false-403 note on PUT).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = contactsState.findIndex((c) => c.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = contactsState[idx];
+    if (!canDeleteContact(viewer, before as Contact, viewerManageableUserIds(viewer))) {
+      return permissionDenied('You can only delete contacts within your scope');
+    }
     const updated = {
       ...before,
       status: 'inactive',
       updatedAt: new Date().toISOString(),
     } as typeof contactsState[number];
     contactsState[idx] = updated;
-    const actor = resolveActor(body.actorId);
+    const actor = resolveActor(viewer.id);
     pushAudit({
       id: 'al-' + Date.now() + '-cd',
       action: 'delete',
@@ -1700,7 +1764,10 @@ export const handlers = [
     // actor's own level (create_user ceiling) -- a Member cannot convert, and
     // no one may mint a user at or above their level (was priv-esc: a Member
     // could pass role:'dev').
-    if (!canConvertContact(viewer, contact as Contact, viewerSubtreeUserIds(viewer))) {
+    // canConvertContact delegates to canEditContact (NO isAdminTier short-circuit),
+    // so it MUST receive the MANAGEABLE subtree — the visibility scope is empty for
+    // a Branch Leader and false-403'd a BL converting an own-branch contact.
+    if (!canConvertContact(viewer, contact as Contact, viewerManageableUserIds(viewer))) {
       return permissionDenied('Only a leader in scope can convert this contact');
     }
     const requestedRole = (typeof body.role === 'string' && body.role ? body.role : 'member') as UserRole;

@@ -96,7 +96,63 @@ describe('List B INT — gated-endpoint authz (negative path)', () => {
     expect(ovList.length).toBeGreaterThan(memList.length);
   });
 
-  it.todo('backend: PUT /contacts/:id {assignedTeacherId} must enforce canReassignContact — handler spreads body ungated');
+  // NOW ENFORCED (2026-07-11, built to real-backend parity): PUT & DELETE
+  // /contacts/:id gate by canEditContact/canDeleteContact against the viewer's
+  // MANAGEABLE subtree (contacts_update RLS + set_contact_inactive RPC). A
+  // teacher change is re-gated like set_contact_teacher. The REGRESSION GUARD
+  // below (a Branch Leader editing an in-branch contact they didn't create must
+  // NOT 403) fails if the handler ever regresses to the visibility scope, which
+  // is EMPTY for a Branch Leader.
+  it('PUT/DELETE /contacts/:id enforce canEditContact — member edits foreign 403, anon 401, BL edits in-branch NOT 403', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1'); // Branch Leader, Newport News
+    // A contact NOT created by member3 (discover via branch1, who sees all).
+    const raw = await (await authed('GET', '/contacts', branch.token)).json();
+    const all = Array.isArray(raw) ? raw : raw.data || raw.contacts || [];
+    const foreign = all.find(
+      (c: { id: string; status: string; createdBy?: string; assignedTeacherId?: string }) =>
+        c.status !== 'inactive' && c.createdBy && c.createdBy !== member.user.id,
+    );
+    expect(foreign, 'a seed contact not created by member3').toBeTruthy();
+    // Member outside scope → 403 (edit + delete); anon → 401.
+    expect((await authed('PUT', `/contacts/${foreign.id}`, member.token, { notes: 'x' })).status).toBe(403);
+    expect((await authed('DELETE', `/contacts/${foreign.id}`, member.token, {})).status).toBe(403);
+    expect((await authed('PUT', `/contacts/${foreign.id}`, null, { notes: 'x' })).status).toBe(401);
+
+    // REGRESSION GUARD (BL false-403): branch1 must be able to edit an in-branch
+    // contact they did NOT personally create. Build one owned by a subordinate:
+    // branch1 is admin-tier so canCreateContact lets them set an arbitrary owner.
+    const usersRaw = await (await authed('GET', '/users', branch.token)).json();
+    const users = (Array.isArray(usersRaw) ? usersRaw : usersRaw.data || usersRaw.users || []) as Array<{
+      id: string;
+      parentId?: string;
+    }>;
+    // Fixed-point descendant walk from branch1 (mirrors buildManageableScope).
+    const reach = new Set<string>([branch.user.id]);
+    for (let added = true; added; ) {
+      added = false;
+      for (const u of users) {
+        if (u.parentId && reach.has(u.parentId) && !reach.has(u.id)) {
+          reach.add(u.id);
+          added = true;
+        }
+      }
+    }
+    const sub = users.find((u) => u.id !== branch.user.id && reach.has(u.id));
+    expect(sub, 'branch1 should have at least one subordinate').toBeTruthy();
+    const created = await (
+      await authed('POST', '/contacts', branch.token, {
+        firstName: 'Reg',
+        lastName: 'Guard',
+        type: 'contact',
+        pipelineStage: 'first_study',
+        createdBy: sub!.id,
+      })
+    ).json();
+    expect(created.createdBy, 'owner forced to the subordinate').toBe(sub!.id);
+    const guard = await authed('PUT', `/contacts/${created.id}`, branch.token, { notes: 'edited by BL' });
+    expect(guard.status, 'BL editing an in-branch contact must NOT be 403').not.toBe(403);
+  });
   // NOW ENFORCED (2026-07-09): the mock's PUT/cancel/delete/restore booking handlers
   // gate by canEditBooking, matching the real bookings_update RLS policy.
   it('PUT /bookings/:id + POST /bookings/:id/cancel enforce canEditBooking (out-of-scope actor → 403, anon → 401)', async () => {
