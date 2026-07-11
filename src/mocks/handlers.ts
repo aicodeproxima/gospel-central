@@ -40,7 +40,7 @@ import {
 import type { User } from '../lib/types/user';
 import type { Contact } from '../lib/types/contact';
 import { UserRole } from '../lib/types/user';
-import { PipelineStage } from '../lib/types/contact';
+import { PipelineStage, PIPELINE_STAGE_CONFIG } from '../lib/types/contact';
 import { BOOKING_STATUS_CONFIG, type Booking, type BookingStatus } from '../lib/types/booking';
 import type { AuditLogEntry } from '../lib/types/group';
 import { buildOrgTree } from '../lib/utils/org-tree';
@@ -1534,11 +1534,16 @@ export const handlers = [
     // record itself is kept until a GL+ deletes it or the real backend's
     // retention job runs; the flag lets the UI badge it and prompt cleanup.
     const nowMs = Date.now();
-    let filtered = contactsState.map((c) =>
-      c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
-        ? { ...c, retentionExpired: true }
-        : c,
-    );
+    // Parity with the real backend GET /contacts (supabase-router.ts `.neq('status','inactive')`):
+    // soft-deleted contacts must NOT resurface in the collection on refetch. Only the
+    // collection is filtered; GET /contacts/:id returns a single contact regardless of status.
+    let filtered = contactsState
+      .filter((c) => c.status !== 'inactive')
+      .map((c) =>
+        c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
+          ? { ...c, retentionExpired: true }
+          : c,
+      );
     if (search) filtered = filtered.filter((c) =>
       `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''}`.toLowerCase().includes(search),
     );
@@ -1659,9 +1664,30 @@ export const handlers = [
     } = body;
     void _actorId; void _id; void _createdBy; void _cvt; void _createdAt; void _updatedAt;
     const updated = { ...before, ...safe, updatedAt: new Date().toISOString() };
+    const actor = resolveActor(viewer.id);
+    // F2 (routine cell 68/77): a runtime pipelineStage change appends a `stage_change`
+    // timeline row, mirroring the seed + booking-completion path, so the fruit/baptism
+    // leaderboards (church.ts scans the timeline for a 'Baptized' stage_change) reflect
+    // runtime stage changes, not only seeded ones. Real-backend parity needs the same via
+    // an AFTER UPDATE trigger on public.contacts.
+    if (
+      typeof safe.pipelineStage === 'string' &&
+      updated.pipelineStage !== before.pipelineStage
+    ) {
+      const cfg = PIPELINE_STAGE_CONFIG[updated.pipelineStage as PipelineStage];
+      updated.timeline = [
+        ...(before.timeline ?? []),
+        {
+          date: updated.updatedAt,
+          action: 'stage_change',
+          details: `Pipeline stage changed to ${cfg?.label ?? updated.pipelineStage}`,
+          userId: actor.id,
+          userName: actor.name,
+        },
+      ];
+    }
     contactsState[idx] = updated as typeof contactsState[number];
     // §7 SHIM (H-01 audit gap): emit contact.update row, attributed to the JWT actor.
-    const actor = resolveActor(viewer.id);
     pushAudit({
       id: 'al-' + Date.now() + '-cu',
       action: 'update',

@@ -1070,7 +1070,7 @@ export default function ContactsPage() {
         // existing contact requires write rights on it. Assignment is bounded
         // to the viewer's manageable scope ∪ self.
         canEdit={!editing || canEditAny(editing)}
-        assignableTeacherIds={viewer ? [...manageScope.userIds, viewer.id] : undefined}
+        assignableTeacherIds={!viewer ? undefined : manageScope.kind === 'all' ? undefined : [...manageScope.userIds, viewer.id]}
       />
 
       {/* Import CSV dialog */}
