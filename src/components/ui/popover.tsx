@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
+import { renderZoomCorrectedPositioner } from "@/components/ui/floating-positioner"
 import { cn } from "@/lib/utils"
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -33,6 +34,7 @@ function PopoverContent({
         side={side}
         sideOffset={sideOffset}
         className="isolate z-50"
+        render={renderZoomCorrectedPositioner}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

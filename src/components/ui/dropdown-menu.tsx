@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
+import { renderZoomCorrectedPositioner } from "@/components/ui/floating-positioner"
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "lucide-react"
 
@@ -38,6 +39,7 @@ function DropdownMenuContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        render={renderZoomCorrectedPositioner}
       >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
