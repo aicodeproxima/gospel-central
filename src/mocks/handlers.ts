@@ -490,7 +490,13 @@ function applyStudyCompletion(
   contactsState[cidx] = {
     ...c,
     totalSessions: (c.totalSessions ?? 0) + 1,
-    lastSessionDate: when,
+    // Keep the MOST RECENT session date: completing a back-dated study (logged
+    // after a newer one) must not regress lastSessionDate to the older study's
+    // date. `when` is the completed booking's start time (may be in the past).
+    lastSessionDate:
+      c.lastSessionDate && new Date(c.lastSessionDate).getTime() > new Date(when).getTime()
+        ? c.lastSessionDate
+        : when,
     currentlyStudying: true,
     // Only touch the study fields when a subject was actually chosen
     // (Add-subject-later leaves them as-is but still logs the session).
@@ -1911,8 +1917,40 @@ export const handlers = [
     );
   }),
 
-  http.get(`${API}/metrics/teachers`, () => {
-    return HttpResponse.json(mockTeacherMetrics);
+  // Parity with teacher_metrics() / teacher_metrics_guarded (0002 + 0007):
+  // computed LIVE from contacts + completed bookings — NOT the static seed — so a
+  // study marked Completed (or a stage/teacher change) immediately moves the
+  // teacher's card. Guarded by canAccessReports (Branch Leader+ → else 403) and
+  // scoped exactly like the RPC: Overseer/Dev see all teachers, a Branch Leader
+  // only their manageable subtree. Each teacher-tagged in-scope user gets a row
+  // (zeros included), matching the real `from users where tags @> ['teacher']`.
+  http.get(`${API}/metrics/teachers`, ({ request }) => {
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    if (!canAccessReports(viewer)) {
+      return permissionDenied('Reports access is Branch Leader and above');
+    }
+    const scope = buildManageableScope(viewer, usersState as User[]);
+    const inScope = (uid: string) => scope.kind === 'all' || scope.userIds.includes(uid);
+    const metrics = usersState
+      .filter((u) => Array.isArray(u.tags) && u.tags.includes('teacher') && inScope(u.id))
+      .map((u) => {
+        const students = contactsState.filter((c) => c.assignedTeacherId === u.id);
+        const totalStudents = students.length;
+        return {
+          userId: u.id,
+          totalStudents,
+          // mock parity: the real RPC returns 6 fields; activeStudents mirrors total.
+          activeStudents: totalStudents,
+          currentlyStudying: students.filter((c) => c.currentlyStudying).length,
+          continuedStudying: students.filter((c) => (c.totalSessions ?? 0) > 1).length,
+          baptizedSinceStudying: students.filter((c) => c.pipelineStage === PipelineStage.BAPTIZED).length,
+          totalSessionsLed: bookingsState.filter(
+            (b) => b.teacherId === u.id && b.status === 'completed',
+          ).length,
+        };
+      });
+    return HttpResponse.json(metrics);
   }),
 
   // §7.7 Append-only audit log contract (Critical scenario #22).

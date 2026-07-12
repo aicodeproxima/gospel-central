@@ -169,4 +169,40 @@ describe('List B INT — gated-endpoint authz (negative path)', () => {
     expect((await authed('POST', `/bookings/${b.id}/cancel`, member.token, { reason: 'x' })).status).toBe(403);
     expect((await authed('PUT', `/bookings/${b.id}`, null, { editReason: 'x' })).status).toBe(401);
   });
+
+  // NOW ENFORCED (2026-07-11, built to real-backend parity): GET /metrics/teachers
+  // is computed LIVE from contacts + completed bookings (mirrors teacher_metrics()
+  // / teacher_metrics_guarded), guarded by canAccessReports (Branch Leader+), NOT a
+  // static seed — so a completed study moves the teacher's card.
+  it('GET /metrics/teachers is LIVE + canAccessReports-guarded (a completed study bumps totalSessionsLed)', async () => {
+    const member = await login('member3');
+    const admin = await login('admin');
+    // Guard parity (teacher_metrics_guarded raises 403 below Reports access).
+    expect((await authed('GET', '/metrics/teachers', member.token)).status).toBe(403);
+    expect((await authed('GET', '/metrics/teachers', null)).status).toBe(401);
+    // Admin (all scope): every teacher's totalSessionsLed equals their live completed-booking count.
+    const metrics = await (await authed('GET', '/metrics/teachers', admin.token)).json();
+    expect(Array.isArray(metrics)).toBe(true);
+    const braw = await (await authed('GET', '/bookings', admin.token)).json();
+    const blist = Array.isArray(braw) ? braw : braw.data || braw.bookings || [];
+    const completedFor = (tid: string) =>
+      blist.filter((b: { teacherId?: string; status: string }) => b.teacherId === tid && b.status === 'completed').length;
+    for (const m of metrics as { userId: string; totalSessionsLed: number }[]) {
+      expect(m.totalSessionsLed, `totalSessionsLed for ${m.userId}`).toBe(completedFor(m.userId));
+    }
+    // LIVE proof: complete a not-yet-completed study whose teacher is in the metrics,
+    // and confirm that teacher's totalSessionsLed goes up by exactly 1.
+    const teacherIds = new Set((metrics as { userId: string }[]).map((m) => m.userId));
+    const study = blist.find(
+      (b: { id: string; activity?: string; status: string; teacherId?: string }) =>
+        b.activity === 'bible_study' && b.status !== 'completed' && !!b.teacherId && teacherIds.has(b.teacherId),
+    );
+    expect(study, 'a non-completed bible study led by a listed teacher').toBeTruthy();
+    const ledBefore =
+      (metrics as { userId: string; totalSessionsLed: number }[]).find((m) => m.userId === study.teacherId)!.totalSessionsLed;
+    expect((await authed('PATCH', `/bookings/${study.id}/status`, admin.token, { status: 'completed' })).status).toBe(200);
+    const after = await (await authed('GET', '/metrics/teachers', admin.token)).json();
+    const ledAfter = (after as { userId: string; totalSessionsLed: number }[]).find((m) => m.userId === study.teacherId)!.totalSessionsLed;
+    expect(ledAfter, 'completion increments totalSessionsLed live').toBe(ledBefore + 1);
+  });
 });
