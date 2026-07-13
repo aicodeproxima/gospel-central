@@ -84,6 +84,7 @@ export type ApiErrorCode =
   | 'ROOM_NAME_TAKEN'
   | 'INVALID_USERNAME'
   | 'NOT_FOUND'
+  | 'ALREADY_CONVERTED'
   | 'VALIDATION_ERROR'
   | 'UNKNOWN';
 

@@ -245,11 +245,21 @@ const R: Route[] = [
     for (const u of users) if (u.exportImportEnabled != null) overrides[u.id] = u.exportImportEnabled;
     return { overrides, default: false };
   } },
-  { method: 'PUT', re: /^\/users\/([^/?]+)$/, h: ({ db, id, body }) => {
+  { method: 'PUT', re: /^\/users\/([^/?]+)$/, h: async ({ db, id, body }) => {
+    // Parity with the mock PUT /users: a role change and an org-tree move are NOT
+    // plain column updates — they run through their gated RPCs (change_user_role /
+    // reassign_user re-check canChangeRole / canReassignUserToGroup + the cycle guard).
+    // Without this, role/parent edits sent via PUT silently no-op on the real backend.
+    const b = body as Record<string, unknown>;
+    if (b.role != null) await rpc(db, 'change_user_role', { target: id, newRole: b.role });
+    if (b.parentId != null) await rpc(db, 'reassign_user', { target: id, newParent: b.parentId });
+    // Remaining profile columns patch directly under users_update RLS (0005 grant).
     const SAFE = ['firstName', 'lastName', 'phone', 'avatarUrl', 'gender'];
     const patch: Record<string, unknown> = {};
-    for (const k of SAFE) if (k in body) patch[k] = body[k];
-    return sb(db.from('users').update(snakeize(patch) as never).eq('id', id!).select().single());
+    for (const k of SAFE) if (k in b) patch[k] = b[k];
+    return Object.keys(patch).length
+      ? sb(db.from('users').update(snakeize(patch) as never).eq('id', id!).select().single())
+      : sb(db.from('users').select('*').eq('id', id!).single());
   } },
   { method: 'PUT', re: /^\/areas\/([^/?]+)$/, h: ({ db, id, body }) => sb(db.from('areas').update(snakeize(strip(body)) as never).eq('id', id!).select('*, rooms(*)').single()) },
   { method: 'POST', re: /^\/areas\/([^/?]+)\/deactivate$/, h: ({ db, id }) => sb(db.from('areas').update({ is_active: false } as never).eq('id', id!).select('*, rooms(*)').single()) },

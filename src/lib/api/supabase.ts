@@ -42,6 +42,7 @@ const TOKEN_TO_CODE: Record<string, { code: ApiErrorCode; status: number }> = {
   PERMISSION_DENIED: { code: 'PERMISSION_DENIED', status: 403 },
   UNAUTHORIZED: { code: 'UNAUTHORIZED', status: 401 },
   NOT_FOUND: { code: 'NOT_FOUND', status: 404 },
+  ALREADY_CONVERTED: { code: 'ALREADY_CONVERTED', status: 409 },
   BLOCKED_SLOT_CONFLICT: { code: 'BLOCKED_SLOT_CONFLICT', status: 409 },
   ROOM_CONFLICT: { code: 'ROOM_CONFLICT', status: 409 },
   TEACHER_CONFLICT: { code: 'TEACHER_CONFLICT', status: 409 },
