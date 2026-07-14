@@ -41,6 +41,10 @@ export const contactsApi = {
   getContact(id: string) {
     return api.get<Contact>(`/contacts/${id}`);
   },
+  /** Un-soft-delete (status inactive → active). Admin surface only. */
+  restoreContact(id: string) {
+    return api.post<{ success: boolean; contact: Contact }>(`/contacts/${id}/restore`);
+  },
   createContact(data: Partial<Contact>) {
     return api.post<Contact>('/contacts', data);
   },

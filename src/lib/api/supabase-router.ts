@@ -206,6 +206,7 @@ const R: Route[] = [
       : sb(db.from('contacts').select('*').eq('id', id!).single());
   } },
   { method: 'DELETE', re: /^\/contacts\/([^/?]+)$/, h: ({ db, id }) => rpc(db, 'set_contact_inactive', { cid: id }) },
+  { method: 'POST', re: /^\/contacts\/([^/?]+)\/restore$/, h: ({ db, id }) => rpc(db, 'set_contact_active', { cid: id }) },
   { method: 'POST', re: /^\/contacts\/([^/?]+)\/convert$/, h: async ({ db, id, body }) => {
     const contact = await sb<{ firstName: string; lastName: string; email?: string }>(db.from('contacts').select('*').eq('id', id!).single());
     const username = genUsername(contact.firstName, contact.lastName);

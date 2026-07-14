@@ -52,6 +52,34 @@ describe('Remediation wave 1 — findings 78/151 (inactive list hygiene)', () =>
   });
 });
 
+describe('Remediation wave 2 — finding 151 (contact restore flow)', () => {
+  it('POST /contacts/:id/restore revives a soft-deleted contact and writes a restore audit row', async () => {
+    const admin = await login('admin');
+    const all = (await (await authed('GET', '/contacts', admin.token)).json()) as { id: string }[];
+    const victim = all[0];
+    expect((await authed('DELETE', `/contacts/${victim.id}`, admin.token)).status).toBe(200);
+
+    // Restoring a non-deleted contact is a 409, not a silent success.
+    const other = all[1];
+    expect((await authed('POST', `/contacts/${other.id}/restore`, admin.token)).status).toBe(409);
+
+    const res = await authed('POST', `/contacts/${victim.id}/restore`, admin.token);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { contact: { status: string } };
+    expect(body.contact.status).toBe('active');
+
+    // Back in the default list read…
+    const after = (await (await authed('GET', '/contacts', admin.token)).json()) as { id: string }[];
+    expect(after.some((c) => c.id === victim.id)).toBe(true);
+
+    // …and the audit trail shows the semantic restore action.
+    const log = (await (
+      await authed('GET', `/audit-log?action=restore&limit=9999`, admin.token)
+    ).json()) as { entries: { entityType: string; entityId: string }[] };
+    expect(log.entries.some((e) => e.entityType === 'contact' && e.entityId === victim.id)).toBe(true);
+  });
+});
+
 describe('Remediation wave 1 — finding 497 (audit reason on cancel)', () => {
   it('POST /bookings/:id/cancel writes the structured audit reason field', async () => {
     const admin = await login('admin');

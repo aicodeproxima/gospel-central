@@ -1782,6 +1782,46 @@ export const handlers = [
     return HttpResponse.json({ success: true, contact: updated });
   }),
 
+  // Finding 151 (wave 2): restore a soft-deleted contact. Inverse of the
+  // DELETE above — same permission gate (set_contact_active parity, 0015).
+  http.post(`${API}/contacts/:id/restore`, ({ request, params }) => {
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    const idx = contactsState.findIndex((c) => c.id === params.id);
+    if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    const before = contactsState[idx];
+    if (!canDeleteContact(viewer, before as Contact, viewerManageableUserIds(viewer))) {
+      return permissionDenied('You can only restore contacts within your scope');
+    }
+    if (before.status !== 'inactive') {
+      return HttpResponse.json(
+        { message: 'Contact is not deleted', code: 'NOT_INACTIVE' },
+        { status: 409 },
+      );
+    }
+    const updated = {
+      ...before,
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+    } as typeof contactsState[number];
+    contactsState[idx] = updated;
+    const actor = resolveActor(viewer.id);
+    pushAudit({
+      id: 'al-' + Date.now() + '-cr',
+      action: 'restore',
+      entityType: 'contact',
+      entityId: before.id,
+      userId: actor.id,
+      userName: actor.name,
+      details: `Restored contact ${before.firstName} ${before.lastName}`,
+      before: { status: before.status },
+      after: { status: 'active' },
+      relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId),
+      timestamp: updated.updatedAt,
+    });
+    return HttpResponse.json({ success: true, contact: updated });
+  }),
+
   // CONT-5: convert a Contact into a full User account.
   // Atomic: if user creation fails (e.g. username collision after suffix
   // attempts), the contact is NOT mutated. On success: contact gains

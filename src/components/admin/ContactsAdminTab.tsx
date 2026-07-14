@@ -206,6 +206,17 @@ export function ContactsAdminTab() {
     }
   };
 
+  // Finding 151 (wave 2): soft-deleted contacts were restorable nowhere.
+  const handleRestore = async (id: string) => {
+    try {
+      await contactsApi.restoreContact(id);
+      toast.success('Contact restored');
+      reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Restore failed');
+    }
+  };
+
   const handleConvert = async (
     id: string,
     payload: { role: string; parentId?: string; groupId?: string; actorId?: string },
@@ -398,7 +409,21 @@ export function ContactsAdminTab() {
                         {converted ? (
                           <Badge variant="outline" className="text-[10px]">Converted</Badge>
                         ) : inactive ? (
-                          <Badge variant="outline" className="text-[10px] border-orange-600/40 text-orange-600">Inactive</Badge>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge variant="outline" className="text-[10px] border-orange-600/40 text-orange-600">Inactive</Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 gap-1 px-2 text-[11px]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestore(c.id);
+                              }}
+                            >
+                              <Power className="h-3 w-3" />
+                              Restore
+                            </Button>
+                          </span>
                         ) : (
                           <Badge variant="outline" className="text-[10px] border-green-500/40 text-green-500">Active</Badge>
                         )}
@@ -469,7 +494,32 @@ export function ContactsAdminTab() {
                   {converted ? (
                     <Badge variant="outline" className="shrink-0 text-[10px]">Converted</Badge>
                   ) : inactive ? (
-                    <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">Inactive</Badge>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <Badge variant="outline" className="shrink-0 text-[10px] border-orange-600/40 text-orange-600">Inactive</Badge>
+                      {/* The card wrapper is itself a <button>; a nested real
+                          button is invalid HTML, so the restore control is a
+                          keyboard-operable span (min 44px tap target via py). */}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Restore contact"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRestore(c.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRestore(c.id);
+                          }
+                        }}
+                      >
+                        <Power className="h-3 w-3" />
+                        Restore
+                      </span>
+                    </span>
                   ) : (
                     <Badge variant="outline" className="shrink-0 text-[10px] border-green-500/40 text-green-500">Active</Badge>
                   )}
