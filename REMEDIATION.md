@@ -53,19 +53,44 @@ Gates: clean build + vitest 543/543 at merge time.
 Regression pins: `src/mocks/remediation-wave1.itest.ts` + permissions matrix test.
 Gates after each commit: full vitest green (546/546 at wave-1 end) + clean build.
 
-## Wave 2 — in progress
+## Wave 2 — done (2026-07-13)
 
-- [ ] Contacts restore flow (mock + real RPC + trigger restore-action + admin UI)
-- [ ] Seed extension for dormant branches (51/61/62/64/236/303/420; 334/367/5/6 need
-      fault injection or manual gesture — out of seed scope)
+- [x] Contacts restore flow — commit `c5d3183`: mock POST /contacts/:id/restore
+      (409 on non-deleted), migration **0015** (`set_contact_active` + audit_row
+      contact-restore branch), router route, Admin UI Restore control
+      (desktop row + mobile card), itest pin.
+- [x] Seed extension — commit `e9d9af9`: c-68 inactive (Demas), c-69 unassigned
+      (Rhoda), c-70 converted+retention (Apollos), c-71 retention-expired
+      (Crispus), orphan-contact booking (Mon 06:00), VB full-day closure next
+      Wednesday. 334/367/5/6 need fault injection or a real pinch gesture — out
+      of seed scope, documented here instead.
 
-## Closure — pending
+## Closure — 2026-07-13
 
-- [ ] Verify migrations 0012/0013/0014 applied to live Supabase (statically unverifiable)
-- [ ] Deploy + browser re-verification of each fixed cell (desktop + 275×596)
-- [ ] Oracle doc corrections (Available Actions.md cells 104/245/258/264/292/325/426/429/497)
-- [ ] Custom re-audit routine prompt + orchestration workflow (new findings-file
-      convention so `resume-pointer.py` is not corrupted)
+- [x] Live Supabase migration state verified via Management API (PAT):
+      **0012 was already applied**; **0013/0014/0015 applied this session** and
+      re-verified by marker queries (audit_row has cancel_reason lift + contact
+      restore branch; set_contact_teacher has the tightened Overseer/Dev gate;
+      set_contact_active exists).
+- [x] REAL-backend end-to-end proofs on preview `gospel-central-k6y9p0bqk…`
+      (runs the branch-scoped Supabase env, login shim admin/gospelseed1):
+      delete → hidden from default read → dimmed via includeInactive=1 →
+      restore → back (67 contacts net-unchanged); booking cancel with typed
+      reason → audit row carries `reason` verbatim + REAL actor → restored.
+- [x] Oracle doc corrections applied via doc-tool (13 items: 102, 132, 151,
+      245, 258, 264, 292, 325, 349, 426, 429, 497, 518) — byte-exact round
+      trip, item count still 526, `resume-pointer.py` unaffected (COMPLETE,
+      gaps none). Corrections file: `audit/corrections-remediation-2026-07-13.json`.
+- [x] Re-audit routine authored: `Case Study/audit/REVERIFY-ROUTINE.md`
+      (verdicts go to `remediation-verify/reverify-<date>.jsonl` — a filename
+      the resume-pointer glob deliberately ignores).
+- [x] Orchestration workflow authored: `.claude/workflows/remediation-verify.js`
+      (named workflow; args `{targetUrl, date, only?}`; SEQUENTIAL browser
+      agents — one Chrome; close-out agent renders the summary FROM the JSONL).
+- [ ] Browser re-verification of the UI-level fixes per the routine (mock-on
+      preview; run `remediation-verify`) — NOTE: branch previews run the REAL
+      backend, so seed-edge-case checks need a `--build-env
+      NEXT_PUBLIC_MOCK_API=true` CLI preview.
 
 ## Deliberately NOT fixed
 
