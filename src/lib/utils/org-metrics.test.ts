@@ -8,6 +8,7 @@ import {
 import { UserRole } from '@/lib/types/user';
 import type { OrgNode } from '@/lib/types/group';
 import type { Contact } from '@/lib/types/contact';
+import { PipelineStage } from '@/lib/types/contact';
 import type { TeacherMetrics } from '@/lib/types/user';
 
 // Minimal OrgNode factory — mirrors the one in tree-expansion.test.ts.
@@ -109,10 +110,10 @@ describe('computeNodeMetrics', () => {
 
     const contacts: Contact[] = [
       makeContact({ id: 'c1', assignedTeacherId: 'tl', totalSessions: 3, lastSessionDate: recentDate }),
-      makeContact({ id: 'c2', assignedTeacherId: 'm1', totalSessions: 2, lastSessionDate: oldDate }),
+      makeContact({ id: 'c2', assignedTeacherId: 'm1', totalSessions: 2, lastSessionDate: oldDate, pipelineStage: PipelineStage.BAPTIZED }),
       makeContact({ id: 'c3', assignedTeacherId: 'm1a', totalSessions: 5, currentlyStudying: true }),
-      makeContact({ id: 'c4', assignedTeacherId: 'm2', totalSessions: 1, currentlyStudying: false }),
-      makeContact({ id: 'c5', assignedTeacherId: 'outsider', totalSessions: 99, currentlyStudying: true }),
+      makeContact({ id: 'c4', assignedTeacherId: 'm2', totalSessions: 1, currentlyStudying: false, pipelineStage: PipelineStage.BAPTIZED }),
+      makeContact({ id: 'c5', assignedTeacherId: 'outsider', totalSessions: 99, currentlyStudying: true, pipelineStage: PipelineStage.BAPTIZED }),
     ];
 
     const teacherMetrics: TeacherMetrics[] = [
@@ -128,7 +129,11 @@ describe('computeNodeMetrics', () => {
     // recent (within 30 days OR currentlyStudying flag when date missing): c1, c3
     expect(result.currentlyStudying).toBe(2);
     expect(result.totalStudies).toBe(3 + 2 + 5 + 1); // 11
-    expect(result.bearingFruit).toBe(1 + 2); // tl + m1, outsider excluded
+    // Bearing Fruit is now the LIVE count of baptized contacts in the subtree,
+    // NOT the static teacherMetrics rollup. c2 + c4 are baptized (subtree); c5 is
+    // baptized but outside the subtree (excluded). The teacherMetrics fixture above
+    // still totals 3 for the subtree — asserting 2 proves it is no longer used.
+    expect(result.bearingFruit).toBe(2);
 
     // New fields.
     expect(result.totalMembers).toBe(3); // m1, m1a, m2 — excludes tl itself

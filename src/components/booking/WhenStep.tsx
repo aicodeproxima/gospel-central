@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { TimeSlot } from '@/lib/utils/availability';
+import { formatDuration, type TimeSlot } from '@/lib/utils/availability';
 
 export interface WhenStepProps {
   date: Date;
@@ -114,13 +114,16 @@ export function WhenStep({
       return;
     }
 
-    // Click on a later free slot → extend, but only if every slot in
-    // [startIdx, i] is free.
+    // Click a later free slot → treat it as the END TIME. The booking runs
+    // start→clicked slot, so the clicked slot is the EXCLUSIVE end boundary,
+    // not an extra booked block (10:00 → 11:00 is a 60-min booking, not 90).
+    // Require every 30-min block that actually gets booked — [startIdx, i) — to
+    // be free (the end-boundary slot itself is not occupied by this booking).
     if (i > startIdx) {
-      for (let j = startIdx; j <= i; j++) {
+      for (let j = startIdx; j < i; j++) {
         if (!slots[j] || slots[j].occupied) return; // ignore, no toast
       }
-      onRangeChange(startIdx, i + 1);
+      onRangeChange(startIdx, i);
       return;
     }
 
@@ -144,7 +147,7 @@ export function WhenStep({
   }
 
   const summaryLine = hasSelection
-    ? `${slots[startIdx!].label} — ${slots[endIdxExclusive!]?.label ?? 'end of day'} · ${(endIdxExclusive! - startIdx!) * 30} min`
+    ? `${slots[startIdx!].label} – ${slots[endIdxExclusive!]?.label ?? 'end of day'} · ${formatDuration((endIdxExclusive! - startIdx!) * 30)}`
     : null;
 
   const periodMeta: { key: PeriodKey; label: string }[] = [
@@ -298,9 +301,11 @@ export function WhenStep({
               <div className="grid gap-1">
                 {columns[key].map(({ slot, index: i }) => {
                   const isStart = startIdx === i;
-                  const isEnd = endIdxExclusive !== null && endIdxExclusive - 1 === i;
+                  // The end-TIME slot (the exclusive boundary) is highlighted as
+                  // the range's end marker; interior blocks sit between it and start.
+                  const isEnd = endIdxExclusive !== null && endIdxExclusive === i;
                   const isInterior =
-                    hasSelection && i > startIdx! && i < endIdxExclusive! - 1;
+                    hasSelection && i > startIdx! && i < endIdxExclusive!;
                   return (
                     <button
                       key={slot.label}
@@ -316,9 +321,10 @@ export function WhenStep({
                           !isEnd &&
                           !isInterior &&
                           'border-border hover:bg-accent',
-                        (isStart || isEnd) &&
+                        !slot.occupied &&
+                          (isStart || isEnd) &&
                           'bg-primary text-primary-foreground border-primary',
-                        isInterior && 'bg-primary/40 border-primary/40',
+                        !slot.occupied && isInterior && 'bg-primary/40 border-primary/40',
                       )}
                     >
                       {slot.label}

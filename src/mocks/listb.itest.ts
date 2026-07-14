@@ -68,9 +68,141 @@ describe('List B INT — gated-endpoint authz (negative path)', () => {
     expect((await authed('PUT', `/users/${branch.user.id}/tags`, member.token, { tags: ['teacher'] })).status).toBe(403);
   });
 
-  // Backend-acceptance: UI-ONLY-enforced gaps (mock allows; the real backend MUST gate).
-  it.todo('backend: PUT /users/:id/username must enforce canChangeUsername (Overseer+, peer-Overseer→Dev-only) — handler ungated');
-  it.todo('backend: GET /audit-log must enforce canAccessReports (Branch Leader+) — handler returns to any authed user');
-  it.todo('backend: PUT /contacts/:id {assignedTeacherId} must enforce canReassignContact — handler spreads body ungated');
-  it.todo('backend: PUT /bookings/:id + POST /bookings/:id/cancel must enforce canEditBooking — handler checks only slot conflicts');
+  // NOW ENFORCED (2026-07-09, built to real-backend parity).
+  it('PUT /users/:id/username enforces canChangeUsername (Overseer+; below-Overseer rejected)', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1');
+    const overseer = await login('overseer1');
+    const target = overseer.user.id; // renaming someone else, not self
+    // below Overseer → 403
+    expect((await authed('PUT', `/users/${target}/username`, member.token, { username: 'hacked1' })).status).toBe(403);
+    expect((await authed('PUT', `/users/${target}/username`, branch.token, { username: 'hacked2' })).status).toBe(403);
+    // anon → 401
+    expect((await authed('PUT', `/users/${target}/username`, null, { username: 'x' })).status).toBe(401);
+  });
+
+  it('GET /audit-log row-scopes non-admins to their own/related events (audit_select RLS parity)', async () => {
+    const member = await login('member3');
+    const overseer = await login('overseer1');
+    expect((await authed('GET', '/audit-log?limit=500', null)).status).toBe(401);
+    const mem = await (await authed('GET', '/audit-log?limit=500', member.token)).json();
+    const memList = mem.data ?? mem.entries ?? mem.rows ?? mem;
+    const ov = await (await authed('GET', '/audit-log?limit=500', overseer.token)).json();
+    const ovList = ov.data ?? ov.entries ?? ov.rows ?? ov;
+    // a Member sees ONLY rows where they are the actor or a related party
+    expect(memList.every((e: { userId: string; relatedUserIds?: string[] }) =>
+      e.userId === member.user.id || (e.relatedUserIds ?? []).includes(member.user.id))).toBe(true);
+    // an admin-tier viewer sees strictly more (the whole log)
+    expect(ovList.length).toBeGreaterThan(memList.length);
+  });
+
+  // NOW ENFORCED (2026-07-11, built to real-backend parity): PUT & DELETE
+  // /contacts/:id gate by canEditContact/canDeleteContact against the viewer's
+  // MANAGEABLE subtree (contacts_update RLS + set_contact_inactive RPC). A
+  // teacher change is re-gated like set_contact_teacher. The REGRESSION GUARD
+  // below (a Branch Leader editing an in-branch contact they didn't create must
+  // NOT 403) fails if the handler ever regresses to the visibility scope, which
+  // is EMPTY for a Branch Leader.
+  it('PUT/DELETE /contacts/:id enforce canEditContact — member edits foreign 403, anon 401, BL edits in-branch NOT 403', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1'); // Branch Leader, Newport News
+    // A contact NOT created by member3 (discover via branch1, who sees all).
+    const raw = await (await authed('GET', '/contacts', branch.token)).json();
+    const all = Array.isArray(raw) ? raw : raw.data || raw.contacts || [];
+    const foreign = all.find(
+      (c: { id: string; status: string; createdBy?: string; assignedTeacherId?: string }) =>
+        c.status !== 'inactive' && c.createdBy && c.createdBy !== member.user.id,
+    );
+    expect(foreign, 'a seed contact not created by member3').toBeTruthy();
+    // Member outside scope → 403 (edit + delete); anon → 401.
+    expect((await authed('PUT', `/contacts/${foreign.id}`, member.token, { notes: 'x' })).status).toBe(403);
+    expect((await authed('DELETE', `/contacts/${foreign.id}`, member.token, {})).status).toBe(403);
+    expect((await authed('PUT', `/contacts/${foreign.id}`, null, { notes: 'x' })).status).toBe(401);
+
+    // REGRESSION GUARD (BL false-403): branch1 must be able to edit an in-branch
+    // contact they did NOT personally create. Build one owned by a subordinate:
+    // branch1 is admin-tier so canCreateContact lets them set an arbitrary owner.
+    const usersRaw = await (await authed('GET', '/users', branch.token)).json();
+    const users = (Array.isArray(usersRaw) ? usersRaw : usersRaw.data || usersRaw.users || []) as Array<{
+      id: string;
+      parentId?: string;
+    }>;
+    // Fixed-point descendant walk from branch1 (mirrors buildManageableScope).
+    const reach = new Set<string>([branch.user.id]);
+    for (let added = true; added; ) {
+      added = false;
+      for (const u of users) {
+        if (u.parentId && reach.has(u.parentId) && !reach.has(u.id)) {
+          reach.add(u.id);
+          added = true;
+        }
+      }
+    }
+    const sub = users.find((u) => u.id !== branch.user.id && reach.has(u.id));
+    expect(sub, 'branch1 should have at least one subordinate').toBeTruthy();
+    const created = await (
+      await authed('POST', '/contacts', branch.token, {
+        firstName: 'Reg',
+        lastName: 'Guard',
+        type: 'contact',
+        pipelineStage: 'first_study',
+        createdBy: sub!.id,
+      })
+    ).json();
+    expect(created.createdBy, 'owner forced to the subordinate').toBe(sub!.id);
+    const guard = await authed('PUT', `/contacts/${created.id}`, branch.token, { notes: 'edited by BL' });
+    expect(guard.status, 'BL editing an in-branch contact must NOT be 403').not.toBe(403);
+  });
+  // NOW ENFORCED (2026-07-09): the mock's PUT/cancel/delete/restore booking handlers
+  // gate by canEditBooking, matching the real bookings_update RLS policy.
+  it('PUT /bookings/:id + POST /bookings/:id/cancel enforce canEditBooking (out-of-scope actor → 403, anon → 401)', async () => {
+    const member = await login('member3');
+    const branch = await login('branch1');
+    const raw = await (await authed('GET', '/bookings', branch.token)).json();
+    const all = Array.isArray(raw) ? raw : raw.data || raw.bookings || [];
+    const b = all.find(
+      (x: { id: string; status: string; createdBy?: string; teacherId?: string }) =>
+        x.status !== 'cancelled' && x.createdBy !== member.user.id && x.teacherId !== member.user.id,
+    );
+    expect(b).toBeTruthy();
+    expect((await authed('PUT', `/bookings/${b.id}`, member.token, { editReason: 'x' })).status).toBe(403);
+    expect((await authed('POST', `/bookings/${b.id}/cancel`, member.token, { reason: 'x' })).status).toBe(403);
+    expect((await authed('PUT', `/bookings/${b.id}`, null, { editReason: 'x' })).status).toBe(401);
+  });
+
+  // NOW ENFORCED (2026-07-11, built to real-backend parity): GET /metrics/teachers
+  // is computed LIVE from contacts + completed bookings (mirrors teacher_metrics()
+  // / teacher_metrics_guarded), guarded by canAccessReports (Branch Leader+), NOT a
+  // static seed — so a completed study moves the teacher's card.
+  it('GET /metrics/teachers is LIVE + canAccessReports-guarded (a completed study bumps totalSessionsLed)', async () => {
+    const member = await login('member3');
+    const admin = await login('admin');
+    // Guard parity (teacher_metrics_guarded raises 403 below Reports access).
+    expect((await authed('GET', '/metrics/teachers', member.token)).status).toBe(403);
+    expect((await authed('GET', '/metrics/teachers', null)).status).toBe(401);
+    // Admin (all scope): every teacher's totalSessionsLed equals their live completed-booking count.
+    const metrics = await (await authed('GET', '/metrics/teachers', admin.token)).json();
+    expect(Array.isArray(metrics)).toBe(true);
+    const braw = await (await authed('GET', '/bookings', admin.token)).json();
+    const blist = Array.isArray(braw) ? braw : braw.data || braw.bookings || [];
+    const completedFor = (tid: string) =>
+      blist.filter((b: { teacherId?: string; status: string }) => b.teacherId === tid && b.status === 'completed').length;
+    for (const m of metrics as { userId: string; totalSessionsLed: number }[]) {
+      expect(m.totalSessionsLed, `totalSessionsLed for ${m.userId}`).toBe(completedFor(m.userId));
+    }
+    // LIVE proof: complete a not-yet-completed study whose teacher is in the metrics,
+    // and confirm that teacher's totalSessionsLed goes up by exactly 1.
+    const teacherIds = new Set((metrics as { userId: string }[]).map((m) => m.userId));
+    const study = blist.find(
+      (b: { id: string; activity?: string; status: string; teacherId?: string }) =>
+        b.activity === 'bible_study' && b.status !== 'completed' && !!b.teacherId && teacherIds.has(b.teacherId),
+    );
+    expect(study, 'a non-completed bible study led by a listed teacher').toBeTruthy();
+    const ledBefore =
+      (metrics as { userId: string; totalSessionsLed: number }[]).find((m) => m.userId === study.teacherId)!.totalSessionsLed;
+    expect((await authed('PATCH', `/bookings/${study.id}/status`, admin.token, { status: 'completed' })).status).toBe(200);
+    const after = await (await authed('GET', '/metrics/teachers', admin.token)).json();
+    const ledAfter = (after as { userId: string; totalSessionsLed: number }[]).find((m) => m.userId === study.teacherId)!.totalSessionsLed;
+    expect(ledAfter, 'completion increments totalSessionsLed live').toBe(ledBefore + 1);
+  });
 });

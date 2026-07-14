@@ -13,7 +13,15 @@ import {
   buildVisibilityScope,
   buildManageableScope,
   canChangeRole,
+  canEditBooking,
   canSetBookingStatus,
+  canCreateContact,
+  canConvertContact,
+  canEditContact,
+  canDeleteContact,
+  canChangeUsername,
+  canAccessReports,
+  assignableRoles,
   canCreateArea,
   canCreateRoom,
   canCreateUser,
@@ -30,8 +38,9 @@ import {
   EXPORT_IMPORT_FOR_NON_ADMINS,
 } from '../lib/utils/permissions';
 import type { User } from '../lib/types/user';
+import type { Contact } from '../lib/types/contact';
 import { UserRole } from '../lib/types/user';
-import { PipelineStage } from '../lib/types/contact';
+import { PipelineStage, PIPELINE_STAGE_CONFIG } from '../lib/types/contact';
 import { BOOKING_STATUS_CONFIG, type Booking, type BookingStatus } from '../lib/types/booking';
 import type { AuditLogEntry } from '../lib/types/group';
 import { buildOrgTree } from '../lib/utils/org-tree';
@@ -165,10 +174,11 @@ function pushAudit(entry: AuditInput): void {
 }
 
 /**
- * Resolve the full viewer User record for permission checks. Tries
- * `actorId` body field first (the FE's convention), then falls back to
- * the mock JWT in the Authorization header (`mock-jwt-token-${userId}`)
- * so a malicious direct-API call without an `actorId` is still gated.
+ * Resolve the full viewer User record for permission checks. The mock JWT in
+ * the Authorization header (`mock-jwt-token-${userId}`) is the ONLY canonical
+ * source — `body.actorId` is deliberately IGNORED (see the impersonation-hole
+ * fix below), so a spoofed actorId can never override the authenticated user.
+ * The `_body` param is retained only for call-site signature compatibility.
  *
  * §7 SHIM: returning `undefined` on no match means the permission helpers
  * receive a missing viewer and return false → 403 PERMISSION_DENIED.
@@ -267,9 +277,25 @@ function methodNotAllowed(reason: string) {
   );
 }
 
-/** Helper for visibility-scope-restricted permission checks. */
+/** Helper for visibility-scope-restricted permission checks (READ scope; a
+ *  Branch Leader sees the whole org, so this returns an EMPTY userIds set for a
+ *  BL — kind 'all'). Correct for READ gates and for helpers that short-circuit
+ *  on isAdminTier (canEditBooking, canCreateContact). WRONG for the contact
+ *  edit/delete/convert gates below — those helpers have NO isAdminTier
+ *  short-circuit, so an empty set false-403s a Branch Leader. Use
+ *  `viewerManageableUserIds` there. */
 function viewerSubtreeUserIds(viewer: User): string[] {
   return buildVisibilityScope(viewer, usersState as User[]).userIds;
+}
+
+/** Helper for WRITE-scope permission checks — the subtree a viewer may
+ *  *administer* (buildManageableScope). Unlike the visibility scope, a Branch
+ *  Leader gets a POPULATED own-branch set here (never 'all'), which is exactly
+ *  what the real backend's `subtree_user_ids(auth.uid())` returns inside the
+ *  contacts_update RLS / set_contact_teacher / set_contact_inactive RPCs. Pass
+ *  this to canEditContact / canDeleteContact / canConvertContact. */
+function viewerManageableUserIds(viewer: User): string[] {
+  return buildManageableScope(viewer, usersState as User[]).userIds;
 }
 
 /**
@@ -464,7 +490,13 @@ function applyStudyCompletion(
   contactsState[cidx] = {
     ...c,
     totalSessions: (c.totalSessions ?? 0) + 1,
-    lastSessionDate: when,
+    // Keep the MOST RECENT session date: completing a back-dated study (logged
+    // after a newer one) must not regress lastSessionDate to the older study's
+    // date. `when` is the completed booking's start time (may be in the past).
+    lastSessionDate:
+      c.lastSessionDate && new Date(c.lastSessionDate).getTime() > new Date(when).getTime()
+        ? c.lastSessionDate
+        : when,
     currentlyStudying: true,
     // Only touch the study fields when a subject was actually chosen
     // (Add-subject-later leaves them as-is but still logs the session).
@@ -1221,8 +1253,18 @@ export const handlers = [
 
   http.put(`${API}/bookings/:id`, async ({ request, params }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the real backend: JWT-resolved actor + the bookings_update RLS
+    // scope (canEditBooking = owner/teacher/admin-tier/in-scope leader). The real
+    // backend gates every booking UPDATE; the mock must too — no body.actorId trust.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    if (!canEditBooking(viewer, bookingsState[idx] as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can edit this booking',
+      );
+    }
     // BLOCK-2/BE-2: reject 409 on edit-into-blocked-slot.
     const conflict = findBookingBlockedConflict({ ...bookingsState[idx], ...body });
     if (conflict) {
@@ -1278,11 +1320,11 @@ export const handlers = [
         action: 'update',
         entityType: 'booking',
         entityId: updated.id,
-        userId: 'u-michael',
-        userName: 'Michael',
+        userId: viewer.id,
+        userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
         details: `Edited booking: ${reason}`,
         relatedUserIds: relatedUsers(
-          'u-michael',
+          viewer.id,
           typeof updated.teacherId === 'string' ? updated.teacherId : undefined,
         ),
         timestamp: new Date().toISOString(),
@@ -1355,33 +1397,41 @@ export const handlers = [
   // #7 in PERMISSIONS.md ("Soft delete only") applies.
   http.delete(`${API}/bookings/:id`, async ({ request, params }) => {
     const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    // Parity: JWT-resolved actor + canEditBooking scope, matching the real
+    // bookings_update RLS. Do NOT trust body.actorId (it was spoofable).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = bookingsState[idx];
+    if (!canEditBooking(viewer, before as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can delete this booking',
+      );
+    }
     // Deleting an already-Completed study takes its session back off the
     // contact card / teacher log (defensive guard for the status-gated metrics).
-    if (before.status === 'completed') reverseStudyCompletion(before, body.actorId);
+    if (before.status === 'completed') reverseStudyCompletion(before, viewer.id);
     const updated = {
       ...before,
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
       cancelReason: 'Booking deleted',
-      cancelledBy: typeof body.actorId === 'string' ? body.actorId : 'unknown',
+      cancelledBy: viewer.id,
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
-    const actor = resolveActor(body.actorId);
     pushAudit({
       id: 'al-' + Date.now(),
       action: 'delete',
       entityType: 'booking',
       entityId: before.id,
-      userId: actor.id,
-      userName: actor.name,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Deleted booking "${before.title}" (soft-cancelled, history preserved)`,
       before,
       relatedUserIds: relatedUsers(
-        actor.id,
+        viewer.id,
         typeof before.teacherId === 'string' ? before.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
@@ -1392,17 +1442,28 @@ export const handlers = [
   // Cancel a booking (soft-delete with reason tracking + audit log)
   http.post(`${API}/bookings/:id/cancel`, async ({ request, params }) => {
     const body = (await request.json()) as { reason?: string };
+    // Parity with the real cancel_booking RPC: gate by canEditBooking (owner/
+    // teacher/admin-tier/in-scope leader) and attribute cancelledBy + the audit
+    // row to the JWT-resolved actor — NOT a hardcoded 'u-michael' (was B3: every
+    // cancel credited Michael on Reports Top Contributors regardless of actor).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    if (!canEditBooking(viewer, booking as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can cancel this booking',
+      );
+    }
     // Cancelling an already-Completed study reverses its metrics side-effects.
-    if (booking.status === 'completed') reverseStudyCompletion(booking);
+    if (booking.status === 'completed') reverseStudyCompletion(booking, viewer.id);
     const updated = {
       ...booking,
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
       cancelReason: (body.reason || '').trim(),
-      cancelledBy: 'u-michael',
+      cancelledBy: viewer.id,
       updatedAt: new Date().toISOString(),
     };
     bookingsState[idx] = updated as typeof bookingsState[number];
@@ -1411,11 +1472,11 @@ export const handlers = [
       action: 'cancel',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Cancelled booking "${booking.title}": ${body.reason || 'No reason'}`,
       relatedUserIds: relatedUsers(
-        'u-michael',
+        viewer.id,
         typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
@@ -1424,10 +1485,19 @@ export const handlers = [
   }),
 
   // Restore a cancelled booking
-  http.post(`${API}/bookings/:id/restore`, ({ params }) => {
+  http.post(`${API}/bookings/:id/restore`, ({ request, params }) => {
+    // Parity: JWT-resolved actor + canEditBooking scope (the real restore path
+    // is a bookings_update, gated by the same RLS policy as cancel/edit).
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
     const idx = bookingsState.findIndex((b) => b.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const booking = bookingsState[idx];
+    if (!canEditBooking(viewer, booking as Booking, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied(
+        'Only the teacher, the booking creator, or a leader in scope can restore this booking',
+      );
+    }
     const updated = {
       ...booking,
       // Restore always lands back on 'bible_study' (scheduled) — if the study
@@ -1444,11 +1514,11 @@ export const handlers = [
       action: 'update',
       entityType: 'booking',
       entityId: updated.id,
-      userId: 'u-michael',
-      userName: 'Michael',
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Restored cancelled booking "${booking.title}"`,
       relatedUserIds: relatedUsers(
-        'u-michael',
+        viewer.id,
         typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
       ),
       timestamp: new Date().toISOString(),
@@ -1470,11 +1540,16 @@ export const handlers = [
     // record itself is kept until a GL+ deletes it or the real backend's
     // retention job runs; the flag lets the UI badge it and prompt cleanup.
     const nowMs = Date.now();
-    let filtered = contactsState.map((c) =>
-      c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
-        ? { ...c, retentionExpired: true }
-        : c,
-    );
+    // Parity with the real backend GET /contacts (supabase-router.ts `.neq('status','inactive')`):
+    // soft-deleted contacts must NOT resurface in the collection on refetch. Only the
+    // collection is filtered; GET /contacts/:id returns a single contact regardless of status.
+    let filtered = contactsState
+      .filter((c) => c.status !== 'inactive')
+      .map((c) =>
+        c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
+          ? { ...c, retentionExpired: true }
+          : c,
+      );
     if (search) filtered = filtered.filter((c) =>
       `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''}`.toLowerCase().includes(search),
     );
@@ -1500,28 +1575,45 @@ export const handlers = [
 
   http.post(`${API}/contacts`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the create_contact RPC: JWT actor + canCreateContact on the
+    // owner (v_owner = body.createdBy ?? auth.uid()). A caller may only set an
+    // owner they are (self), or that falls in their subtree (leader), or any
+    // (admin-tier). Server-owned fields (convertedToUserId, id) are NOT mass-
+    // assignable — a new contact is never pre-converted.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
+    const owner = typeof body.createdBy === 'string' ? body.createdBy : viewer.id;
+    if (!canCreateContact(viewer, owner, viewerSubtreeUserIds(viewer))) {
+      return permissionDenied('You can only create contacts you own or within your scope');
+    }
+    const {
+      actorId: _actorId,
+      convertedToUserId: _cvt,
+      createdBy: _cb,
+      id: _id,
+      ...safe
+    } = body;
+    void _actorId; void _cvt; void _cb; void _id;
     const newContact = {
       id: 'c' + Date.now(),
-      ...body,
+      ...safe,
+      createdBy: owner,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as typeof contactsState[number];
     contactsState.push(newContact);
-    // §7 SHIM (H-01 audit gap): emit contact.create row.
-    const actor = resolveActor(
-      typeof body.actorId === 'string' ? body.actorId : undefined,
-    );
+    // §7 SHIM (H-01 audit gap): emit contact.create row, attributed to the actor.
     pushAudit({
       id: 'al-' + Date.now() + '-cc',
       action: 'create',
       entityType: 'contact',
       entityId: newContact.id,
-      userId: actor.id,
-      userName: actor.name,
+      userId: viewer.id,
+      userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Created contact: ${newContact.firstName} ${newContact.lastName}`,
       after: { type: newContact.type, pipelineStage: newContact.pipelineStage },
       relatedUserIds: relatedUsers(
-        actor.id,
+        viewer.id,
         typeof newContact.assignedTeacherId === 'string' ? newContact.assignedTeacherId : undefined,
         ...(Array.isArray(newContact.preachingPartnerIds) ? newContact.preachingPartnerIds : []),
       ),
@@ -1532,15 +1624,76 @@ export const handlers = [
 
   http.put(`${API}/contacts/:id`, async ({ request, params }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    // Parity with the real PUT /contacts/:id path (supabase-router.ts:192 +
+    // contacts_update RLS + set_contact_teacher RPC):
+    //   • JWT actor ONLY — body.actorId is ignored (spoof-proof).
+    //   • Row edit gate = canEditContact against the viewer's MANAGEABLE subtree.
+    //     canEditContact has NO isAdminTier short-circuit, so the visibility
+    //     scope (EMPTY for a Branch Leader) would false-403 a BL on an own-branch
+    //     contact they didn't create — use viewerManageableUserIds, never
+    //     viewerSubtreeUserIds. (This is the bug the convert handler shipped with.)
+    //   • created_by / assigned_teacher_id are NOT column-update-granted (0005):
+    //     created_by is stripped; a teacher REASSIGN is re-gated exactly like
+    //     set_contact_teacher (edit gate + the new teacher must be admin-assignable
+    //     or inside the viewer's manageable subtree). Other server-owned fields
+    //     (id, convertedToUserId, createdAt) are stripped. type/status ARE granted
+    //     — do NOT strip them.
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = contactsState.findIndex((c) => c.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = contactsState[idx];
-    const updated = { ...before, ...body, updatedAt: new Date().toISOString() };
+    const scope = viewerManageableUserIds(viewer);
+    if (!canEditContact(viewer, before as Contact, scope)) {
+      return permissionDenied('You can only edit contacts within your scope');
+    }
+    // set_contact_teacher parity: a teacher reassignment additionally requires the
+    // new teacher to be admin-assignable or in the viewer's manageable subtree.
+    const reassigning =
+      typeof body.assignedTeacherId === 'string' &&
+      body.assignedTeacherId !== before.assignedTeacherId;
+    if (reassigning) {
+      const newTeacher = body.assignedTeacherId as string;
+      if (!(isAdminTier(viewer) || scope.includes(newTeacher))) {
+        return permissionDenied('You can only assign a teacher within your scope');
+      }
+    }
+    // Mass-assignment strip (mirror supabase-router.strip() + withheld columns).
+    const {
+      actorId: _actorId,
+      id: _id,
+      createdBy: _createdBy,
+      convertedToUserId: _cvt,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...safe
+    } = body;
+    void _actorId; void _id; void _createdBy; void _cvt; void _createdAt; void _updatedAt;
+    const updated = { ...before, ...safe, updatedAt: new Date().toISOString() };
+    const actor = resolveActor(viewer.id);
+    // F2 (routine cell 68/77): a runtime pipelineStage change appends a `stage_change`
+    // timeline row, mirroring the seed + booking-completion path, so the fruit/baptism
+    // leaderboards (church.ts scans the timeline for a 'Baptized' stage_change) reflect
+    // runtime stage changes, not only seeded ones. Real-backend parity needs the same via
+    // an AFTER UPDATE trigger on public.contacts.
+    if (
+      typeof safe.pipelineStage === 'string' &&
+      updated.pipelineStage !== before.pipelineStage
+    ) {
+      const cfg = PIPELINE_STAGE_CONFIG[updated.pipelineStage as PipelineStage];
+      updated.timeline = [
+        ...(before.timeline ?? []),
+        {
+          date: updated.updatedAt,
+          action: 'stage_change',
+          details: `Pipeline stage changed to ${cfg?.label ?? updated.pipelineStage}`,
+          userId: actor.id,
+          userName: actor.name,
+        },
+      ];
+    }
     contactsState[idx] = updated as typeof contactsState[number];
-    // §7 SHIM (H-01 audit gap): emit contact.update row.
-    const actor = resolveActor(
-      typeof body.actorId === 'string' ? body.actorId : undefined,
-    );
+    // §7 SHIM (H-01 audit gap): emit contact.update row, attributed to the JWT actor.
     pushAudit({
       id: 'al-' + Date.now() + '-cu',
       action: 'update',
@@ -1557,10 +1710,7 @@ export const handlers = [
     // F1: distinct `reassign` audit row when the owner (assignedTeacherId) changed,
     // so reports/audit can trace contact hand-offs (was previously folded into a
     // generic `update`). The real backend should do the same.
-    if (
-      typeof body.assignedTeacherId === 'string' &&
-      body.assignedTeacherId !== before.assignedTeacherId
-    ) {
+    if (reassigning) {
       const nameOf = (uid?: string) => {
         const u = usersState.find((x) => x.id === uid);
         return u ? `${u.firstName} ${u.lastName}` : uid || 'Unassigned';
@@ -1589,16 +1739,24 @@ export const handlers = [
   // (line 621-625 of the AUDIT_REPORT.md repro).
   http.delete(`${API}/contacts/:id`, async ({ request, params }) => {
     const body = (await request.json().catch(() => ({}))) as { actorId?: string };
+    // Parity with set_contact_inactive RPC (0002:200): JWT actor + the same
+    // row gate as edit (canDeleteContact === canEditContact against the MANAGEABLE
+    // subtree — never the visibility scope, per the BL false-403 note on PUT).
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const idx = contactsState.findIndex((c) => c.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const before = contactsState[idx];
+    if (!canDeleteContact(viewer, before as Contact, viewerManageableUserIds(viewer))) {
+      return permissionDenied('You can only delete contacts within your scope');
+    }
     const updated = {
       ...before,
       status: 'inactive',
       updatedAt: new Date().toISOString(),
     } as typeof contactsState[number];
     contactsState[idx] = updated;
-    const actor = resolveActor(body.actorId);
+    const actor = resolveActor(viewer.id);
     pushAudit({
       id: 'al-' + Date.now() + '-cd',
       action: 'delete',
@@ -1628,9 +1786,26 @@ export const handlers = [
       groupId?: string;
       actorId?: string;
     };
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const cidx = contactsState.findIndex((c) => c.id === params.id);
     if (cidx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     const contact = contactsState[cidx];
+    // Parity with convert_contact RPC: a leader in-scope may convert
+    // (canConvertContact), AND the new user's role must be strictly below the
+    // actor's own level (create_user ceiling) -- a Member cannot convert, and
+    // no one may mint a user at or above their level (was priv-esc: a Member
+    // could pass role:'dev').
+    // canConvertContact delegates to canEditContact (NO isAdminTier short-circuit),
+    // so it MUST receive the MANAGEABLE subtree — the visibility scope is empty for
+    // a Branch Leader and false-403'd a BL converting an own-branch contact.
+    if (!canConvertContact(viewer, contact as Contact, viewerManageableUserIds(viewer))) {
+      return permissionDenied('Only a leader in scope can convert this contact');
+    }
+    const requestedRole = (typeof body.role === 'string' && body.role ? body.role : 'member') as UserRole;
+    if (!assignableRoles(viewer.role).includes(requestedRole)) {
+      return permissionDenied(`You cannot create a user with role '${requestedRole}'`);
+    }
 
     // Critical scenario #13 fix: idempotency check. Pre-fix, calling
     // /convert twice on the same contact created TWO users and orphaned
@@ -1674,7 +1849,7 @@ export const handlers = [
       lastName: contact.lastName,
       email: contact.email ?? `${username}@diamond.local`,
       phone: contact.phone,
-      role: body.role,
+      role: requestedRole,
       groupId: typeof body.groupId === 'string' ? body.groupId : undefined,
       parentId: typeof body.parentId === 'string' ? body.parentId : undefined,
       tags: [],
@@ -1697,7 +1872,7 @@ export const handlers = [
     } as typeof contactsState[number];
     contactsState[cidx] = updatedContact;
 
-    const actor = resolveActor(body.actorId);
+    const actor = { id: viewer.id, name: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username };
     // Pair the audit rows under the same Date.now() prefix so they sort
     // together in the Reports table.
     const ts = Date.now();
@@ -1745,8 +1920,40 @@ export const handlers = [
     );
   }),
 
-  http.get(`${API}/metrics/teachers`, () => {
-    return HttpResponse.json(mockTeacherMetrics);
+  // Parity with teacher_metrics() / teacher_metrics_guarded (0002 + 0007):
+  // computed LIVE from contacts + completed bookings — NOT the static seed — so a
+  // study marked Completed (or a stage/teacher change) immediately moves the
+  // teacher's card. Guarded by canAccessReports (Branch Leader+ → else 403) and
+  // scoped exactly like the RPC: Overseer/Dev see all teachers, a Branch Leader
+  // only their manageable subtree. Each teacher-tagged in-scope user gets a row
+  // (zeros included), matching the real `from users where tags @> ['teacher']`.
+  http.get(`${API}/metrics/teachers`, ({ request }) => {
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    if (!canAccessReports(viewer)) {
+      return permissionDenied('Reports access is Branch Leader and above');
+    }
+    const scope = buildManageableScope(viewer, usersState as User[]);
+    const inScope = (uid: string) => scope.kind === 'all' || scope.userIds.includes(uid);
+    const metrics = usersState
+      .filter((u) => Array.isArray(u.tags) && u.tags.includes('teacher') && inScope(u.id))
+      .map((u) => {
+        const students = contactsState.filter((c) => c.assignedTeacherId === u.id);
+        const totalStudents = students.length;
+        return {
+          userId: u.id,
+          totalStudents,
+          // mock parity: the real RPC returns 6 fields; activeStudents mirrors total.
+          activeStudents: totalStudents,
+          currentlyStudying: students.filter((c) => c.currentlyStudying).length,
+          continuedStudying: students.filter((c) => (c.totalSessions ?? 0) > 1).length,
+          baptizedSinceStudying: students.filter((c) => c.pipelineStage === PipelineStage.BAPTIZED).length,
+          totalSessionsLed: bookingsState.filter(
+            (b) => b.teacherId === u.id && b.status === 'completed',
+          ).length,
+        };
+      });
+    return HttpResponse.json(metrics);
   }),
 
   // §7.7 Append-only audit log contract (Critical scenario #22).
@@ -1776,6 +1983,8 @@ export const handlers = [
   // Audit — supports filtering, search, and pagination
   http.get(`${API}/audit-log`, ({ request }) => {
     const url = new URL(request.url);
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
     const action = url.searchParams.get('action');
     const entityType = url.searchParams.get('entityType');
     const userId = url.searchParams.get('userId');
@@ -1818,6 +2027,15 @@ export const handlers = [
       filtered = filtered.filter((e) => new Date(e.timestamp).getTime() <= en);
     }
 
+    // Parity with the audit_select RLS: admin-tier (Branch Leader+) see the whole
+    // log; everyone else sees ONLY rows where they are the actor or a related
+    // party (the Alerts feed). The mock previously returned the whole log to any
+    // authed user (self-documented authz gap).
+    if (!canAccessReports(viewer)) {
+      filtered = filtered.filter(
+        (e) => e.userId === viewer.id || (e.relatedUserIds?.includes(viewer.id) ?? false),
+      );
+    }
     const total = filtered.length;
     const start = (page - 1) * limit;
     const entries = filtered.slice(start, start + limit);
@@ -2437,6 +2655,8 @@ export const handlers = [
   // PUT /users/:id/username — rename with collision check (case-insensitive).
   http.put(`${API}/users/:id/username`, async ({ request, params }) => {
     const body = (await request.json()) as { username: string; actorId?: string };
+    const viewer = resolveViewer(request, body);
+    if (!viewer) return unauthorized();
     const desired = String(body.username || '').trim().toLowerCase();
     if (!desired) return HttpResponse.json({ message: 'Username required' }, { status: 400 });
     if (!/^[a-z0-9_.-]{3,32}$/.test(desired)) {
@@ -2447,13 +2667,18 @@ export const handlers = [
     }
     const idx = usersState.findIndex((u) => u.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
+    // Parity: canChangeUsername (Overseer+, and only a Dev may rename a peer
+    // Overseer/above) -- the handler was ungated (anyone could rename anyone).
+    if (!canChangeUsername(viewer, usersState[idx] as User)) {
+      return permissionDenied('Only an Overseer or Dev in scope can rename this user');
+    }
     const taken = usersState.some(
       (u) => u.id !== params.id && u.username.toLowerCase() === desired,
     );
     if (taken) return HttpResponse.json({ message: 'Username already taken' }, { status: 409 });
     const previousUsername = usersState[idx].username;
     usersState[idx] = { ...usersState[idx], username: desired, updatedAt: new Date().toISOString() };
-    const actor = resolveActor(body.actorId);
+    const actor = { id: viewer.id, name: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username };
     // AUDIT-1: dedicated entityType='username_change' + action='rename'.
     pushAudit({
       id: 'al-' + Date.now(),

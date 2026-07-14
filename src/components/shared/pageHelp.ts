@@ -42,7 +42,7 @@ export const calendarHelp: PageHelp = {
     {
       heading: 'Views',
       body: [
-        'Week: days as columns, all 8 rooms stacked side-by-side within each day. Ideal for planning the whole week.',
+        'Week: days as columns, every room stacked side-by-side within each day. Ideal for planning the whole week.',
         'Day: rooms as columns for a single day. Easiest for spotting free slots in one specific room.',
         'Month: classic calendar grid with dot-sized bookings per day. Click any day to zoom into Day view.',
       ],
