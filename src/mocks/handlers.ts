@@ -1590,6 +1590,12 @@ export const handlers = [
     const viewer = resolveViewer(request, body);
     if (!viewer) return unauthorized();
     const owner = typeof body.createdBy === 'string' ? body.createdBy : viewer.id;
+    // Parity: contacts.created_by is a uuid FK on the real backend — an owner that
+    // doesn't resolve to a user fails there (22P02 non-uuid / 23503 unknown uuid).
+    // The old silent-accept here is how `createdBy: 'import'` hid until cutover.
+    if (typeof body.createdBy === 'string' && !usersState.some((u) => u.id === body.createdBy)) {
+      return validationError('createdBy must reference an existing user (omit it to default to the authenticated viewer)');
+    }
     if (!canCreateContact(viewer, owner, viewerSubtreeUserIds(viewer))) {
       return permissionDenied('You can only create contacts you own or within your scope');
     }

@@ -90,7 +90,8 @@ export function ImportCSVDialog({ open, onClose, onComplete }: ImportCSVDialogPr
           status: ContactStatus.ACTIVE,
           totalSessions: parseInt(row['Sessions'] || '0', 10) || 0,
           notes: row['Notes'] || row['notes'] || undefined,
-          createdBy: 'import',
+          // createdBy intentionally omitted — the server derives the creator from
+          // the authenticated viewer (created_by is a uuid FK; sentinels 22P02).
         });
         success++;
       } catch {

@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { User, TeacherMetrics } from '../types/user';
 
 /* ---- helpers ---- */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTOR_KEYS = ['actorId', 'createdById', 'userId', 'actor'];
 const strip = (b: Record<string, unknown> | undefined) => {
   if (!b) return {};
@@ -84,8 +85,7 @@ const R: Route[] = [
   // Explicit field mapping (NOT blind snakeize): viewerId is 'anonymous' or a mock
   // slug in some payloads — only a real uuid may reach the uuid column.
   { method: 'POST', re: /^\/error-log$/, h: async ({ db, body }) => {
-    const vid = typeof body.viewerId === 'string' &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.viewerId)
+    const vid = typeof body.viewerId === 'string' && UUID_RE.test(body.viewerId)
       ? body.viewerId : null;
     const s = (v: unknown, max: number) => (v == null ? null : String(v).slice(0, max));
     const { error } = await db.from('error_log').insert({
@@ -195,7 +195,15 @@ const R: Route[] = [
   { method: 'POST', re: /^\/bookings\/([^/?]+)\/cancel$/, h: ({ db, id, body }) => rpc(db, 'cancel_booking', { bid: id, p_reason: body.reason }) },
   { method: 'POST', re: /^\/bookings\/([^/?]+)\/restore$/, h: ({ db, id }) => sb(db.from('bookings').update({ status: 'bible_study', cancelled_at: null, cancel_reason: null, cancelled_by: null } as never).eq('id', id!).select().single()) },
   { method: 'PATCH', re: /^\/bookings\/([^/?]+)\/status$/, h: ({ db, id, body }) => sb(db.from('bookings').update({ status: body.status } as never).eq('id', id!).select().single()) },
-  { method: 'POST', re: /^\/contacts$/, h: ({ db, body }) => rpc(db, 'create_contact', { p: snakeize(strip(body)) }) },
+  { method: 'POST', re: /^\/contacts$/, h: ({ db, body }) => {
+    // create_contact casts created_by with ::uuid — a non-uuid sentinel from an old
+    // client build ('import'/'unknown') must fall back to the RPC's auth.uid()
+    // default, not 22P02-fail the row. A real uuid passes through (leader
+    // on-behalf-of create; the RPC re-gates it).
+    const b = strip(body) as Record<string, unknown>;
+    if ('createdBy' in b && (typeof b.createdBy !== 'string' || !UUID_RE.test(b.createdBy))) delete b.createdBy;
+    return rpc(db, 'create_contact', { p: snakeize(b) });
+  } },
   { method: 'PUT', re: /^\/contacts\/([^/?]+)$/, h: async ({ db, id, body }) => {
     const b = strip(body) as Record<string, unknown>;
     // assigned_teacher_id / created_by are NOT update-granted; teacher reassign goes via RPC.
