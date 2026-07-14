@@ -658,6 +658,31 @@ export const scenarioBlockedSlots: BlockedSlot[] = [
   },
 ];
 
+// Edge case (finding 236): one fully-closed day for Virginia Beach — a
+// realistic one-off building closure that makes the booking wizard's
+// 'No availability this day' room reason reachable with seed data.
+{
+  const closed = mockNow();
+  // NEXT week's Wednesday: seeded bookings only span the current Mon–Sun
+  // week (pinned invariant), so a next-week closure can never overlap one.
+  closed.setDate(closed.getDate() + (((3 - closed.getDay() + 7) % 7) || 7) + 7);
+  closed.setHours(0, 0, 0, 0);
+  const closedEnd = new Date(closed);
+  closedEnd.setHours(23, 59, 0, 0);
+  scenarioBlockedSlots.push({
+    id: 'bs-vb-convention-day',
+    scope: 'area',
+    areaId: 'area-virginia-beach',
+    recurrence: 'one-off',
+    startDateTime: closed.toISOString(),
+    endDateTime: closedEnd.toISOString(),
+    reason: 'Building closed — regional convention',
+    createdBy: uOverseer.id,
+    createdAt: '2026-07-01T00:00:00Z',
+    isActive: true,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Contacts — 50 contacts assigned to members across all 5 branches
 // ---------------------------------------------------------------------------
@@ -988,6 +1013,51 @@ scenarioContacts.push(
   g3Contact('u-group-5', 16, {
     first: 'Lydia', last: 'of Thyatira', stage: U, sessions: 5, lastSessionDaysAgo: 14, partners: 1, onStep: true,
   }),
+);
+
+// ---------------------------------------------------------------------------
+// Edge-case contacts (audit-remediation wave 2) — make documented-but-dormant
+// UI branches reachable with seed data: inactive row + Restore in Admin
+// (findings 51/420/151), the 'Unassigned' teacher placeholder (64), the
+// converted-status display (62), and the retention-expired badge (61).
+// Appended with fresh ids so existing ids and per-stage counts stay stable.
+// ---------------------------------------------------------------------------
+scenarioContacts.push(
+  {
+    // Soft-deleted: hidden from the default list; Admin (includeInactive)
+    // renders it dimmed with an Inactive badge + Restore control.
+    ...g3Contact('u-team-3', 17, {
+      first: 'Demas', last: 'of Thessalonica', stage: F, sessions: 2, lastSessionDaysAgo: 90, partners: 1,
+    }),
+    status: ContactStatus.INACTIVE,
+  },
+  {
+    // No teacher anywhere in the chain: the 'Unassigned' placeholder renders.
+    ...g3Contact('u-group-5', 18, {
+      first: 'Rhoda', last: 'of Jerusalem', stage: F, sessions: 0, partners: 1,
+    }),
+    assignedTeacherId: undefined,
+    preachingPartnerIds: [null, null, null],
+  },
+  {
+    // Converted, retention window still running: converted status surfaces.
+    ...g3Contact('u-team-3', 19, {
+      first: 'Apollos', last: 'of Alexandria', stage: B, sessions: 30, lastSessionDaysAgo: 20, partners: 2,
+    }),
+    status: ContactStatus.CONVERTED,
+    convertedToUserId: 'u-mem-88',
+    retainUntil: new Date(mockNowMs() + 180 * G3_DAY).toISOString(),
+  },
+  {
+    // Converted with LAPSED retention: GET /contacts computes
+    // retentionExpired=true on read → the retention-expired badge renders.
+    ...g3Contact('u-group-5', 20, {
+      first: 'Crispus', last: 'of Corinth', stage: B, sessions: 26, lastSessionDaysAgo: 60, partners: 2,
+    }),
+    status: ContactStatus.CONVERTED,
+    convertedToUserId: 'u-mem-89',
+    retainUntil: new Date(mockNowMs() - 10 * G3_DAY).toISOString(),
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -1366,6 +1436,31 @@ for (let i = 0; i < Math.min(3, cancellable.length); i++) {
     cancelReason: cancelReasons[i],
     cancelledBy: uMichael.id,
   } as Booking;
+}
+
+// Edge case (finding 303): a booking whose contact id no longer resolves —
+// realistic residue of a hard-deleted contact from an older era. Booking
+// cards must fall back to the stored title. Slotted at 06:00 yesterday,
+// before the 08:00 seed window, so it can never collide with a seeded room.
+{
+  const template = bookings.find((b) => b.status === BookingStatus.COMPLETED);
+  if (template) {
+    // Monday 06:00 of the CURRENT week (inside the pinned Mon–Sun booking
+    // window, before the 08:00 seed grid so no room collision); status
+    // follows the seed's own past→Completed rule.
+    const start = weekStart();
+    start.setHours(6, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60000);
+    bookings.push({
+      ...template,
+      id: `b-${++bookingCounter}`,
+      title: 'Bible Study: Titus with a former contact — Foundations',
+      contactId: 'c-legacy-removed',
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      status: end.getTime() < mockNowMs() ? BookingStatus.COMPLETED : BookingStatus.BIBLE_STUDY,
+    } as Booking);
+  }
 }
 
 export const scenarioBookings: Booking[] = bookings;
