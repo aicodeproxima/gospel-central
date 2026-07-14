@@ -34,10 +34,13 @@ export const camelize = <T = unknown>(v: unknown): T => deepMap(v, toCamel) as T
 export const snakeize = <T = unknown>(v: unknown): T => deepMap(v, toSnake) as T;
 
 /* ---------------------------------------------------------------- error mapping */
-// Backend RPCs raise `<TOKEN>: message` on PG errcode P0001; PostgREST surfaces that as
-// HTTP 400 with { code:'P0001', message:'<TOKEN>: ...' }. Map TOKEN → ApiErrorCode + the
-// HTTP status the UI expects, so `e.status === 409` / `e.code === 'PERMISSION_DENIED'`
-// call sites keep working. (RLS-denied SELECTs return no error, just [] — handled by callers.)
+// Backend RPCs raise their sentinel on PG errcode P0001 in TWO shapes: BARE
+// (`raise exception 'PERMISSION_DENIED'` — the common case) and colon-prefixed
+// (`raise exception 'ROOM_CONFLICT: room already booked …'`). PostgREST surfaces
+// both as HTTP 400 with { code:'P0001', message:'<TOKEN>[: ...]' }. Map TOKEN →
+// ApiErrorCode + the HTTP status the UI expects, so `e.status === 409` /
+// `e.code === 'PERMISSION_DENIED'` call sites keep working. (RLS-denied SELECTs
+// return no error, just [] — handled by callers.)
 const TOKEN_TO_CODE: Record<string, { code: ApiErrorCode; status: number }> = {
   PERMISSION_DENIED: { code: 'PERMISSION_DENIED', status: 403 },
   UNAUTHORIZED: { code: 'UNAUTHORIZED', status: 401 },
@@ -58,7 +61,10 @@ interface PgLikeError { message?: string; code?: string; details?: string; hint?
 /** Convert a supabase-js / PostgREST error into the app's typed ApiError. */
 export function pgErrorToApiError(err: PgLikeError | null | undefined): ApiError {
   const msg = err?.message ?? 'Request failed';
-  const token = msg.includes(':') ? msg.split(':')[0].trim() : '';
+  // Recover the token from either shape: the colon-prefixed form splits on ':',
+  // the bare form IS the token. A non-token message (with or without a colon)
+  // simply won't be in TOKEN_TO_CODE and falls through to the default below.
+  const token = (msg.includes(':') ? msg.split(':')[0] : msg).trim();
   const mapped = TOKEN_TO_CODE[token];
   if (mapped) {
     return new ApiError({ status: mapped.status, code: mapped.code, message: msg, details: err });
