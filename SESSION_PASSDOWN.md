@@ -60,15 +60,21 @@
 > - `task_630bc486` **DONE** — CSV-import `createdBy:'import'` uuid-parse fix landed as commit
 >   `717ebb5` (fast-forwarded into this branch); the finding-188 caveat is resolved on-branch (the
 >   fb13257 preview predates it, so the preview itself still 400s on CSV import — expected).
-> - `task_a8313c10` **OPEN** — on the real backend, permission/not-found denials surface as HTTP
->   400/UNKNOWN instead of 403/404/401 because `supabase.ts` `pgErrorToApiError` only reads the PG
->   token when the message has a colon, but migrations 0002–0014 raise BARE tokens app-wide. Security
->   gate is correct (deny + zero mutation); only the status mapping is off. One-line frontend fix.
+> - `task_a8313c10` **DONE** — landed as commit `758acb0` (bare PG tokens now map to real HTTP status:
+>   `pgErrorToApiError` recovers a colon-less token → `PERMISSION_DENIED`→403 / `NOT_FOUND`→404 /
+>   `UNAUTHORIZED`→401 / `*_CONFLICT`→409). Unit-pinned in `supabase-errors.test.ts` (RED→GREEN), full
+>   suite 566 green + clean build; migrations untouched. **Residual:** 3 bare tokens
+>   (`WEAK_PASSWORD`/`MISSING_FIELDS`/`CYCLE`) are still absent from `TOKEN_TO_CODE` → 400/UNKNOWN
+>   (separate small code chip if wanted). **Live 403 re-probe is PENDING** a real-backend preview of
+>   `758acb0`+ — see `Case Study/audit/remediation-verify/PLAN-not-observable-2026-07-14.md` Step 4b
+>   (the `ghonounep`/`fb13257` preview predates the fix, so it would still show the old 400).
 >
-> **This session's commits (feat/supabase-cutover):** `717ebb5` CSV-import fix (concurrent session) ·
-> `ee4da06` remediation-verify brief → real-backend reality + folded finding 132 into the booking
-> group · plus the closure commit (REMEDIATION.md tick + this passdown update). `src/lib/version.ts`
-> + `docs/qa/propagation*` build/test churn restored; `Case Study/` audit artifacts stay UNTRACKED.
+> **Branch tip now `758acb0` (pushed; local == origin).** This session's commits (feat/supabase-cutover,
+> oldest→newest): `717ebb5` CSV-import fix (concurrent session) · `ee4da06` remediation-verify brief →
+> real-backend reality + folded finding 132 into the booking group · `86e77fb` re-verify closure
+> (REMEDIATION.md tick + passdown) · `758acb0` bare-PG-token → HTTP-status fix (concurrent session,
+> task_a8313c10; full suite 566 green). `src/lib/version.ts` + `docs/qa/propagation*` build/test churn
+> restored; `Case Study/` audit artifacts (JSONL + SUMMARY + PLAN + 5 evidence PNGs) stay UNTRACKED.
 >
 > **RE-VERIFY TOOLING (reusable):** routine = `Case Study/audit/REVERIFY-ROUTINE.md`; orchestration =
 > `.claude/workflows/remediation-verify.js` (named `remediation-verify`; args `{targetUrl, date,
