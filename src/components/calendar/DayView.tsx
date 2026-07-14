@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getTimeSlots, format, isSameDay, parseISO } from '@/lib/utils/date';
+import { now as clockNow } from '@/mocks/mock-clock';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
@@ -127,20 +128,29 @@ export function DayView({ date, rooms, bookings, onSlotClick, onBookingClick, us
             <div key={room.id} className="relative border-r border-border last:border-r-0">
               {timeSlots.map((slot) => {
                 const occupied = isSlotOccupied(room.id, slot.hour, slot.minute);
+                // Fully-elapsed slots are visually retired (remediation decision
+                // 2026-07-13: grids stop inviting past times; deliberate
+                // retroactive entry stays possible via the wizard's own date and
+                // time fields, which show a past-time notice). The slot currently
+                // in progress remains bookable.
+                const slotEnd = new Date(date);
+                slotEnd.setHours(slot.hour, slot.minute + 30, 0, 0);
+                const past = slotEnd.getTime() <= clockNow().getTime();
                 return (
                   <button
                     key={slot.key}
                     type="button"
-                    disabled={occupied}
+                    disabled={occupied || past}
                     onClick={() => onSlotClick(room.id, date, slot.key)}
-                    title={occupied ? 'Slot taken' : `Click to book ${slot.label}`}
+                    title={occupied ? 'Slot taken' : past ? 'This time has passed' : `Click to book ${slot.label}`}
                     className={cn(
                       'group relative block h-12 w-full border-b border-border/30 transition-colors',
-                      !occupied && 'hover:bg-primary/10 cursor-pointer',
-                      occupied && 'cursor-default',
+                      !occupied && !past && 'hover:bg-primary/10 cursor-pointer',
+                      (occupied || past) && 'cursor-default',
+                      past && !occupied && 'bg-muted/20 opacity-50',
                     )}
                   >
-                    {!occupied && (
+                    {!occupied && !past && (
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                         <div className="rounded-full bg-primary text-primary-foreground p-1 shadow-lg">
                           <Plus className="h-3 w-3" />

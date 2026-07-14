@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { format, addDays, isSameDay } from 'date-fns';
+import { format, addDays, isSameDay, isValid } from 'date-fns';
+import { now as clockNow } from '@/mocks/mock-clock';
 import { Calendar as CalendarIcon, UserCheck, Monitor } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -150,6 +151,13 @@ export function WhenStep({
     ? `${slots[startIdx!].label} – ${slots[endIdxExclusive!]?.label ?? 'end of day'} · ${formatDuration((endIdxExclusive! - startIdx!) * 30)}`
     : null;
 
+  // Retroactive entry is allowed (recording a study that already happened) but
+  // must be deliberate: surface a notice instead of blocking (remediation
+  // decision 2026-07-13, finding 292's real story — nothing downstream rejects
+  // past times, so an unnoticed misclick used to create a silent past booking).
+  const pastSelection =
+    hasSelection && slots[startIdx!] && slots[startIdx!].start.getTime() < clockNow().getTime();
+
   const periodMeta: { key: PeriodKey; label: string }[] = [
     { key: 'morning', label: t('wizard.morning') },
     { key: 'afternoon', label: t('wizard.afternoon') },
@@ -166,10 +174,16 @@ export function WhenStep({
             <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <Input
               type="date"
-              value={format(date, 'yyyy-MM-dd')}
+              value={isValid(date) ? format(date, 'yyyy-MM-dd') : ''}
               onChange={(e) => {
                 if (!e.target.value) return;
-                onDateChange(new Date(e.target.value + 'T00:00'));
+                const next = new Date(e.target.value + 'T00:00');
+                // Chrome's native date input emits transient values V8 cannot
+                // parse (e.g. 5-6 digit years while retyping); an Invalid Date
+                // reaching state throws in format() at render and destroys the
+                // wizard (finding 223).
+                if (isNaN(next.getTime())) return;
+                onDateChange(next);
               }}
               className="h-10 border-0 bg-transparent px-0 focus-visible:ring-0"
             />
@@ -338,6 +352,11 @@ export function WhenStep({
 
         {summaryLine && (
           <p className="text-xs text-muted-foreground">{summaryLine}</p>
+        )}
+        {pastSelection && (
+          <p role="status" className="text-xs font-medium text-amber-600 dark:text-amber-500">
+            This time is in the past — you&apos;re recording a study that already happened.
+          </p>
         )}
       </div>
     </div>

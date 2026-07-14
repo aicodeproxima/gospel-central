@@ -482,7 +482,11 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     const leader = teacherOptions.find((t) => t.id === leaderId);
     const contact = contactOptions.find((c) => c.id === contactId);
     if (activityGroup === 'bible_study' && leader && contact) {
-      return `Bible Study: ${leader.label} with ${contact.label}`;
+      // Titles carry the primary subject so runtime bookings match the seeded
+      // "— {subject}" shape on every title-rendering surface, and edits rebuild
+      // the same shape instead of silently stripping it (finding 219).
+      const subject = addSubjectLater ? undefined : subjectsStudied[0];
+      return `Bible Study: ${leader.label} with ${contact.label}${subject ? ` — ${subject}` : ''}`;
     }
     if (leader) return `${group?.label}: ${leader.label}`;
     return group?.label || 'New Booking';

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getWeekDays, getTimeSlots, format, isSameDay, parseISO } from '@/lib/utils/date';
+import { now as clockNow } from '@/mocks/mock-clock';
 import { useTimeFormat } from '@/lib/hooks/useTimeFormat';
 import { BookingCard } from './BookingCard';
 import type { Booking, Room } from '@/lib/types';
@@ -130,22 +131,32 @@ export function WeekView({ date, rooms, bookings, onSlotClick, onBookingClick, u
               {/* Slot cells — click to book with the first available room */}
               {timeSlots.map((slot) => {
                 const targetRoom = rooms.find((r) => !isSlotOccupied(day, r.id, slot.hour, slot.minute)) || rooms[0];
+                // Same past-slot retirement as DayView (remediation decision
+                // 2026-07-13): fully-elapsed slots stop inviting clicks; the
+                // wizard remains the deliberate retroactive-entry path.
+                const slotEnd = new Date(day);
+                slotEnd.setHours(slot.hour, slot.minute + 30, 0, 0);
+                const past = slotEnd.getTime() <= clockNow().getTime();
                 return (
                   <button
                     key={slot.key}
                     type="button"
+                    disabled={past}
                     onClick={() => targetRoom && onSlotClick(targetRoom.id, day, slot.key)}
-                    title={`Click to book ${slot.label}`}
+                    title={past ? 'This time has passed' : `Click to book ${slot.label}`}
                     className={cn(
-                      'group relative block h-12 w-full border-b border-border/30',
-                      'hover:bg-primary/10 transition-colors cursor-pointer',
+                      'group relative block h-12 w-full border-b border-border/30 transition-colors',
+                      !past && 'hover:bg-primary/10 cursor-pointer',
+                      past && 'cursor-default bg-muted/20 opacity-50',
                     )}
                   >
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      <div className="rounded-full bg-primary text-primary-foreground p-1 shadow-lg">
-                        <Plus className="h-3 w-3" />
+                    {!past && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <div className="rounded-full bg-primary text-primary-foreground p-1 shadow-lg">
+                          <Plus className="h-3 w-3" />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </button>
                 );
               })}
