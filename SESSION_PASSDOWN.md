@@ -1,26 +1,217 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
+> **✅✅ LATEST — AUDIT-FINDINGS REMEDIATION SHIPPED + RE-VERIFY RUN COMPLETE (2026-07-14).**
+> This block supersedes anything below that conflicts. Session model: Fable 5 + ultracode; every
+> decision below marked "user-locked" came from an explicit AskUserQuestion answer — do NOT re-litigate.
+>
+> **WHERE WE ARE:** the 526-action UI audit is **COMPLETE (526/526, resume-pointer prints "section
+> COMPLETE — do not loop")** and its 50 non-Done findings are **REMEDIATED**. Branch
+> **`feat/supabase-cutover`**, tip **`601d5a1`** (pushed; **0 behind / 28 ahead of origin/main** —
+> main is FULLY merged in as of `1ad1c58`, do NOT redo that merge). **`REMEDIATION.md` (repo root,
+> tracked) is the authoritative finding → commit → evidence ledger — read it before touching any
+> audit finding.** Memory: `diamond-remediation-state`, `diamond-remediation-branch-divergence`.
+>
+> **Session commits (all pushed):** `1ad1c58` merge main→cutover (closed findings 94/96, 68/77-mock,
+> 282, 393 with zero new code) · `48fadc4` includeInactive contract + audit cancel-reason (78/151/497,
+> migration **0013**) · `15f2269` Invalid-Date guard + past-slot retirement + subject-bearing titles
+> (223/292/219) · `ca0d713` Escape scoping / delete a11y / strict slot-0 Main-Branch / Unassigned
+> label (92/149/102/188) · `19c075f` reports month-bound + cosmetics + seed hygiene
+> (509/516/349/132/518/145/147) · `dc4ee4c` **SECURITY**: BL contact-reassign target scoped to own
+> branch on ALL 3 surfaces (helper + MSW gate + migration **0014**) · `c5d3183` contact RESTORE flow
+> (151 wave-2: mock endpoint + migration **0015** + Admin UI Restore control) · `e9d9af9` seed edge
+> cases c-68..c-71 + orphan booking + VB closed day (awakens dormant findings 51/61/62/64/236/303/420)
+> · `fb13257`+`601d5a1` closure docs + remediation-verify workflow. Regression pins:
+> `src/mocks/remediation-wave1.itest.ts` + a permissions matrix test. Gates green throughout
+> (final: vitest 547/547, clean build).
+>
+> **5 PRODUCT DECISIONS (user-locked 2026-07-13):** (1) past bookings = grey elapsed slots +
+> allow-with-amber-notice (retroactive entry stays legal, NO backend reject); (2) booking titles =
+> subject-bearing "Bible Study: {leader} with {contact} — {subject}" for create AND edit; (3) partner
+> slots keep nulls, Main-Branch purple follows DATA slot 0 strictly (no auto-promotion); (4) audit
+> `reason` populated on cancel on BOTH backends; (5) Reports month card bounded through-now,
+> Cancellations stays action='cancel'-only, seed delete-wording clarified.
+>
+> **LIVE SUPABASE (ref `imjsdsepmhgazracegog`): migrations 0013/0014/0015 APPLIED + marker-verified
+> this session (0012 confirmed already live; booking mutations verified WORKING live, so the old
+> "0009 UNAPPLIED" warning below is RESOLVED).** DDL path that works: Management API + `sbp_` PAT +
+> **curl with a browser User-Agent** (python urllib → Cloudflare 1010). Real-backend E2E proofs done
+> on preview: contact delete→hidden→dimmed-via-includeInactive→restore→back; cancel with typed
+> reason → audit row carries `reason` verbatim + REAL actor. PAT rotation still owed (user: later).
+>
+> **✅ RE-VERIFY RUN COMPLETE (2026-07-14).** The `remediation-verify` browser re-verification is
+> DONE. Final: **19/21 Fixed-verified (90.5%), 0 Still-broken, 0 Regressed, 2 Blocked** — both
+> Blocked are mock-only seed rows (seed-edge-cases contacts + the 236 VB full-day closure) absent
+> from the real backend, and BOTH have Fixed-verified mock-local counterparts (JSONL lines 8–9) run
+> on a local `NEXT_PUBLIC_MOCK_API=true` dev server, so every REVERIFY-ROUTINE checklist branch has a
+> passing verdict. Artifacts: **`Case Study/audit/remediation-verify/reverify-2026-07-13.jsonl`** (21
+> lines) + **`SUMMARY-2026-07-13.md`** (rendered FROM the JSONL) + 5 evidence PNGs. Start==end
+> fingerprint `v1.0.0 · fb13257` → run VALID. REMEDIATION.md's last closure checkbox is now ticked;
+> the ledger is fully closed.
+>
+> **⚠️ SURFACE CORRECTION (proven live, supersedes the earlier "MOCK-ON preview" wording): the CLI
+> preview `gospel-central-ghonounep-…vercel.app` runs the REAL Supabase backend, NOT the mock** —
+> despite the `--build-env NEXT_PUBLIC_MOCK_API=true` deploy flag. Agents proved it: server 501s from
+> the catch-all route, UUID ids, state PERSISTS across reloads, and `admin`/`admin` 401s (login shim
+> = `admin`/`gospelseed1`). That is exactly why the two mock-only seed checks (converted badge, VB
+> closure) had to run on a LOCAL dev mock. (Why `--build-env` didn't take was not chased — out of
+> scope; noted for the record only.)
+>
+> **FOLLOW-UPS (not blocking closure):**
+> - `task_630bc486` **DONE** — CSV-import `createdBy:'import'` uuid-parse fix landed as commit
+>   `717ebb5` (fast-forwarded into this branch); the finding-188 caveat is resolved on-branch (the
+>   fb13257 preview predates it, so the preview itself still 400s on CSV import — expected).
+> - `task_a8313c10` **OPEN** — on the real backend, permission/not-found denials surface as HTTP
+>   400/UNKNOWN instead of 403/404/401 because `supabase.ts` `pgErrorToApiError` only reads the PG
+>   token when the message has a colon, but migrations 0002–0014 raise BARE tokens app-wide. Security
+>   gate is correct (deny + zero mutation); only the status mapping is off. One-line frontend fix.
+>
+> **This session's commits (feat/supabase-cutover):** `717ebb5` CSV-import fix (concurrent session) ·
+> `ee4da06` remediation-verify brief → real-backend reality + folded finding 132 into the booking
+> group · plus the closure commit (REMEDIATION.md tick + this passdown update). `src/lib/version.ts`
+> + `docs/qa/propagation*` build/test churn restored; `Case Study/` audit artifacts stay UNTRACKED.
+>
+> **RE-VERIFY TOOLING (reusable):** routine = `Case Study/audit/REVERIFY-ROUTINE.md`; orchestration =
+> `.claude/workflows/remediation-verify.js` (named `remediation-verify`; args `{targetUrl, date,
+> only?}`, tolerates stringified args; SEQUENTIAL browser agents — one Chrome; verdict files are
+> named `reverify-*.jsonl` ON PURPOSE so `resume-pointer.py`'s `findings*.jsonl` glob never sees
+> them). The hourly `gospel-central-app-testing` scheduled task should keep reporting COMPLETE — if
+> it ever proposes re-auditing from action 1, that's a bug, stop it.
+>
+> **ORACLE DOC:** 13 stale/refuted claims corrected via `doc-tool.mjs apply
+> audit/corrections-remediation-2026-07-13.json` (items 102, 132, 151, 245, 258, 264, 292, 325, 349,
+> 426, 429, 497, 518) — byte-exact, still 526 items, pointer unaffected. Notable REFUTED finding:
+> 264's "cancel morphs into a prefilled create wizard" is a ~100ms exit-animation flash, NOT a real
+> state — don't "fix" it.
+>
+> **PREVIEW-URL GOTCHAS:** the full branch alias exceeds the 63-char DNS label and does NOT resolve —
+> use `vercel list gospel-central --scope aicodeproximas-projects` (newest Preview row) or the stable
+> truncated alias `gospel-central-git-feat-supabase-be50b6-aicodeproximas-projects.vercel.app`.
+> **Branch previews run the REAL backend** (login `admin`/`gospelseed1` — the username→email shim
+> works; mock creds `admin`/`admin` 401 there). Mock-mode checks need a CLI preview with
+> `--build-env NEXT_PUBLIC_MOCK_API=true`.
+>
+> **NEXT STEPS (in order):** (1) ✅ DONE — re-verify run harvested: 19/21 Fixed-verified, 0
+> broken/regressed, REMEDIATION.md closure box ticked, `SUMMARY-2026-07-13.md` rendered FROM the
+> JSONL (both mock-only Blocked branches covered by mock-local counterparts); (2)
+> the deliberately-NOT-fixed list at the bottom of REMEDIATION.md (TSV import, Active-Now semantics,
+> phone column…) is decided — reopen only if the user asks; (3) the PROD FLIP remains user-gated
+> (CSP pass, real-iOS check, merge cutover→main + env flip — see the 2026-07-07 block below, minus
+> its resolved 0009 item); (4) rotate the `sbp_` PAT when the user says so.
+
+> **✅ PREVIOUS — SUPABASE CUTOVER NEARLY FLIP-READY (2026-07-07).** Branch **`feat/supabase-cutover`**
+> tip **`c05099b`** (pushed; NOT on main). Everything below is verified this session; memories
+> `diamond-phase-c-auth-state` + `diamond-preflip-remaining` are the authoritative record.
+> - **Phase C auth = TRUE httpOnly** (`cfc1297`): all Supabase access moved SERVER-SIDE behind a Next
+>   route handler (`src/app/api/[...path]/route.ts` → `supabase-router.ts` with an injected
+>   `@supabase/ssr` server client, `cookieOptions.httpOnly:true`). Browser holds NO token — **audit
+>   C-2 genuinely CLOSED** (verified: `sb-*` cookie invisible to `document.cookie`, app works, logout
+>   server-revoked). `supabase.ts` browser client REMOVED; `client.ts` real mode = same-origin
+>   `fetch('/api/*')`; `auth-store` real hydrate = `GET /api/me` (skipAuthRedirect). Mock mode
+>   byte-identical (MSW; the route handler 404s in mock).
+> - **Phase D RLS validated 15/15** (per-role read-scope + write-deny escalation + BL cross-branch deny
+>   + KO-3/4/5/6) via a Node per-role JWT harness. **Observability 0008 APPLIED + verified** (login
+>   audit + error_log write end-to-end).
+> - **Read-parity DONE — 6/6 VALUE-PARITY clean, RUN VALID** (harness `C:\Users\aicod\Projects\_qa\
+>   gospel-central-parity\`, run `run-20260707-final`). Adapter is faithful (no type-coercion / null /
+>   camel-snake bugs). It caught + we FIXED: (a) **`users.locationId` NULL on real** — a church-feature
+>   flip-blocker (empty per-church KPIs); backfilled 129 users (75 NN + 54 VB); (b) blocked-slot
+>   `HH:mm:ss`→`HH:mm` normalize (`c05099b`).
+> - **Write-parity DONE — 2026-07-09** (`_qa/gospel-central-parity/write-harness/`,
+>   run-write-20260709000850). 3 sequential UI-driven passes (Core-5 writes: create-contact,
+>   edit-stage, create-booking, complete-booking, create-user), RUN VALID, byte-identical across
+>   passes, self-cleaning (DB back to 132/67/105). **4/5 round-trip clean** (incl. create-user →
+>   the shown temp password logs in 200, wrong pw 401). **FOUND A HIGH FLIP-BLOCKER:** every UPDATE
+>   to `bookings` 400s with `invalid input value for enum booking_status: ""` — complete/cancel/
+>   restore/reschedule/edit ALL dead on real (INSERT ok). Root cause = `booking_completion_sideeffect()`
+>   (0002) `coalesce(old.status,'')` casting '' to the enum. **FIX `fd72edf` = migration
+>   `0009_fix_booking_completion_enum.sql` (UNAPPLIED — needs the `sbp_` PAT, then re-run the sweep).**
+> - **Write-path gaps ALL resolved:** create-user showed a FAKE client-generated password that was never
+>   sent (real login-breaker) → FIXED `c50f85a`; convert-contact temp password → FIXED `7b62ce3`;
+>   `set_contact_teacher` + cascade deactivate/restore → VERIFIED on real (guarded, net-zero).
+> - **REMAINING before the prod flip:** (0) **[NEW, HIGH] apply migration `0009` + re-run the write
+>   sweep** — booking mutations are dead on real until the trigger fix lands (needs the `sbp_` PAT);
+>   (1) **CSP** defense-in-depth — do CAREFULLY (test every page +
+>   all 16 themes; a strict CSP can break framer-motion + WebGL backgrounds); (2) **iOS-Safari plain-link
+>   — PARKED** (user's real iPhone); (3) **the flip itself** — merge `feat/supabase-cutover` → `main`
+>   (fold in `ebc0e24`), set PROD Vercel env `NEXT_PUBLIC_MOCK_API=false` + Supabase keys, redeploy,
+>   verify. User-gated. `origin/main` still = `ebc0e24` (mock). Re-derive HEAD live (shared checkout).
+
 > **RENAME (2026-06-27): the app is now "Gospel Central".** GitHub repo `aicodeproxima/gospel-central` (was `Diamond`; old path redirects), Vercel project `gospel-central`, prod URL **`gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` still resolves). Internal storage keys were renamed `diamond-*` → `gospel-central-*` WITH migration; the proxy still accepts the legacy `diamond-session` cookie. The local worktree dir `C:\Users\aicod\Diamond`, historical/QA docs, and this file's siblings named `*diamond*`/`MOBILE_AUDIT_PROGRESS.md` keep the old name (records). **Do NOT re-introduce "Diamond" as the app's display name.**
 
-> **✅ OVERHAUL COMPLETE — ALL 8 PHASES SHIPPED + PROD-VERIFIED (2026-07-04).** Prod =
-> `git rev-parse origin/main` = **`fd5632e`** (verify vs `GET gospel-central.vercel.app/version.json .commit`).
-> The full overhaul packet ("Gospel Central Overhaul and Deliverables - Final") is delivered: Phase 0
-> foundation → 1 seed → 2 dashboard → 3 calendar → 4 wizard → 5 contacts → 6 groups (Branch Rail) →
-> 7 settings (Alerts + Marble v4 migration) → 8 reports/admin (.xlsx export + performance reports) →
-> final capstone ultracode audit + remediations + full e2e. Details per phase in the DONE list below +
-> the ledger. **There is NO next overhaul phase.**
+> **🔀 PROJECT PIVOTED TO SOLO + SUPABASE BACKEND (2026-07-06).** Michael/"Mike" is OFF the project; the
+> backend is now OURS, built on **Supabase** (project `imjsdsepmhgazracegog`). This SUPERSEDES every
+> "Mike's Go backend / don't touch `gospel-experience` / needs Mike coordination / backend gaps are
+> Mike's job" statement anywhere in this file, CLAUDE.md, or the docs. Memory:
+> `diamond-solo-supabase-backend` + `reference_supabase_gospel_central` (creds).
 >
-> **OPEN ITEMS (non-blocking; the overhaul itself is done):**
-> 1. **MERGE `dc549c7`** — the concurrent user-spawned task `task_fd3f9baa` fixed the 3 hard-coded
->    `'u-michael'` booking audit actors and committed to its OWN worktree branch (commit `dc549c7`
->    "fix(mock): attribute booking edit/cancel/restore audit rows to the JWT actor"). It is **NOT on
->    `main`** yet. It touches the SAME booking audit push sites the Phase-7 `pushAudit`/`relatedUserIds`
->    conversion changed — merge it and re-run `npm run test` + the E4 e2e; reconcile any conflict.
-> 2. **Feedback form** is toast-only — its `/feedback` mock endpoint (audit row via `pushAudit`) + Resend
->    delivery are deliberately DEFERRED.
-> 3. **Backend-authz gaps** (documented in `docs/BACKEND_GAPS.md`, Mike's Go-backend job — do NOT "fix" in
->    the mock, it masks the gap): contacts POST/PUT/DELETE ungated; GET /contacts, GET /audit-log,
->    GET /metrics/teachers ungated/unscoped; GET /audit-log `relatedTo` must become viewer-enforced.
+> **✅ BACKEND LIVE + VALIDATED (Supabase).** `supabase/migrations/0001–0007` applied via the Management
+> API (a `sbp_` PAT): 10 snake_case tables, 12 enums, **RLS on ALL tables**, org-tree scope functions
+> (descendant closure over `users.parent_id`; the Decision-10 READ-all / WRITE-own-branch split), ~13
+> triggers (booking-conflict guard w/ America/New_York tz, generic audit-emission, contact completion
+> side-effects), ~18 SECURITY-DEFINER RPCs. Seeded 132 users / 2 areas / 15 rooms / 67 contacts / 105
+> bookings (current-week dates so the calendar isn't empty). **All seed users log in by EMAIL
+> `<username>@diamond.org` / `gospelseed1`.** **11/11 role-simulation validation passed.** The
+> **KO-3/4/5/6 authz gaps are now CLOSED by RLS** (member `/metrics`→403, member sees only own+assigned
+> contacts, audit `relatedTo` viewer-enforced) — no longer deferred, no longer "Mike's job".
+>
+> **✅ FRONTEND CUTOVER — PHASE B DONE + VERIFIED (reads + writes).** Branch **`feat/supabase-cutover`**
+> (pushed; NOT on main). `src/lib/api/supabase.ts` (browser client + deep camel/snake + P0001→ApiError
+> map) + `src/lib/api/supabase-router.ts` (every REST `api.*` call → supabase-js query/RPC, returns
+> camelCase so UI is unchanged), dispatched from `src/lib/api/client.ts` `request()` when
+> `NEXT_PUBLIC_MOCK_API!=='true'` (dynamic import — supabase-js only loads in real mode). **Verified
+> in-browser** on preview `gospel-central-b7us0erk7-…vercel.app`: login (username→email shim), RLS
+> scoping (admin 67 contacts / member1 1 / member has no Reports+Admin nav), create + soft-delete
+> contact. Branch-scoped Vercel env (`MOCK_API=false` + `SUPABASE_URL`/`ANON_KEY` on the
+> feat/supabase-cutover **preview only**) keeps prod + all other previews on the mock.
+>
+> **✅ (C) AUTH CUTOVER — DONE + PREVIEW-VERIFIED (`cf6ed94`, 2026-07-06).** `@supabase/ssr`
+>   cookie sessions: `supabase.ts` → `createBrowserClient` (session in `sb-*` cookies, NOT localStorage);
+>   `auth-store.ts` mode-split (mock path unchanged; real path = no token persistence, no
+>   `gospel-central-session` mirror, hydrate = getSession + cached-profile + `/me` refresh,
+>   onAuthStateChange, signOut on logout); `proxy.ts` real-mode gate = `createServerClient` +
+>   `getUser()` (validates + refreshes, was presence-only). VERIFIED on preview `dnlvmb67d`
+>   (chrome-devtools): login admin/gospelseed1 → dashboard @cf6ed94; ONLY `sb-…-auth-token` cookie
+>   (no legacy cookies, no ls token); hard-reload holds; Sign Out clears all; signed-out /dashboard
+>   → 307 `/login?next=`; wrong pw → "Invalid credentials". **NOT httpOnly** (impossible with the
+>   browser-side data plane — supabase cookies are JS-set; C-2 is REDUCED [no ls token/hand-rolled
+>   mirror], fully closing it = server-proxying the data plane, a separate decision).
+>   **⚠️ Migration `0008_auth_observability.sql` (login audit mirror RPC + error_log table) is
+>   COMMITTED but NOT APPLIED — needs the `sbp_` PAT** (`SB_PAT=… node scripts/sbq.mjs --file
+>   supabase/migrations/0008_auth_observability.sql --tx`). Frontend degrades gracefully (RPC 404
+>   swallowed; error-log POST no-ops) until applied. ALSO FIXED: Phase B had broken
+>   client-errors.test.ts 5/5 (vitest is env-less → dispatch went to the unconfigured supabase
+>   router); client.ts now reads NEXT_PUBLIC_MOCK_API lazily + the test stubs it. Suite 535/7 todo.
+>
+> **⏳ REMAINING (recommended order) — see `~/.claude/plans/front-end-and-back-spicy-moth.md` (3AgentScan
+> REVISE + anti-corruption measures) + `docs/SUPABASE_BACKEND_PLAN.md`:**
+> - **(D) Validation gate before flipping the PROD flag:** reuse the persisted UI-audit harness
+>   (`C:\Users\aicod\Projects\_qa\gospel-central-audit\harness\`) for per-role RLS + read-parity + KO
+>   re-probes + start/end fingerprints; bait self-test; ledger-rendered go/no-go.
+> - **Write-path gaps** (router spec flags, functional but rough): temp-password surfacing on
+>   create-user/convert/reset; a `set_contact_teacher` path is wired (0007) but untested in UI; cascade
+>   deactivate; the mock's exact list-filter parity (soft-deleted contacts fix already landed).
+>
+> **PROD MOVED (still mock-on) — `origin/main` = `ebc0e24`** (2026-07-06: a CONCURRENT session's
+> booking-time-display fix — "end-time click sets the END, not an extra 30-min block", touching
+> `WhenStep.tsx`/`availability.ts`/`BookingWizard.tsx` — atop the completed 8-phase overhaul `5e6f30f`;
+> still mock backend. History below is the UI record). **NONE of the Supabase work is on `main`.**
+> `feat/supabase-cutover` (8 commits ahead, tip `5bb6734`) branched at `5e6f30f` and does NOT contain
+> `ebc0e24` — fold it in when the cutover eventually lands on main (clean: their files vs my api layer
+> don't overlap). Re-derive `origin/main` live before any main-targeting action — this checkout is a
+> shared moving target. The backend migrations are ALSO committed on `feat/mobile-opt-main` (push
+> guard-blocked). **NEVER push feat/mobile-opt-main / feat/admin-system** (bash-guard hook). **Rotate
+> the `sbp_` PAT + `sb_secret` key** — used this session; user said they'd rotate later. The MSW mock
+> stays PERMANENT dev/test/demo infra (CLAUDE.md), NOT removed by the cutover.
+>
+> **MOCK-ERA OPEN ITEMS (now LOW priority — the mock is the dev/demo layer; the real backend is Supabase):**
+> 1. `dc549c7` (the `u-michael` booking-audit-actor fix, `task_fd3f9baa`, on its own worktree branch, not
+>    on main) is a **mock** fix — only relevant if polishing the mock. The Supabase audit trigger already
+>    attributes every row to `auth.uid()` correctly, so this is moot for the real backend.
+> 2. **Feedback form** is toast-only (Resend delivery deferred) — applies to both mock and Supabase.
+> 3. ~~Backend-authz gaps (Mike's Go-backend job)~~ → **CLOSED.** The KO-3/4/5/6 gaps `docs/BACKEND_GAPS.md`
+>    documented (contacts CRUD ungated; `/contacts`,`/audit-log`,`/metrics/teachers` unscoped; `relatedTo`
+>    caller-honored) are now ENFORCED by Supabase RLS + RPCs (validated 11/11). `BACKEND_GAPS.md` /
+>    `MIKE_HANDOFF.md` now read as the CONTRACT WE BUILT TO, not a handoff to anyone.
 >
 > **DURABLE LESSON (this overhaul):** run the **full `npm run e2e` per phase, not just vitest** — a rename
 > or a UI-add can pass every unit test yet break an e2e selector or the mobile 44px tap floor. The Phase-7

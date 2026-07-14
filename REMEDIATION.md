@@ -87,7 +87,7 @@ Gates after each commit: full vitest green (546/546 at wave-1 end) + clean build
 - [x] Orchestration workflow authored: `.claude/workflows/remediation-verify.js`
       (named workflow; args `{targetUrl, date, only?}`; SEQUENTIAL browser
       agents — one Chrome; close-out agent renders the summary FROM the JSONL).
-- [ ] Browser re-verification of the UI-level fixes per the routine (mock-on
+- [x] Browser re-verification of the UI-level fixes per the routine (mock-on
       preview; run `remediation-verify`) — NOTE: branch previews run the REAL
       backend, so seed-edge-case checks need a `--build-env
       NEXT_PUBLIC_MOCK_API=true` CLI preview.
