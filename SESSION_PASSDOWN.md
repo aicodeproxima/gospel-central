@@ -1,6 +1,38 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **✅✅ LATEST — AUDIT-FINDINGS REMEDIATION SHIPPED + RE-VERIFY RUN COMPLETE (2026-07-14).**
+> **✅✅✅ LATEST — CUTOVER RE-VERIFY CLOSURE PLAN EXECUTED (2026-07-14, Phases A–G). Branch tip `035e3a2` (pushed).**
+> Supersedes everything below that conflicts. All 5 owner-approved follow-ups (a–e) done; the whole
+> re-verify loop is closed. Anti-drift exec log + summary:
+> `Case Study/audit/remediation-verify/reverify-2026-07-14.jsonl` + `SUMMARY-2026-07-14.md` (also backed
+> up TRACKED under `docs/qa/reverify-2026-07/`).
+>
+> - **(B) `035e3a2`** — mapped the 3 residual bare PG tokens `WEAK_PASSWORD`/`MISSING_FIELDS`/`CYCLE` →
+>   `VALIDATION_ERROR`/400 in `supabase.ts` (completes `758acb0`; enumerated ALL migration raise-tokens vs
+>   the map — these were the only gaps). +4 unit tests, full suite **570 green**, clean build. Mock parity
+>   confirmed by inspection (mock `validationError` already returns the same `{VALIDATION_ERROR,400}` shape).
+> - **(A) real-backend build PROVEN + mock-vs-real record CORRECTED:** the `feat/supabase-cutover`
+>   **git-auto Vercel preview runs the REAL Supabase backend** (branch-scoped `MOCK_API=false`), NOT mock —
+>   G8-probed on `gospel-central-ohya1yj5d-…vercel.app` @`035e3a2`. The `758acb0` session's "auto-preview is
+>   mock" was an UNPROBED assumption — always PROBE: `/api/me` id UUID = real (vs `u-michael` = mock); an
+>   unknown `/api/*` route returns 501 JSON on real (vs the HTML shell on mock, since MSW is SW-free/in-browser).
+> - **(C) 6 live cells on `035e3a2` (write→revert):** C1 188 (teacherless→`assignedTeacherId` null), C2
+>   68/77 (`stage_change` timeline row, real actor), C3 219 (title ends "— {subject}", live-observed), C4
+>   497/264 (cancel audit row carries the verbatim reason + real actor, migration 0013; restored). **C5 =
+>   THE HEADLINE: a BL cross-branch contact-reassign now returns 403/PERMISSION_DENIED (was 400/UNKNOWN
+>   pre-`758acb0`), zero mutation — validates the whole A/B/deploy chain live.** C6 tokens = unit-proven
+>   (they fire only in edge RPC paths standard REST can't cleanly reach — Supabase Auth owns password
+>   validation → native 422; create-user defaults empty fields).
+> - **(D) DB cleaned:** hard-deleted 6 test rows via `sbq.mjs`+PAT (5 inactive test contacts + `user888`
+>   incl. its `auth.users` row + cancelled test booking `6c6c070f`); reconciled to the clean baseline
+>   **67 contacts / 132 users / 105 bookings**. SELECT-first, sentinel-scoped; audit-log history left intact.
+> - **(E) audit trail BACKED UP tracked** under `docs/qa/reverify-2026-07/` (text trail + `EVIDENCE-INDEX.md`
+>   with sha256 of the 5 evidence PNGs; the PNGs themselves stay untracked — regenerable).
+> - **No open blockers.** The 3 newly-mapped tokens are defense-in-depth. **`sbp_` PAT rotation still owed**
+>   (user: later). **Shared-checkout hazard bit again** — the branch advanced
+>   `ee4da06→86e77fb→758acb0→ee0d1f4→035e3a2` across concurrent sessions; re-derive `git rev-parse origin/…`
+>   live before any commit. The prod flip stays owner-gated.
+
+> **✅✅ PRIOR — AUDIT-FINDINGS REMEDIATION SHIPPED + RE-VERIFY RUN COMPLETE (2026-07-14).**
 > This block supersedes anything below that conflicts. Session model: Fable 5 + ultracode; every
 > decision below marked "user-locked" came from an explicit AskUserQuestion answer — do NOT re-litigate.
 >
