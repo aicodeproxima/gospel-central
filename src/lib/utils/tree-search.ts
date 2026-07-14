@@ -79,3 +79,19 @@ export function searchEntries(
     .slice(0, limit)
     .map((s) => s.entry);
 }
+
+/**
+ * searchEntries + the pre-slice match count, so dropdowns can render an
+ * overflow hint instead of silently truncating (finding 349: a role search
+ * matching 18 people showed 10 with no indication more existed).
+ */
+export function searchEntriesWithTotal(
+  entries: SearchEntry[],
+  query: string,
+  limit = 8,
+): { entries: SearchEntry[]; total: number } {
+  const q = query.trim().toLowerCase();
+  if (!q) return { entries: [], total: 0 };
+  const total = entries.reduce((n, e) => (e.haystack.includes(q) ? n + 1 : n), 0);
+  return { entries: searchEntries(entries, query, limit), total };
+}

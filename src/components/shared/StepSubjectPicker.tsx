@@ -166,7 +166,7 @@ export function StepSubjectPicker({ value, onChange, extraSubjects = [], placeho
           {allInSectionSelected ? (
             <>
               <CheckSquare className="h-3.5 w-3.5" />
-              Deselect all
+              Deselect all in {CURRICULUM_SECTION_CONFIG[activeSection].label}
             </>
           ) : (
             <>

@@ -756,7 +756,11 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
   // Realistic timeline based on pipeline stage
   const timeline: TimelineEntry[] = [];
   const DAY = 86400000;
-  const createdDate = new Date('2024-06-01');
+  // Noon UTC, not midnight: midnight-UTC instants render as the PREVIOUS day
+  // for viewers west of UTC (finding 145); noon keeps the calendar date
+  // stable across all realistic timezones, and derived stage/partner dates
+  // inherit the anchor.
+  const createdDate = new Date('2024-06-01T12:00:00Z');
   const memberName = `${member.firstName} ${member.lastName}`.trim();
 
   timeline.push({
@@ -806,8 +810,11 @@ export const scenarioContacts: Contact[] = range(50).map((i) => {
       date: sessionDate.toISOString(),
       action: 'session',
       details: `Bible study session conducted`,
+      // userName must name the SAME person as userId (finding 147: the seed
+      // paired partner1's id with partner2's name, so 'by {userName}' in the
+      // timeline contradicted the stored actor).
       userId: member.id,
-      userName: partnerName,
+      userName: memberName,
     });
   }
 
@@ -1429,7 +1436,10 @@ function generateAuditLog(): AuditLogEntry[] {
       'Extended booking duration by 30 minutes',
     ],
     'delete-booking': [
-      'Cancelled booking due to schedule conflict',
+      // Deletes must not READ as cancellations: the Cancellations report card
+      // counts action='cancel' only, and a delete row saying "Cancelled…"
+      // looked like a miscount (finding 516).
+      'Deleted booking (schedule conflict)',
       'Removed duplicate booking entry',
     ],
     'create-contact': [

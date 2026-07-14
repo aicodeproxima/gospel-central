@@ -315,8 +315,16 @@ export default function ReportsPage() {
 
   // ── Computed stats from allEntries ──────────────────────────────
   const thisMonthCount = useMemo(() => {
+    // Bounded start-of-month → NOW, matching the table's "This Month" preset
+    // (startDate AND endDate). Unbounded, future-stamped entries (the seed
+    // writes same-day rows at fixed hours) made the card disagree with the
+    // table on the same screen (finding 509: card 51 vs table 47).
     const ms = startOfMonth(new Date()).getTime();
-    return allEntries.filter((e) => new Date(e.timestamp).getTime() >= ms).length;
+    const nowMs = Date.now();
+    return allEntries.filter((e) => {
+      const t = new Date(e.timestamp).getTime();
+      return t >= ms && t <= nowMs;
+    }).length;
   }, [allEntries]);
 
   const createCount = allEntries.filter((e) => e.action === 'create').length;
@@ -700,6 +708,7 @@ export default function ReportsPage() {
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {(() => {
               const monthMs = startOfMonth(new Date()).getTime();
+              const nowMs = Date.now(); // same to-now bound as thisMonthCount (finding 509)
               const stats = [
                 {
                   label: t('reports.totalActions'),
@@ -715,9 +724,10 @@ export default function ReportsPage() {
                   value: thisMonthCount,
                   icon: Clock,
                   color: 'text-cyan-500',
-                  entries: allEntries.filter(
-                    (e) => new Date(e.timestamp).getTime() >= monthMs,
-                  ),
+                  entries: allEntries.filter((e) => {
+                    const t = new Date(e.timestamp).getTime();
+                    return t >= monthMs && t <= nowMs;
+                  }),
                 },
                 {
                   label: t('reports.creates'),
@@ -1041,7 +1051,7 @@ export default function ReportsPage() {
                     onClick={() =>
                       exportAuditCSV(
                         statDialog.entries,
-                        `diamond-${statDialog.label.toLowerCase().replace(/\s+/g, '-')}.csv`,
+                        `gospel-central-${statDialog.label.toLowerCase().replace(/\s+/g, '-')}.csv`,
                       )
                     }
                     disabled={statDialog.entries.length === 0}

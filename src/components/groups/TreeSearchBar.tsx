@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { buildSearchIndex, searchEntries, type SearchEntry } from '@/lib/utils/tree-search';
+import { buildSearchIndex, searchEntriesWithTotal, type SearchEntry } from '@/lib/utils/tree-search';
 import type { OrgNode } from '@/lib/types';
 
 interface TreeSearchBarProps {
@@ -24,7 +24,10 @@ export function TreeSearchBar({ roots, onSelect }: TreeSearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const index = useMemo(() => buildSearchIndex(roots), [roots]);
-  const results = useMemo(() => searchEntries(index, query, 10), [index, query]);
+  const { entries: results, total } = useMemo(
+    () => searchEntriesWithTotal(index, query, 10),
+    [index, query],
+  );
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -142,6 +145,16 @@ export function TreeSearchBar({ roots, onSelect }: TreeSearchBarProps) {
                   </li>
                 );
               })}
+              {total > results.length && (
+                // Overflow hint — the list is capped at 10; without this a
+                // broad search silently hid the rest (finding 349).
+                <li
+                  aria-live="polite"
+                  className="px-3 py-1.5 text-center text-[11px] text-muted-foreground border-t border-border/60"
+                >
+                  +{total - results.length} more match{total - results.length === 1 ? '' : 'es'} — keep typing to narrow
+                </li>
+              )}
             </ul>
           )}
         </div>
