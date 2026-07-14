@@ -2234,9 +2234,15 @@ export const handlers = [
     // but was never called server-side, so a direct PUT let any leader re-graft
     // a cross-branch user under any parent. Also reject a self-parent or a
     // descendant target, which would create a reporting cycle.
+    //
+    // PARITY (2026-07-14): the self-parent / cycle rejections are BAD INPUT →
+    // `validationError` (400 VALIDATION_ERROR), matching the real backend, whose
+    // `reassign_user` RPC raises the CYCLE sentinel (0004:53-54) that
+    // pgErrorToApiError maps to 400/VALIDATION_ERROR. Only the SCOPE check below
+    // stays 403 — it mirrors that RPC's PERMISSION_DENIED branch.
     if (typeof body.parentId === 'string' && body.parentId !== before.parentId) {
       if (body.parentId === before.id) {
-        return permissionDenied('A user cannot report to themselves');
+        return validationError('A user cannot report to themselves');
       }
       // Walk the proposed parent chain; if we reach the user being moved, the
       // move would create a cycle.
@@ -2244,7 +2250,7 @@ export const handlers = [
       let cursor: User | undefined = usersState.find((u) => u.id === body.parentId);
       while (cursor) {
         if (seen.has(cursor.id)) {
-          return permissionDenied('That reassignment would create a reporting cycle');
+          return validationError('That reassignment would create a reporting cycle');
         }
         seen.add(cursor.id);
         cursor = cursor.parentId ? usersState.find((u) => u.id === cursor!.parentId) : undefined;

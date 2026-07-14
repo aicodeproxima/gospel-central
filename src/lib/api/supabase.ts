@@ -54,10 +54,20 @@ const TOKEN_TO_CODE: Record<string, { code: ApiErrorCode; status: number }> = {
   EMAIL_TAKEN: { code: 'EMAIL_TAKEN', status: 409 },
   ROOM_NAME_TAKEN: { code: 'ROOM_NAME_TAKEN', status: 409 },
   INVALID_USERNAME: { code: 'INVALID_USERNAME', status: 400 },
-  // Input-validation sentinels (0003 create_user/set_password, 0004 move_org_node).
-  // No dedicated ApiErrorCode exists for these; VALIDATION_ERROR @ 400 is correct for
-  // bad input and lets the UI stop treating them as an opaque UNKNOWN. CYCLE stays 400
-  // (not 409) — there is no generic CONFLICT code and a cycle-inducing parent is bad input.
+  // Input-validation sentinels. Raised by: `create_user` (0003:42, MISSING_FIELDS),
+  // `reset_user_password` (0003:88, WEAK_PASSWORD), `reassign_user` (0004:44 MISSING_FIELDS,
+  // 0004:54 CYCLE). No dedicated ApiErrorCode exists for these; VALIDATION_ERROR @ 400 is
+  // correct for bad input and stops the UI treating them as an opaque UNKNOWN. CYCLE stays
+  // 400 (not 409) — there is no generic CONFLICT code and a cycle-inducing parent is bad input.
+  //
+  // REACHABILITY (verified 2026-07-14, supabase-router.ts): only CYCLE fires through an HTTP
+  // route — PUT /users/:id { parentId } → `reassign_user` (router:266). WEAK_PASSWORD and
+  // MISSING_FIELDS are unreachable via the router *by construction*: POST /users synthesizes
+  // username/email/password (router:228-230) and convert does the same (:220-222), so
+  // create_user never sees a null; reset-password passes a server-generated 13-char temp
+  // password (:234); change-password uses GoTrue auth.updateUser, not the RPC (:238-241).
+  // Their entries here are deliberate defense-in-depth for future router changes / direct
+  // RPC callers — do NOT delete them as "dead".
   WEAK_PASSWORD: { code: 'VALIDATION_ERROR', status: 400 },
   MISSING_FIELDS: { code: 'VALIDATION_ERROR', status: 400 },
   CYCLE: { code: 'VALIDATION_ERROR', status: 400 },

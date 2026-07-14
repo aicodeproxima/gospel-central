@@ -63,12 +63,40 @@ describe('adversarial: §7 SHIM permission gates', () => {
     expect((await authed('PUT', `/users/${target.user.id}`, overseer.token, { role: 'team_leader' })).status).toBe(200);
   });
 
-  it('a user cannot be reparented to create a reporting cycle / self-parent (403)', async () => {
+  // PARITY (2026-07-14): a cycle/self-parent is BAD INPUT, not a permission failure.
+  // The real backend's `reassign_user` RPC (0004:53-54) raises CYCLE, which
+  // pgErrorToApiError maps to 400 / VALIDATION_ERROR — so the mock must return the
+  // same shape. (The separate cross-branch SCOPE gate below stays 403, matching the
+  // RPC's PERMISSION_DENIED branch.)
+  it('a user cannot be reparented to themselves — 400 VALIDATION_ERROR (real: reassign_user raises CYCLE)', async () => {
     const overseer = await login('overseer1');
     const target = await login('member7');
-    expect(
-      (await authed('PUT', `/users/${target.user.id}`, overseer.token, { parentId: target.user.id })).status,
-    ).toBe(403);
+    const res = await authed('PUT', `/users/${target.user.id}`, overseer.token, {
+      parentId: target.user.id,
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('a user cannot be reparented under their own descendant (reporting cycle) — 400 VALIDATION_ERROR, no mutation', async () => {
+    const overseer = await login('overseer1');
+    const branch = await login('branch1'); // Joseph, Branch Leader
+    const group = await login('group1'); // Elizabeth, a Group Leader reporting to Joseph
+    const usersOf = async () =>
+      (await (await authed('GET', '/users', overseer.token)).json()) as Array<{
+        id: string;
+        parentId?: string;
+      }>;
+    // sanity: group1 really is a descendant of branch1, so this is a TRUE cycle
+    expect((await usersOf()).find((u) => u.id === group.user.id)?.parentId).toBe(branch.user.id);
+
+    const res = await authed('PUT', `/users/${branch.user.id}`, overseer.token, {
+      parentId: group.user.id,
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('VALIDATION_ERROR');
+    // the reparent must NOT have happened
+    expect((await usersOf()).find((u) => u.id === branch.user.id)?.parentId).not.toBe(group.user.id);
   });
 
   // NOW ENFORCED (2026-07-09, built to real-backend parity: create_contact RPC

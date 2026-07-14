@@ -67,11 +67,17 @@ describe('pgErrorToApiError — colon-bearing tokens still map (regression guard
 });
 
 describe('pgErrorToApiError — validation tokens WEAK_PASSWORD / MISSING_FIELDS / CYCLE map to 400 / VALIDATION_ERROR', () => {
-  // These are input-validation sentinels raised by 0003 (create_user, set_password)
-  // and 0004 (move_org_node). Pre-fix they fell through to 400 / UNKNOWN — a code
+  // Input-validation sentinels raised by `create_user` (0003:42, MISSING_FIELDS),
+  // `reset_user_password` (0003:88, WEAK_PASSWORD) and `reassign_user` (0004:44
+  // MISSING_FIELDS, 0004:54 CYCLE). Pre-fix they fell through to 400 / UNKNOWN — a code
   // the UI can't act on. They now carry VALIDATION_ERROR (status stays 400, which is
   // correct for bad input). CYCLE stays 400/VALIDATION_ERROR (not 409): there is no
   // generic CONFLICT ApiErrorCode, and a would-be-cycle parent is bad input.
+  //
+  // Reachability (see supabase.ts): only CYCLE fires through an HTTP route
+  // (PUT /users/:id { parentId } → reassign_user). WEAK_PASSWORD / MISSING_FIELDS are
+  // unreachable via the router by construction — these cases pin the mapping as
+  // defense-in-depth, which is exactly why they are unit-tested rather than probed live.
   it('bare WEAK_PASSWORD → 400 / VALIDATION_ERROR', () => {
     const e = pgErrorToApiError(p0001('WEAK_PASSWORD'));
     expect(e.status).toBe(400);
