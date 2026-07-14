@@ -54,6 +54,13 @@ const TOKEN_TO_CODE: Record<string, { code: ApiErrorCode; status: number }> = {
   EMAIL_TAKEN: { code: 'EMAIL_TAKEN', status: 409 },
   ROOM_NAME_TAKEN: { code: 'ROOM_NAME_TAKEN', status: 409 },
   INVALID_USERNAME: { code: 'INVALID_USERNAME', status: 400 },
+  // Input-validation sentinels (0003 create_user/set_password, 0004 move_org_node).
+  // No dedicated ApiErrorCode exists for these; VALIDATION_ERROR @ 400 is correct for
+  // bad input and lets the UI stop treating them as an opaque UNKNOWN. CYCLE stays 400
+  // (not 409) — there is no generic CONFLICT code and a cycle-inducing parent is bad input.
+  WEAK_PASSWORD: { code: 'VALIDATION_ERROR', status: 400 },
+  MISSING_FIELDS: { code: 'VALIDATION_ERROR', status: 400 },
+  CYCLE: { code: 'VALIDATION_ERROR', status: 400 },
 };
 
 interface PgLikeError { message?: string; code?: string; details?: string; hint?: string; status?: number }

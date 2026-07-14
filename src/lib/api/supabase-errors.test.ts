@@ -66,6 +66,38 @@ describe('pgErrorToApiError — colon-bearing tokens still map (regression guard
   });
 });
 
+describe('pgErrorToApiError — validation tokens WEAK_PASSWORD / MISSING_FIELDS / CYCLE map to 400 / VALIDATION_ERROR', () => {
+  // These are input-validation sentinels raised by 0003 (create_user, set_password)
+  // and 0004 (move_org_node). Pre-fix they fell through to 400 / UNKNOWN — a code
+  // the UI can't act on. They now carry VALIDATION_ERROR (status stays 400, which is
+  // correct for bad input). CYCLE stays 400/VALIDATION_ERROR (not 409): there is no
+  // generic CONFLICT ApiErrorCode, and a would-be-cycle parent is bad input.
+  it('bare WEAK_PASSWORD → 400 / VALIDATION_ERROR', () => {
+    const e = pgErrorToApiError(p0001('WEAK_PASSWORD'));
+    expect(e.status).toBe(400);
+    expect(e.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('bare MISSING_FIELDS → 400 / VALIDATION_ERROR', () => {
+    const e = pgErrorToApiError(p0001('MISSING_FIELDS'));
+    expect(e.status).toBe(400);
+    expect(e.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('colon MISSING_FIELDS: email, password, username required → 400 / VALIDATION_ERROR (message preserved)', () => {
+    const e = pgErrorToApiError(p0001('MISSING_FIELDS: email, password, username required'));
+    expect(e.status).toBe(400);
+    expect(e.code).toBe('VALIDATION_ERROR');
+    expect(e.message).toBe('MISSING_FIELDS: email, password, username required');
+  });
+
+  it('colon CYCLE: new parent is within the target subtree → 400 / VALIDATION_ERROR', () => {
+    const e = pgErrorToApiError(p0001('CYCLE: new parent is within the target subtree'));
+    expect(e.status).toBe(400);
+    expect(e.code).toBe('VALIDATION_ERROR');
+  });
+});
+
 describe('pgErrorToApiError — non-token messages fall through unchanged', () => {
   it('a plain colon-bearing PostgREST message is NOT mistaken for a token', () => {
     // A colon here must not misfire the token path — the head is not in the map,
