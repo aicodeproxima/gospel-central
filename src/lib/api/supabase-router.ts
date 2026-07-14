@@ -129,7 +129,9 @@ const R: Route[] = [
   } },
   { method: 'GET', re: /^\/contacts$/, h: async ({ db, qs }) => {
     // Hide soft-deleted contacts (status='inactive') from the main list — matches the mock.
-    let q = db.from('contacts').select(CONTACT_SELECT).neq('status', 'inactive');
+    // Admin surfaces pass includeInactive=1 to see them (dimmed rows, same as areas/rooms).
+    let q = db.from('contacts').select(CONTACT_SELECT);
+    if (!qs.get('includeInactive')) q = q.neq('status', 'inactive');
     const type = qs.get('type'), stage = qs.get('stage'), search = qs.get('search') || qs.get('q');
     if (type && type !== 'all') q = q.eq('type', type);
     if (stage && stage !== 'all') q = q.eq('pipeline_stage', stage);

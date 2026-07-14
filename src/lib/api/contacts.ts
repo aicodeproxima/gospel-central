@@ -24,11 +24,15 @@ export const contactsApi = {
     stage?: string;
     sort?: string;
     sortDir?: string;
+    /** Admin surfaces only: also return soft-deleted (status='inactive') contacts. */
+    includeInactive?: boolean;
   }) {
     const clean: Record<string, string> = {};
     if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        if (v !== undefined && v !== null && v !== '') clean[k] = v;
+      const { includeInactive, ...rest } = params;
+      if (includeInactive) clean.includeInactive = '1';
+      for (const [k, v] of Object.entries(rest)) {
+        if (v !== undefined && v !== null && v !== '') clean[k] = String(v);
       }
     }
     const qs = Object.keys(clean).length ? new URLSearchParams(clean).toString() : '';

@@ -1475,6 +1475,10 @@ export const handlers = [
       userId: viewer.id,
       userName: `${viewer.firstName} ${viewer.lastName}`.trim() || viewer.username,
       details: `Cancelled booking "${booking.title}": ${body.reason || 'No reason'}`,
+      // Structured copy of the actor's explanation — feeds the audit detail
+      // dialog's Reason row (parity: real backend cancel_booking writes
+      // audit_log.reason from the same payload field).
+      reason: (typeof body.reason === 'string' && body.reason.trim()) || undefined,
       relatedUserIds: relatedUsers(
         viewer.id,
         typeof booking.teacherId === 'string' ? booking.teacherId : undefined,
@@ -1543,8 +1547,10 @@ export const handlers = [
     // Parity with the real backend GET /contacts (supabase-router.ts `.neq('status','inactive')`):
     // soft-deleted contacts must NOT resurface in the collection on refetch. Only the
     // collection is filtered; GET /contacts/:id returns a single contact regardless of status.
+    // Admin surfaces pass includeInactive=1 to see soft-deleted rows (dimmed), same as areas.
+    const includeInactive = url.searchParams.get('includeInactive');
     let filtered = contactsState
-      .filter((c) => c.status !== 'inactive')
+      .filter((c) => includeInactive ? true : c.status !== 'inactive')
       .map((c) =>
         c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
           ? { ...c, retentionExpired: true }

@@ -99,7 +99,10 @@ export function ContactsAdminTab() {
     setLoading(true);
     setLoadError(null);
     Promise.all([
-      contactsApi.getContacts(),
+      // includeInactive: the admin table is the one surface that shows
+      // soft-deleted contacts (dimmed + Inactive badge); the default list
+      // read excludes them on both backends.
+      contactsApi.getContacts({ includeInactive: true }),
       usersApi.getAll(),
     ])
       .then(([c, u]) => {
