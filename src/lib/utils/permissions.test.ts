@@ -708,6 +708,16 @@ describe('canReassignContact', () => {
     expect(canReassignContact(overseer, cMemberA, memberB.id)).toBe(true);
     expect(canReassignContact(memberA, cMemberA, memberB.id)).toBe(false);
   });
+  test('Branch Leader cannot reassign to a target OUTSIDE their branch (matrix "Reassign owner": own branch)', () => {
+    // 2026-07-13 remediation: the old delegation to canCreateContact's
+    // isAdminTier shortcut let a BL place a contact with ANY branch's
+    // teacher. The contact is in branchA's scope, but the new owner is not:
+    // deny for BL, allow for Overseer/Dev only.
+    expect(canReassignContact(branchA, cMemberA, memberB.id, [memberA.id])).toBe(false);
+    // Self-reassign (no-op target) stays allowed for an in-scope editor.
+    expect(canReassignContact(branchA, cMemberA, branchA.id, [memberA.id])).toBe(true);
+    expect(canReassignContact(dev1, cMemberA, memberB.id)).toBe(true);
+  });
 });
 
 // ===========================================================================

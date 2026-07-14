@@ -534,10 +534,18 @@ export function canReassignContact(
   newOwnerId: string,
   subtreeUserIds: string[] = [],
 ): boolean {
-  return (
-    canEditContact(viewer, contact, subtreeUserIds) &&
-    canCreateContact(viewer, newOwnerId, subtreeUserIds)
-  );
+  if (!canEditContact(viewer, contact, subtreeUserIds)) return false;
+  // Matrix row "Reassign owner" (docs/PERMISSIONS.md): the NEW owner must sit
+  // in the viewer's MANAGEABLE scope — own branch for a Branch Leader. Unlike
+  // create-assign (deliberately "any branch" for BL via canCreateContact's
+  // admin-tier shortcut), reassignment moves an existing contact into another
+  // leader's subtree, so cross-branch placement stays Overseer/Dev only.
+  // (Previously delegated to canCreateContact, whose isAdminTier shortcut let
+  // a Branch Leader reassign cross-branch — same class of bug as the BL
+  // cross-branch user-edit fix.)
+  if (viewer.role === UserRole.OVERSEER || viewer.role === UserRole.DEV) return true;
+  if (viewer.id === newOwnerId) return true;
+  return subtreeUserIds.includes(newOwnerId);
 }
 
 export function canConvertContact(

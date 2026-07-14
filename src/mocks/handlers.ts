@@ -19,6 +19,7 @@ import {
   canConvertContact,
   canEditContact,
   canDeleteContact,
+  canReassignContact,
   canChangeUsername,
   canAccessReports,
   assignableRoles,
@@ -1653,14 +1654,16 @@ export const handlers = [
     if (!canEditContact(viewer, before as Contact, scope)) {
       return permissionDenied('You can only edit contacts within your scope');
     }
-    // set_contact_teacher parity: a teacher reassignment additionally requires the
-    // new teacher to be admin-assignable or in the viewer's manageable subtree.
+    // set_contact_teacher parity (0014): a teacher reassignment additionally
+    // requires the new teacher to be inside the viewer's manageable subtree —
+    // cross-branch placement is Overseer/Dev only (matrix "Reassign owner";
+    // the old isAdminTier shortcut let a Branch Leader reassign cross-branch).
     const reassigning =
       typeof body.assignedTeacherId === 'string' &&
       body.assignedTeacherId !== before.assignedTeacherId;
     if (reassigning) {
       const newTeacher = body.assignedTeacherId as string;
-      if (!(isAdminTier(viewer) || scope.includes(newTeacher))) {
+      if (!canReassignContact(viewer, before as Contact, newTeacher, scope)) {
         return permissionDenied('You can only assign a teacher within your scope');
       }
     }
