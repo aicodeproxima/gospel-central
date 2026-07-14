@@ -8,7 +8,7 @@ import type { Contact, User } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { getAssignedTeacher, initialsOf, stepLabel, resolvePartnerNames } from '@/lib/utils/contact-helpers';
+import { getAssignedTeacher, initialsOf, stepLabel, resolvePartnerSlots } from '@/lib/utils/contact-helpers';
 import { prefixMatch } from '@/lib/utils/text-match';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 
@@ -43,9 +43,10 @@ function ContactCardInner({
   const step = stepLabel(contact);
   const fullName = `${contact.firstName} ${contact.lastName}`.trim();
 
-  // Branches: the contact's preaching partners (up to 3). The first partner
-  // is the "main branch" and is highlighted purple per the packet.
-  const branches = resolvePartnerNames(users, contact).slice(0, 3);
+  // Branches: the contact's preaching partners (up to 3). Main Branch =
+  // data slot 0 strictly (purple); if slot 0 was emptied nobody inherits
+  // the highlight (finding 102).
+  const branches = resolvePartnerSlots(users, contact).slice(0, 3);
 
   const nameRanges = query ? prefixMatch(fullName, query) : null;
 
@@ -156,7 +157,10 @@ function ContactCardInner({
               Teacher
             </p>
             <p className="mt-1 text-xs font-semibold truncate">
-              {teacher ? `${teacher.firstName} ${teacher.lastName}` : contact.groupName || '—'}
+              {/* No teacher → 'Unassigned' (the app-wide placeholder); never the
+                  church name — groupName under a "Teacher" label was a mislabel
+                  every CSV-imported contact hit (finding 188). */}
+              {teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unassigned'}
             </p>
           </div>
           <div className="min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1.5">
@@ -174,15 +178,15 @@ function ContactCardInner({
               Branches
             </p>
             <div className="mt-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
-              {branches.map((branch, i) => (
+              {branches.map((p) => (
                 <span
-                  key={`${branch}-${i}`}
+                  key={`${p.name}-${p.slot}`}
                   className={cn(
                     'truncate text-xs font-semibold',
-                    i === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground',
+                    p.slot === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground',
                   )}
                 >
-                  {branch}
+                  {p.name}
                 </span>
               ))}
             </div>

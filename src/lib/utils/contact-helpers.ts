@@ -24,6 +24,21 @@ export function resolvePartnerNames(users: User[], contact: Contact): string[] {
     .filter((n): n is string => !!n);
 }
 
+/** Like resolvePartnerNames but keeps each name's ORIGINAL array slot.
+ *  Main Branch is strictly `preachingPartnerIds[0]` — after slot 0 is
+ *  emptied (stored as null, never compacted), NO partner is Main Branch.
+ *  Display code must highlight on `slot === 0`, not on render index
+ *  (finding 102: compact-then-highlight silently promoted partner 2). */
+export function resolvePartnerSlots(
+  users: User[],
+  contact: Contact,
+): { slot: number; name: string }[] {
+  return (contact.preachingPartnerIds || []).flatMap((id, slot) => {
+    const name = resolveUserName(users, id);
+    return name ? [{ slot, name }] : [];
+  });
+}
+
 /** Two-letter initials for an avatar fallback. */
 export function initialsOf(firstName?: string, lastName?: string): string {
   const a = (firstName || '').trim();

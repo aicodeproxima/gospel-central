@@ -87,7 +87,15 @@ export const PredictiveInput = forwardRef<HTMLInputElement, PredictiveInputProps
               e.preventDefault();
               emitValue(matches[safeActiveIndex]);
               setFocused(false);
-            } else if (e.key === 'Escape') {
+            } else if (open && e.key === 'Escape') {
+              // Escape dismisses ONLY the suggestion menu; the hosting dialog
+              // must survive this press (finding 92: one Escape used to close
+              // both). Gated on `open` so a bare input still lets Escape close
+              // the dialog. stopPropagation alone is not enough — the dialog
+              // also listens at document level — so stop the native event too.
+              e.preventDefault();
+              e.stopPropagation();
+              e.nativeEvent.stopImmediatePropagation();
               setFocused(false);
             } else {
               onKeyDown?.(e);

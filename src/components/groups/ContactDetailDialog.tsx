@@ -281,9 +281,13 @@ function ViewMode({
     return t('detail.unknownPartner');
   };
 
-  const partners = (contact.preachingPartnerIds || [])
-    .map(resolvePartnerName)
-    .filter((n): n is string => !!n);
+  // Keep each partner's ORIGINAL slot: Main Branch is strictly slot 0, so an
+  // emptied slot 0 (stored null, never compacted) leaves nobody highlighted
+  // instead of visually promoting the next partner (finding 102).
+  const partners = (contact.preachingPartnerIds || []).flatMap((id, slot) => {
+    const name = resolvePartnerName(id);
+    return name ? [{ slot, name }] : [];
+  });
 
   const teacherName = (() => {
     const u = users.find((x) => x.id === contact.assignedTeacherId);
@@ -515,18 +519,18 @@ function ViewMode({
           value={
             partners.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
-                {partners.map((p, i) => (
+                {partners.map((p) => (
                   <Badge
-                    key={i}
+                    key={p.slot}
                     variant="outline"
                     className={cn(
                       'h-auto max-w-full whitespace-normal break-words py-0.5 text-left text-sm leading-snug',
-                      // Requirement 1: the FIRST partner is the Main Branch —
+                      // Requirement 1: the SLOT-0 partner is the Main Branch —
                       // fixed purple, theme-independent. No visible label change.
-                      i === 0 && 'text-purple-600 dark:text-purple-400 font-semibold',
+                      p.slot === 0 && 'text-purple-600 dark:text-purple-400 font-semibold',
                     )}
                   >
-                    {p}
+                    {p.name}
                   </Badge>
                 ))}
               </div>
@@ -1290,6 +1294,8 @@ function EditMode({
             onClick={handleDelete}
             disabled={loading}
             className="gap-2"
+            aria-label="Delete contact"
+            title="Delete contact"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
