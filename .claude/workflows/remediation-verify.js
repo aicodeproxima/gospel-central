@@ -11,9 +11,11 @@ export const meta = {
 
 // args: { targetUrl: 'https://…vercel.app', date: 'YYYY-MM-DD', only?: ['group-id', …] }
 // Date.now() is unavailable in workflow scripts — the caller supplies `date`.
-const url = args?.targetUrl
-if (!url || !args?.date) throw new Error('args {targetUrl, date} are required')
-const OUT = `Case Study/audit/remediation-verify/reverify-${args.date}.jsonl`
+// Tolerate a JSON-encoded string (some callers deliver args stringified).
+const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const url = A.targetUrl
+if (!url || !A.date) throw new Error('args {targetUrl, date} are required')
+const OUT = `Case Study/audit/remediation-verify/reverify-${A.date}.jsonl`
 
 const VERDICTS = {
   type: 'object',
@@ -61,7 +63,7 @@ const start = await agent(
 log(`start fingerprint: ${start}`)
 
 phase('Verify')
-const wanted = Array.isArray(args?.only) && args.only.length ? GROUPS.filter((g) => args.only.includes(g.id)) : GROUPS
+const wanted = Array.isArray(A.only) && A.only.length ? GROUPS.filter((g) => A.only.includes(g.id)) : GROUPS
 const all = []
 for (const g of wanted) {
   // Sequential on purpose: one Chrome, one session at a time (storage-state race).
@@ -75,7 +77,7 @@ const end = await agent(
   { label: 'fingerprint:end' },
 )
 const closeout = await agent(
-  `In repo C:/Users/aicod/Projects/_src/diamond-live: (1) read '${OUT}' and render 'Case Study/audit/remediation-verify/SUMMARY-${args.date}.md' FROM it (pass rate + one line per non-Fixed-verified verdict; note start fingerprint '${start}' vs end '${end}' — mismatch invalidates the run). (2) In REMEDIATION.md, tick the closure checkboxes that this run proves (browser re-verification) — do NOT touch anything else. Return a 5-line run report.`,
+  `In repo C:/Users/aicod/Projects/_src/diamond-live: (1) read '${OUT}' and render 'Case Study/audit/remediation-verify/SUMMARY-${A.date}.md' FROM it (pass rate + one line per non-Fixed-verified verdict; note start fingerprint '${start}' vs end '${end}' — mismatch invalidates the run). (2) In REMEDIATION.md, tick the closure checkboxes that this run proves (browser re-verification) — do NOT touch anything else. Return a 5-line run report.`,
   { label: 'close-out' },
 )
 return { start, end, groups: all, closeout }
