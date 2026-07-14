@@ -12,6 +12,8 @@ though the binaries stay out of git history.
 | `evidence-78-151-admin-dimmed-inactive.png` | `825fb4d2a7b650ebb4e97bba7c050f943f47b17fe0dcc1ae020a72da998e37b3` | Finding 78/151 — Admin ▸ Contacts renders a bulk-deleted contact **dimmed + Inactive badge + working Restore** | real-backend preview |
 | `evidence-seededge-converted-badge.png` | `6bdddab1e83b2b0cf48be574441862d1e4d4db62abefb7854fa6aaae1dba89a8` | Seed-edge finding 62 — Admin ▸ Contacts shows the **Converted** badge on Apollos (c-70) & Crispus (c-71), and Inactive+Restore on Demas (c-68) | local dev mock (mock-only seed rows) |
 | `evidence-seededge-retention-badge.png` | `dcbbb725b987f61c1da839cfd2141f0b666ec0b897e77f55fc09cc2bf1463086` | Seed-edge finding 61 — the red **"Retention expired"** badge renders in ContactsTable | real-backend preview (synthesized `retainUntil`) |
+| `evidence-188-live-unassigned-card-035e3a2.png` | `45c084cedd3b29b46c6f024bc429d3ee724f226ccd46f362706e44b3d67754f2` | Finding 188 **re-proven on the current build** — teacherless Grid card reads `TEACHER Unassigned` with no church name; sidebar fingerprint `v1.0.0 · 035e3a2` visible in-frame | real-backend preview @`035e3a2` |
+| `evidence-219-live-subject-title-035e3a2.png` | `00160df2cdf7d66ae8b3c74d2bb7ffbd618b97173dc9223ecb475160bd68f8a1` | Finding 219 **re-proven on the current build** — the wizard-created study booking on the Wed Jul 15 calendar (title suffix asserted via REST; card shows contact/teacher/time); fingerprint `035e3a2` visible in-frame | real-backend preview @`035e3a2` |
 
 ## What IS tracked here (the durable text trail)
 - `REVERIFY-ROUTINE.md` — the re-verify routine (contract + checklist).

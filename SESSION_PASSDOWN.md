@@ -1,6 +1,6 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **✅✅✅ LATEST — CUTOVER RE-VERIFY CLOSURE PLAN EXECUTED (2026-07-14, Phases A–G). Branch tip `035e3a2` (pushed).**
+> **✅✅✅ LATEST — CUTOVER RE-VERIFY CLOSURE PLAN EXECUTED + BOTH CAVEATS RESOLVED (2026-07-14). Branch tip `074e8ca` (pushed).**
 > Supersedes everything below that conflicts. All 5 owner-approved follow-ups (a–e) done; the whole
 > re-verify loop is closed. Anti-drift exec log + summary:
 > `Case Study/audit/remediation-verify/reverify-2026-07-14.jsonl` + `SUMMARY-2026-07-14.md` (also backed
@@ -27,10 +27,29 @@
 >   **67 contacts / 132 users / 105 bookings**. SELECT-first, sentinel-scoped; audit-log history left intact.
 > - **(E) audit trail BACKED UP tracked** under `docs/qa/reverify-2026-07/` (text trail + `EVIDENCE-INDEX.md`
 >   with sha256 of the 5 evidence PNGs; the PNGs themselves stay untracked — regenerable).
-> - **No open blockers.** The 3 newly-mapped tokens are defense-in-depth. **`sbp_` PAT rotation still owed**
->   (user: later). **Shared-checkout hazard bit again** — the branch advanced
->   `ee4da06→86e77fb→758acb0→ee0d1f4→035e3a2` across concurrent sessions; re-derive `git rev-parse origin/…`
->   live before any commit. The prod flip stays owner-gated.
+> - **BOTH CAVEATS RESOLVED (follow-up run, `074e8ca`):**
+>   - **CYCLE is LIVE-PROVEN** — the "unit-only" caveat is gone. `CYCLE` *is* reachable:
+>     `PUT /users/:id { parentId }` → `reassign_user` (router:266). Probed live @`035e3a2`: reparenting
+>     Joseph under his own descendant `group1` → **400 / `VALIDATION_ERROR` / `CYCLE: new parent is within
+>     the target subtree`**, `parentId` unchanged (zero mutation). Self-parent identical. Was 400/UNKNOWN.
+>   - **WEAK_PASSWORD / MISSING_FIELDS are unreachable BY CONSTRUCTION** (not "edge paths" — that framing
+>     was imprecise): `POST /users` synthesizes username/email/password (router:228-230; `genUsername`
+>     :47-48 is what produced the `user888` artifact), convert does the same (:220-222), reset-password
+>     uses a server temp pw (:234), change-password uses GoTrue `auth.updateUser` NOT the RPC (:238-241
+>     → the native 422 I saw). Only a direct `rpc()` bypassing the router raises them. Their map entries
+>     are deliberate **defense-in-depth — do NOT delete as dead**; both comments now say so.
+>   - **C1/C3 re-driven through the UI on the CURRENT build** (`035e3a2`), each screenshot showing the
+>     `v1.0.0 · 035e3a2` fingerprint in-frame: 188 Grid card `TEACHER Unassigned` + no church name; 219
+>     full wizard create → `… — {subject}` and edit (leader→Agabus) **preserves the suffix**.
+>   - **Bonus — real parity gap found + fixed (`074e8ca`):** the mock returned **403** for a
+>     self-parent/cycle reparent while real raises `CYCLE` → **400/VALIDATION_ERROR`**. A cycle is bad
+>     input, not a permission failure → `handlers.ts` now uses `validationError` (the cross-branch SCOPE
+>     check stays 403, mirroring the RPC's separate PERMISSION_DENIED branch). RED→GREEN: flipped the pin
+>     + added a true-cycle test asserting zero mutation. Also killed **fictional RPC names** in two
+>     comments (`set_password`/`move_org_node` → `reset_user_password`/`reassign_user`). Suite **571 green**.
+> - **No open blockers.** **`sbp_` PAT rotation still owed** (user: later). **Shared-checkout hazard bit
+>   again** — the branch advanced `ee4da06→86e77fb→758acb0→ee0d1f4→035e3a2→074e8ca` across concurrent
+>   sessions; re-derive `git rev-parse origin/…` live before any commit. The prod flip stays owner-gated.
 
 > **✅✅ PRIOR — AUDIT-FINDINGS REMEDIATION SHIPPED + RE-VERIFY RUN COMPLETE (2026-07-14).**
 > This block supersedes anything below that conflicts. Session model: Fable 5 + ultracode; every
