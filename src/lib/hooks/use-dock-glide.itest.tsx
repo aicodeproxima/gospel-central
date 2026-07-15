@@ -13,22 +13,28 @@ import { useDockGlide } from './use-dock-glide';
  * would never clear and the guard would look permanent.
  */
 
-function Harness() {
+function Harness({ showHost = true }: { showHost?: boolean }) {
   // Destructured rather than used as `dock.x` in the JSX — see FloatingNav.
   const { open, pinned, hostRef, bodyRef, toggleRef, hostHandlers, onToggleClick, onItemActivated } =
     useDockGlide();
   return (
     <div>
-      <aside data-testid="host" ref={hostRef} data-open={open} data-pinned={pinned} {...hostHandlers}>
-        <button data-testid="toggle" type="button" ref={toggleRef} onClick={onToggleClick}>
-          Menu
-        </button>
-        <div data-testid="body" ref={bodyRef}>
-          <button data-testid="item" type="button" onClick={onItemActivated}>
-            Contacts
+      {/* Mirrors state OUTSIDE the host so the /groups scenario — the hook
+          alive in the layout while the aside itself is unmounted — remains
+          observable after the host disappears. */}
+      <div data-testid="probe" data-open={open} data-pinned={pinned} />
+      {showHost && (
+        <aside data-testid="host" ref={hostRef} data-open={open} data-pinned={pinned} {...hostHandlers}>
+          <button data-testid="toggle" type="button" ref={toggleRef} onClick={onToggleClick}>
+            Menu
           </button>
-        </div>
-      </aside>
+          <div data-testid="body" ref={bodyRef}>
+            <button data-testid="item" type="button" onClick={onItemActivated}>
+              Contacts
+            </button>
+          </div>
+        </aside>
+      )}
       <button data-testid="outside" type="button">
         Outside
       </button>
@@ -37,8 +43,9 @@ function Harness() {
 }
 
 const host = () => screen.getByTestId('host');
-const isOpen = () => host().getAttribute('data-open') === 'true';
-const isPinned = () => host().getAttribute('data-pinned') === 'true';
+const probe = () => screen.getByTestId('probe');
+const isOpen = () => probe().getAttribute('data-open') === 'true';
+const isPinned = () => probe().getAttribute('data-pinned') === 'true';
 
 /**
  * React derives onPointerEnter/onPointerLeave from pointerover/pointerout at
@@ -274,6 +281,85 @@ describe('useDockGlide', () => {
 
     expect(isOpen()).toBe(true);
     expect(isPinned()).toBe(true);
+  });
+
+  it('leaves Escape to an open dialog/popover/select and keeps the pin (req 13)', () => {
+    // Base UI 1.3 never preventDefaults Escape and registers its own document
+    // listener AFTER ours, so the guard is presence-based: any of these
+    // surfaces in the DOM means one is open (none is kept mounted closed).
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+
+    for (const slot of ['dialog-content', 'popover-content', 'select-content', 'dropdown-menu-content']) {
+      const popup = document.createElement('div');
+      popup.setAttribute('data-slot', slot);
+      document.body.appendChild(popup);
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(isOpen(), `pin must survive Escape while a ${slot} is open`).toBe(true);
+      expect(isPinned(), `pin state must survive Escape while a ${slot} is open`).toBe(true);
+
+      popup.remove();
+    }
+
+    // With every popup gone, the same keypress reaches the dock again.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(isOpen()).toBe(false);
+    expect(isPinned()).toBe(false);
+  });
+
+  it('drops an unpinned preview when the host unmounts, but a pin survives (/groups round-trip)', () => {
+    const { rerender } = render(<Harness />);
+
+    // Unpinned hover preview: nothing could dismiss it while the host is gone,
+    // so it must not come back open.
+    enter();
+    expect(isOpen()).toBe(true);
+    rerender(<Harness showHost={false} />);
+    expect(isOpen()).toBe(false);
+    rerender(<Harness showHost />);
+    expect(isOpen()).toBe(false);
+
+    // A deliberate pin is the state the hook is hoisted to preserve.
+    fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+    expect(isPinned()).toBe(true);
+    rerender(<Harness showHost={false} />);
+    expect(isOpen()).toBe(true);
+    expect(isPinned()).toBe(true);
+    rerender(<Harness showHost />);
+    expect(isOpen()).toBe(true);
+    expect(isPinned()).toBe(true);
+  });
+
+  it('resets the hover latch when the host unmounts under the cursor', () => {
+    const { rerender } = render(<Harness />);
+
+    // pointerleave never fires when the hovered host is unmounted; a stuck
+    // hover latch would veto every scheduled close after remount.
+    enter();
+    rerender(<Harness showHost={false} />);
+    rerender(<Harness showHost />);
+
+    focusEl(screen.getByTestId('item'));
+    expect(isOpen()).toBe(true);
+    focusEl(screen.getByTestId('outside'));
+    advance(80);
+    expect(isOpen()).toBe(false); // stuck latch would keep this open forever
+  });
+
+  it('forgets held pointers when the window loses focus (req 16)', () => {
+    render(<Harness />);
+    enter();
+    fireEvent.pointerDown(host(), { pointerId: 1 });
+
+    // pointerup landed elsewhere — the OS took focus mid-drag.
+    fireEvent.blur(window);
+
+    leave({ pointerId: 1 });
+    advance(30);
+    expect(isOpen()).toBe(true); // not treated as a drag-away…
+    advance(140);
+    expect(isOpen()).toBe(false); // …just a normal 170ms leave
   });
 
   it('closes an unpinned preview on outside pointer interaction (req 14)', () => {

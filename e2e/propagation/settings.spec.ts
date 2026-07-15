@@ -49,8 +49,10 @@ test('S1 profilePhoto → Sidebar avatar (same-page, persistent)', async ({ page
   await loginAs(page, 'member3');
   await page.goto('/settings');
   await page.waitForLoadState('networkidle');
-  // The persistent chrome is now the floating dock: its contents only exist for
-  // the user (and for a width>0 scan) once it is open, so pin it before sampling.
+  // The persistent chrome is now the floating dock. Its collapsed body is
+  // opacity-0 (NOT display:none), so the width>0 scans below would technically
+  // still find the nodes — but the cell's claim is about what the USER sees in
+  // the persistent chrome, so observe it open, the honest surface.
   await pinNav(page);
 
   const before = { sidebar: await page.evaluate(sidebarAvatar), settings: await page.evaluate(settingsAvatar), store: (await prefsState(page))?.profilePhotoBase64 ?? null };

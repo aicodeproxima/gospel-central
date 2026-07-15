@@ -311,10 +311,11 @@ export default function SettingsPage() {
       </div>
 
       {/* Cards: single column on phone/tablet (unchanged); 2-up masonry on
-          desktop (≥xl — where the full sidebar shows and the page used to
-          strand ~40% empty on the right). break-inside-avoid keeps each card
-          whole across the column gap; the per-item mb replaces space-y, which
-          can't bridge the column break. */}
+          desktop (≥xl — wide enough that one column used to strand ~40% of the
+          page empty on the right; originally tuned beside the old 256px
+          sidebar, now beside the floating nav's 80px margin). break-inside-avoid
+          keeps each card whole across the column gap; the per-item mb replaces
+          space-y, which can't bridge the column break. */}
       <div className="space-y-6 xl:columns-2 xl:gap-6 xl:space-y-0 xl:[&>*]:mb-6 [&>*]:break-inside-avoid">
       {/* 1. Profile */}
       <Card>

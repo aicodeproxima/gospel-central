@@ -60,6 +60,16 @@ this repo — keep it current.
   risk, audit C-2) and is `Secure`. Real-backend cutover must move tokens to httpOnly Set-Cookie.
 - Dashboard shell `src/app/(dashboard)/layout.tsx` splits desktop/mobile; `/groups` gets an immersive
   fullscreen layout (Tree3D + floating hamburger).
+- **md+ primary nav = the "Dock and Glide" floating menu** (`components/layout/FloatingNav.tsx` +
+  headless machine `lib/hooks/use-dock-glide.ts`, ported 2026-07-15 from
+  `Assets/GPT Assets/Floating Menu Concept A - Dock and Glide.html`): 52px launcher at 14px inset →
+  256px glass panel on hover/focus/pin; main margin animates 80↔284. The old always-visible sidebar
+  and the 768–1279 icon "tablet rail" are GONE — touch tablets tap the hamburger to pin (hover is
+  pointer-EVENT-gated, `pointerType !== 'touch'`). `Sidebar.tsx` now serves ONLY the /groups
+  immersive overlay; both surfaces draw items from `components/layout/nav-items.tsx` (`useNavItems`).
+  Nav state is transient (not persisted); a pin survives a /groups round-trip (hook is hoisted above
+  the layout fork). e2e: `floating-nav.spec.ts` (chromium+webkit) + `floating-nav-touch.spec.ts`
+  (tablet-touch project, real taps).
 - `use-auth.ts` catch is a **catch-all** — a transport failure looks like an auth error unless you read it.
   Typed errors distinguish `NETWORK_ERROR` (status 0) from a real `401 UNAUTHORIZED`; `skipAuthRedirect`
   keeps the login toast honest. A dead-backend banner self-announces a flag-less build.

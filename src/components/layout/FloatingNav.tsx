@@ -101,6 +101,7 @@ export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
             onClick={onToggleClick}
             aria-expanded={open}
             aria-pressed={pinned}
+            aria-controls="floating-nav-body"
             aria-label={toggleLabel}
             title={toggleLabel}
             className={cn(
@@ -133,6 +134,7 @@ export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
             labels from reflowing while the panel is mid-glide. */}
         <div
           ref={bodyRef}
+          id="floating-nav-body"
           inert={!open}
           aria-hidden={!open}
           data-testid="floating-nav-body"
@@ -142,7 +144,10 @@ export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
             open && 'pointer-events-auto opacity-100 delay-[70ms]',
           )}
         >
-          <nav aria-label={t('nav.primary')} className="flex-1 p-2.5">
+          {/* Named differently from the host <aside> on purpose (the asset does
+              the same: aside "Primary navigation", nav "Pages") — two landmarks
+              sharing one name read as duplicates in a screen reader's rotor. */}
+          <nav aria-label={t('nav.pages')} className="flex-1 p-2.5">
             {items.map((item) => {
               const isActive = isNavItemActive(pathname, item.href);
               const Icon = item.icon;
@@ -200,7 +205,7 @@ export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
                   onItemActivated(event);
                   logout();
                 }}
-                className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [@media(pointer:coarse)]:min-h-11"
               >
                 <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('nav.signOut')}

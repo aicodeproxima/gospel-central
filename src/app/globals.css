@@ -334,12 +334,17 @@ html[data-theme="marble"] [data-slot="select-trigger"]:focus {
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2), 0 0 16px rgba(212, 175, 55, 0.25) !important;
 }
 
-/* Sidebar: semi-transparent with gold accent stripe */
+/* Nav chrome: semi-transparent with a gold-tinted border. Was a right-edge
+   "accent stripe" for the old full-height flush-left sidebar; the surface
+   wearing this slot is now the ROUNDED floating Dock-and-Glide card, where a
+   single gold edge on a rounded pill reads as a rendering artifact — so the
+   gold applies to all four borders (same pattern as starfield's uniform
+   border-color below). */
 html[data-theme="marble"] [data-slot="sidebar-container"],
 html[data-theme="marble"] [class*="bg-sidebar"] {
   background: rgba(250, 246, 235, 0.75) !important;
   backdrop-filter: blur(16px);
-  border-right: 1px solid rgba(212, 175, 55, 0.35) !important;
+  border-color: rgba(212, 175, 55, 0.35) !important;
 }
 
 /* ── Starfield (admin-only) ───────────────────────────────────────
@@ -895,7 +900,9 @@ html[data-theme="deepspace"] [data-calendar-surface="header"] {
    the px columns full-width, so it did NOT replicate the reference.)
    Applied at the root so it covers every page + body-portaled dialogs.
    Gated ≥1280 (the project's compact↔desktop line) so phones AND the 768–1279
-   touch tablet-rail band stay native — the 44px `max-md` tap floor is untouched.
+   band stay native — the 44px `max-md` tap floor is untouched. (That band's
+   old icon-rail sidebar is gone — the Dock-and-Glide launcher serves all of
+   md+ — but the zoom gate keeps its original meaning: compact widths unscaled.)
    VERIFIED on prod that the /groups react-three-fiber canvas + node-click
    raycasting still work under this zoom (the investigation's flagged risk).
    Supersedes the "desktop ≥1280 frozen" note in the block below (user request). */

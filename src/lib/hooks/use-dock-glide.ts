@@ -58,16 +58,6 @@ export function useDockGlide(): UseDockGlideResult {
   const bodyEl = useRef<HTMLDivElement | null>(null);
   const toggleEl = useRef<HTMLButtonElement | null>(null);
 
-  const hostRef = useCallback((node: HTMLElement | null) => {
-    hostEl.current = node;
-  }, []);
-  const bodyRef = useCallback((node: HTMLDivElement | null) => {
-    bodyEl.current = node;
-  }, []);
-  const toggleRef = useCallback((node: HTMLButtonElement | null) => {
-    toggleEl.current = node;
-  }, []);
-
   const activePointersRef = useRef<Set<number>>(new Set());
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressFocusOpenRef = useRef(false);
@@ -76,6 +66,31 @@ export function useDockGlide(): UseDockGlideResult {
   // during which :hover holds — but readable in a JS DOM, where :hover is not
   // tracked at all.
   const hoveredRef = useRef(false);
+
+  const hostRef = useCallback((node: HTMLElement | null) => {
+    hostEl.current = node;
+    if (!node) {
+      // The dock unmounted (e.g. navigating to /groups, or a resize below md)
+      // while this hook — which lives in the layout — stays alive. Two resets:
+      // 1. `hoveredRef` is edge-triggered; if the host disappears under the
+      //    cursor, pointerleave never fires and a stuck `true` would veto
+      //    every scheduled close after remount.
+      hoveredRef.current = false;
+      // 2. A PIN deliberately survives the round-trip; an unpinned hover
+      //    preview must not — nothing can dismiss it while the host is gone,
+      //    so it would come back open and shove the margin to 284.
+      if (!pinnedRef.current && openRef.current) {
+        openRef.current = false;
+        setOpenState(false);
+      }
+    }
+  }, []);
+  const bodyRef = useCallback((node: HTMLDivElement | null) => {
+    bodyEl.current = node;
+  }, []);
+  const toggleRef = useCallback((node: HTMLButtonElement | null) => {
+    toggleEl.current = node;
+  }, []);
 
   const setPinned = useCallback((next: boolean) => {
     pinnedRef.current = next;
@@ -194,9 +209,22 @@ export function useDockGlide(): UseDockGlideResult {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!hostEl.current || !openRef.current) return;
       if (event.key !== 'Escape') return;
-      // Dialogs and popovers (z-50) sit above the menu and consume Escape
-      // first; without this the same keypress would also silently unpin.
       if (event.defaultPrevented) return;
+      // Dialogs, popovers, selects and menus (z-50) own Escape while open, but
+      // `defaultPrevented` alone cannot detect them: Base UI 1.3 never calls
+      // preventDefault on Escape, and this document listener registers at
+      // layout mount — before any popup's — so it would fire first regardless.
+      // Presence alone is not enough either — Base UI keeps closed Select
+      // popups MOUNTED (hidden) in the DOM (two linger on /calendar) — so the
+      // popup must also be visible to count as open. checkVisibility is
+      // missing in some JS DOMs; there, mounted counts as open (safe: tests
+      // mount their fake popups visible).
+      const popups = document.querySelectorAll(
+        '[data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="select-content"], [data-slot="dropdown-menu-content"]',
+      );
+      for (const popup of popups) {
+        if ((popup as HTMLElement).checkVisibility?.() ?? true) return;
+      }
       setPinned(false);
       setOpen(false, { force: true, restoreFocus: true });
     };
@@ -205,15 +233,25 @@ export function useDockGlide(): UseDockGlideResult {
       activePointersRef.current.delete(event.pointerId);
     };
 
+    // If the window loses focus mid-drag, the matching pointerup can land
+    // elsewhere and never reach us. A leaked id is not cosmetic: Chromium's
+    // mouse pointerId is stably 1, so one stale entry makes every later
+    // pointerleave read as a drag-away (30ms close that overrides focus).
+    const releaseAllPointers = () => {
+      activePointersRef.current.clear();
+    };
+
     document.addEventListener('pointerdown', handleDocumentPointerDown);
     document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('pointerup', releasePointer);
     window.addEventListener('pointercancel', releasePointer);
+    window.addEventListener('blur', releaseAllPointers);
     return () => {
       document.removeEventListener('pointerdown', handleDocumentPointerDown);
       document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('pointerup', releasePointer);
       window.removeEventListener('pointercancel', releasePointer);
+      window.removeEventListener('blur', releaseAllPointers);
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, [setOpen, setPinned]);

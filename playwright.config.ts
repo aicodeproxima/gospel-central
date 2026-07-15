@@ -35,14 +35,23 @@ export default defineConfig({
   },
   projects: [
     // Desktop: smoke + permission boundaries (chromium also owns the visual baselines).
-    { name: 'chromium', testIgnore: /mobile\.spec/, use: { ...devices['Desktop Chrome'] } },
-    { name: 'webkit', testIgnore: /(mobile|visual)\.spec/, use: { ...devices['Desktop Safari'] } },
+    { name: 'chromium', testIgnore: /(mobile|floating-nav-touch)\.spec/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'webkit', testIgnore: /(mobile|visual|floating-nav-touch)\.spec/, use: { ...devices['Desktop Safari'] } },
     // Mobile: fitment specs only. Galaxy S24 Ultra is the user's primary device.
     { name: 'mobile-pixel5', testMatch: /mobile\.spec/, use: { ...devices['Pixel 5'] } },
     {
       name: 'mobile-s24',
       testMatch: /mobile\.spec/,
       use: { ...devices['Pixel 7'], viewport: { width: 412, height: 915 }, deviceScaleFactor: 3.5 },
+    },
+    // Touch tablet (768–1279 md+ band): the floating nav's tap-to-pin flow.
+    // hasTouch WITHOUT isMobile — a desktop-class engine whose taps emit
+    // pointerType 'touch', which is exactly the population the old icon rail
+    // served. iPad-portrait width; no zoom (the 0.9 root zoom starts at 1280).
+    {
+      name: 'tablet-touch',
+      testMatch: /floating-nav-touch\.spec/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 }, hasTouch: true },
     },
   ],
 });

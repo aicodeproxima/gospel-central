@@ -24,8 +24,10 @@ test.skip(({ viewport }) => (viewport?.width ?? 0) < 768, 'md+ only — below 76
 const nav = (page: Page) => page.getByTestId('floating-nav');
 const navBody = (page: Page) => page.getByTestId('floating-nav-body');
 const toggle = (page: Page) => nav(page).getByRole('button', { name: /navigation/i });
+// Rounded: WebKit settles framer-motion's animated margin at sub-pixel values
+// (283.993px where Chromium reports exactly 284px).
 const mainMargin = (page: Page) =>
-  page.locator('main').evaluate((el) => getComputedStyle(el).marginLeft);
+  page.locator('main').evaluate((el) => Math.round(parseFloat(getComputedStyle(el).marginLeft)));
 const navBox = async (page: Page) => (await nav(page).boundingBox())!;
 
 /** Move the pointer far away from the dock, to a dead area of the page. */
@@ -55,7 +57,7 @@ test.describe('floating nav — dock and glide', () => {
     expect(style.position).toBe('fixed');
 
     // Collapsed = 80px of margin: clears the launcher's 14 + 52 = 66px footprint.
-    expect(await mainMargin(page)).toBe('80px');
+    expect(await mainMargin(page)).toBe(80);
 
     const box = await navBox(page);
     const main = (await page.locator('main').boundingBox())!;
@@ -71,7 +73,7 @@ test.describe('floating nav — dock and glide', () => {
     await expect
       .poll(async () => parseFloat(await nav(page).evaluate((el) => getComputedStyle(el).width)))
       .toBeCloseTo(256, 0);
-    await expect.poll(() => mainMargin(page)).toBe('284px');
+    await expect.poll(() => mainMargin(page)).toBe(284);
 
     // Full height, inset 14px top and bottom.
     const box = await navBox(page);
@@ -88,7 +90,7 @@ test.describe('floating nav — dock and glide', () => {
 
     await pointerAway(page);
     await expect(nav(page)).toHaveAttribute('data-open', 'false');
-    await expect.poll(() => mainMargin(page)).toBe('80px');
+    await expect.poll(() => mainMargin(page)).toBe(80);
   });
 
   test('only the hamburger pins; a pin survives pointer-away and outside clicks (reqs 9, 10, 14)', async ({
@@ -110,7 +112,7 @@ test.describe('floating nav — dock and glide', () => {
     await toggle(page).click();
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(nav(page)).toHaveAttribute('data-open', 'false');
-    await expect.poll(() => mainMargin(page)).toBe('80px');
+    await expect.poll(() => mainMargin(page)).toBe(80);
   });
 
   test('an outside pointer dismisses an unpinned preview (req 14)', async ({ page }) => {
@@ -144,16 +146,21 @@ test.describe('floating nav — dock and glide', () => {
     await toggle(page).focus();
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
 
-    // Tab into the panel: focus must land on a real link, menu still open.
+    // Tab into the panel: focus must stay INSIDE the menu and keep it open.
+    // (Which element it lands on is engine policy: Chromium tabs to the first
+    // link, WebKit — like real Safari — skips links on plain Tab and lands on
+    // the Sign Out button. Both are legitimate keyboard sessions.)
     await page.keyboard.press('Tab');
-    const focused = page.locator(':focus');
-    await expect(focused).toHaveRole('link');
+    await expect(navBody(page).locator(':focus')).toHaveCount(1);
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
 
-    // Enter activates the route WITHOUT collapsing (keyboard keeps the session).
-    const href = await focused.getAttribute('href');
+    // Route-activate a link from that keyboard session (focused directly —
+    // Safari users reach links via Option+Tab; the session semantics are the
+    // same). Enter must navigate WITHOUT collapsing the menu.
+    const contacts = navBody(page).getByRole('link', { name: 'Contacts' });
+    await contacts.focus();
     await page.keyboard.press('Enter');
-    await page.waitForURL(`**${href}`);
+    await page.waitForURL('**/contacts');
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
     await expect(navBody(page).locator(':focus')).toHaveCount(1); // focus stayed inside
   });
@@ -170,6 +177,29 @@ test.describe('floating nav — dock and glide', () => {
     // The focus restore must not bounce it back open.
     await page.waitForTimeout(150);
     await expect(nav(page)).toHaveAttribute('data-open', 'false');
+  });
+
+  test('Escape closes an open dialog without unpinning the menu (req 13 guard)', async ({
+    page,
+  }) => {
+    // The real integration the itest can only simulate: a genuine Base UI
+    // dialog owns the first Escape; the pinned dock must survive it and only
+    // yield to the SECOND Escape.
+    await pinNav(page);
+    await navBody(page).getByRole('link', { name: 'Calendar' }).click();
+    await page.waitForURL('**/calendar');
+
+    await page.getByRole('button', { name: /^book$/i }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(nav(page)).toHaveAttribute('data-open', 'true');
+    await expect(nav(page)).toHaveAttribute('data-pinned', 'true');
+
+    await page.keyboard.press('Escape');
+    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+    await expect(nav(page)).toHaveAttribute('data-pinned', 'false');
   });
 
   test('collapsed content is inert and hidden from assistive tech (req 17)', async ({ page }) => {
@@ -256,7 +286,7 @@ test.describe('floating nav — narrow widths', () => {
       await page.setViewportSize({ width, height: 900 });
       await loginAs(page, 'admin');
       await expect(nav(page)).toBeVisible();
-      expect(await mainMargin(page)).toBe('80px');
+      expect(await mainMargin(page)).toBe(80);
 
       await pinNav(page);
       const box = await navBox(page);
@@ -293,7 +323,7 @@ test.describe('floating nav — narrow widths', () => {
 
     await expect(nav(page)).toBeHidden();
     await expect(page.locator('nav.fixed.bottom-0')).toBeVisible();
-    expect(await mainMargin(page)).toBe('0px');
+    expect(await mainMargin(page)).toBe(0);
   });
 });
 
@@ -311,6 +341,6 @@ test.describe('floating nav — reduced motion', () => {
     // It must still function, just without the glide.
     await nav(page).hover();
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
-    await expect.poll(() => mainMargin(page)).toBe('284px');
+    await expect.poll(() => mainMargin(page)).toBe(284);
   });
 });
