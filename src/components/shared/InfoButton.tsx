@@ -36,7 +36,7 @@ export function InfoButton({ title, summary, sections }: InfoButtonProps) {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(true)}
-        className="inline-flex h-7 w-7 touch-manipulation items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary max-xl:h-11 max-xl:w-11"
+        className="inline-flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary max-xl:h-11 max-xl:w-11"
         title="How this page works"
         aria-label="Show page help"
       >

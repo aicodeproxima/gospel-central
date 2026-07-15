@@ -27,17 +27,25 @@ const SESSION_COOKIE = 'gospel-central-session';
 const LEGACY_SESSION_COOKIES = ['diamond-session'];
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8; // 8 hours
 
+// `Secure` only where the page itself is https (prod/previews). WebKit —
+// unlike Chromium — stores but NEVER SENDS a Secure cookie over plain
+// http://localhost, so an unconditional `secure` sent every WebKit/Safari
+// dev+e2e login into an infinite /login?next=/dashboard proxy bounce: the
+// login succeeded, the proxy just never saw the cookie.
+const COOKIE_SECURE_SUFFIX =
+  typeof location !== 'undefined' && location.protocol === 'https:' ? '; secure' : '';
+
 function setSessionCookie(token: string) {
   if (typeof document === 'undefined') return;
   document.cookie =
     `${SESSION_COOKIE}=${encodeURIComponent(token)}; path=/; ` +
-    `max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax; secure`;
+    `max-age=${COOKIE_MAX_AGE_SECONDS}; samesite=lax${COOKIE_SECURE_SUFFIX}`;
 }
 
 function clearSessionCookie() {
   if (typeof document === 'undefined') return;
   for (const name of [SESSION_COOKIE, ...LEGACY_SESSION_COOKIES]) {
-    document.cookie = `${name}=; path=/; max-age=0; samesite=lax; secure`;
+    document.cookie = `${name}=; path=/; max-age=0; samesite=lax${COOKIE_SECURE_SUFFIX}`;
   }
 }
 
