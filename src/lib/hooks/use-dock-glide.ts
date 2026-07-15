@@ -15,6 +15,29 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *   2. Escape is ignored once another handler has consumed it.
  */
 
+/**
+ * The overlays that own Escape while they are open. Enumerated rather than
+ * matched by suffix ([data-slot$="-content"]) because `card-content` and
+ * `tabs-content` share that shape without being dismissible popups.
+ *
+ * `[data-open]` is the load-bearing half: Base UI marks an open popup with
+ * data-open and a closed one with data-closed, and it force-mounts closed
+ * Select popups — so presence in the DOM is not open-ness.
+ *
+ * sheet-content cannot currently collide with the dock (ui/sheet.tsx is only
+ * used at <md, where the dock does not render) but it is a Base UI Dialog and
+ * so owns Escape the moment anyone uses one at md+. Listed for completeness.
+ */
+const ESCAPE_OWNING_POPUP = [
+  'dialog-content',
+  'sheet-content',
+  'popover-content',
+  'select-content',
+  'dropdown-menu-content',
+]
+  .map((slot) => `[data-slot="${slot}"][data-open]`)
+  .join(', ');
+
 interface SetOpenOptions {
   /** Bypass the pinned latch. Only the hamburger's own toggle passes this. */
   force?: boolean;
@@ -70,8 +93,11 @@ export function useDockGlide(): UseDockGlideResult {
   const hostRef = useCallback((node: HTMLElement | null) => {
     hostEl.current = node;
     if (!node) {
-      // The dock unmounted (e.g. navigating to /groups, or a resize below md)
-      // while this hook — which lives in the layout — stays alive. Two resets:
+      // The dock unmounted while this hook — which lives in the layout — stays
+      // alive. In practice that means navigating to /groups, which renders the
+      // immersive overlay instead. (NOT a resize below md: the layout only
+      // CSS-hides the dock via `hidden md:block`, so it stays mounted at every
+      // width and this callback never fires on a resize.) Two resets:
       // 1. `hoveredRef` is edge-triggered; if the host disappears under the
       //    cursor, pointerleave never fires and a stuck `true` would veto
       //    every scheduled close after remount.
@@ -214,17 +240,11 @@ export function useDockGlide(): UseDockGlideResult {
       // `defaultPrevented` alone cannot detect them: Base UI 1.3 never calls
       // preventDefault on Escape, and this document listener registers at
       // layout mount — before any popup's — so it would fire first regardless.
-      // Presence alone is not enough either — Base UI keeps closed Select
-      // popups MOUNTED (hidden) in the DOM (two linger on /calendar) — so the
-      // popup must also be visible to count as open. checkVisibility is
-      // missing in some JS DOMs; there, mounted counts as open (safe: tests
-      // mount their fake popups visible).
-      const popups = document.querySelectorAll(
-        '[data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="select-content"], [data-slot="dropdown-menu-content"]',
-      );
-      for (const popup of popups) {
-        if ((popup as HTMLElement).checkVisibility?.() ?? true) return;
-      }
+      // Presence alone is not enough either: Base UI force-mounts closed Select
+      // popups, so two sit in /calendar's DOM from first paint. `data-open` is
+      // Base UI's own open-state (closed popups carry data-closed instead), so
+      // it reads open-ness directly rather than inferring it from layout.
+      if (document.querySelector(ESCAPE_OWNING_POPUP)) return;
       setPinned(false);
       setOpen(false, { force: true, restoreFocus: true });
     };

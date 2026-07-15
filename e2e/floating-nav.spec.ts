@@ -24,8 +24,11 @@ test.skip(({ viewport }) => (viewport?.width ?? 0) < 768, 'md+ only — below 76
 const nav = (page: Page) => page.getByTestId('floating-nav');
 const navBody = (page: Page) => page.getByTestId('floating-nav-body');
 const toggle = (page: Page) => nav(page).getByRole('button', { name: /navigation/i });
-// Rounded: WebKit settles framer-motion's animated margin at sub-pixel values
-// (283.993px where Chromium reports exactly 284px).
+// Rounded because of the >=1280 root zoom, not because anything is unfinished:
+// 284 * 0.9 = 255.6 device px, which WebKit snaps to its 1/64px LayoutUnit
+// (255.59375) and reports back as 283.993px. (80 * 0.9 = 72.0 is exactly
+// representable, which is why the collapsed margin reads a clean 80 on every
+// engine.) Same rounding family as the 52px launcher measuring 51.9965px.
 const mainMargin = (page: Page) =>
   page.locator('main').evaluate((el) => Math.round(parseFloat(getComputedStyle(el).marginLeft)));
 const navBox = async (page: Page) => (await nav(page).boundingBox())!;
@@ -270,13 +273,18 @@ test.describe('floating nav — dock and glide', () => {
     // Marble (the app default) is a translucent glass rule keyed off data-slot.
     const surface = await shell.evaluate((el) => {
       const cs = getComputedStyle(el);
-      return { bg: cs.backgroundColor, blur: cs.backdropFilter };
+      return { bg: cs.backgroundColor, blur: cs.backdropFilter, border: cs.borderTopColor };
     });
     expect(surface.bg).toMatch(/rgba?\(/);
     // Translucent surface => the background canvas is visible through it.
     const alpha = Number((surface.bg.match(/[\d.]+\)$/) || ['1)'])[0].replace(')', ''));
     expect(alpha).toBeLessThan(1);
-    expect(surface.blur).not.toBe('');
+    // Assert the real value: an unset backdrop-filter computes to the STRING
+    // "none", never "", so `not.toBe('')` could never have failed.
+    expect(surface.blur).toMatch(/blur\(\d/);
+    // The gold marble accent applies to every side (it was a sidebar-era
+    // border-right, which drew one stripe down a rounded floating card).
+    expect(surface.border).toBe('rgba(212, 175, 55, 0.35)');
   });
 });
 

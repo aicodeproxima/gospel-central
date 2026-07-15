@@ -130,15 +130,7 @@ test.describe('booking lifecycle (admin) — driven', () => {
   // in C3); fresh seed has no cancelled bookings so .first() is active.
   const activeBookingCard = (page: import('@playwright/test').Page) => page.getByTitle(new RegExp(RANGE)).first();
 
-  test('reschedule moves a booking time on the calendar (same-page, no reload)', async ({ page, browserName }) => {
-    // Playwright-WebKit (2311, headed AND headless) never completes framer
-    // exit animations — the nav margin tween parks at 283.993 instead of 284,
-    // and here the wizard's `AnimatePresence mode="wait"` waits forever on the
-    // confirm page's exit, so the When page never mounts and no time slot is
-    // pickable. Chromium covers this flow; only a real Safari device can
-    // adjudicate WebKit proper. (Surfaced 2026-07-15 — the first day webkit
-    // could log in at all; not a regression.)
-    test.skip(browserName === 'webkit', 'framer AnimatePresence exit never completes on Playwright-WebKit');
+  test('reschedule moves a booking time on the calendar (same-page, no reload)', async ({ page }) => {
     // proves the determinism pin: the calendar opens on the mock Monday, not real-today
     await expect(page.getByText(/Monday, June 22, 2026/i).first(), 'calendar pinned to MOCK_DATE (booking-store mockNow)').toBeVisible();
     const before = await dayTimes(page);
@@ -151,11 +143,15 @@ test.describe('booking lifecycle (admin) — driven', () => {
     // confirm-step "Time" row (Row = a <button>, name starts with the label "Time") → now jumps
     // to the When page (Phase 4 — there is no separate time step anymore).
     await dlg.getByRole('button', { name: /^time/i }).first().click();
-    await page.waitForTimeout(300);
     // pick a FREE (enabled), non-current slot in the grid (selected slot has bg-primary).
     // Scope to buttons whose accessible name looks like a clock time (e.g. "8:00 AM") so this
     // can't ambiguously match the day-strip (grid-cols-7) or activity selector (grid-cols-2).
     const gridBtns = dlg.locator('[class*="grid-cols-3"] button:not([disabled])').filter({ hasText: /^\d{1,2}:\d{2}/ });
+    // Wait for the When page to actually arrive rather than sleeping a fixed
+    // 300ms: the AnimatePresence swap takes ~600ms on chromium but ~8.8s under
+    // Playwright-WebKit, whose renderer drives this page at ~3fps. The sleep is
+    // what made this look like a WebKit engine bug; it is only slow.
+    await expect(gridBtns.first()).toBeVisible({ timeout: 15_000 });
     const n = await gridBtns.count();
     let picked = false;
     for (let i = 0; i < n; i++) {

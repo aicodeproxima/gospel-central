@@ -283,17 +283,32 @@ describe('useDockGlide', () => {
     expect(isPinned()).toBe(true);
   });
 
-  it('leaves Escape to an open dialog/popover/select and keeps the pin (req 13)', () => {
-    // Base UI 1.3 never preventDefaults Escape and registers its own document
-    // listener AFTER ours, so the guard is presence-based: any of these
-    // surfaces in the DOM means one is open (none is kept mounted closed).
+  /** A Base UI popup as it really appears in the DOM: open ones carry data-open, closed ones data-closed. */
+  function mountPopup(slot: string, state: 'open' | 'closed') {
+    const popup = document.createElement('div');
+    popup.setAttribute('data-slot', slot);
+    popup.setAttribute(state === 'open' ? 'data-open' : 'data-closed', '');
+    document.body.appendChild(popup);
+    return popup;
+  }
+
+  const ESCAPE_OWNERS = [
+    'dialog-content',
+    'sheet-content',
+    'popover-content',
+    'select-content',
+    'dropdown-menu-content',
+  ];
+
+  it('leaves Escape to an OPEN dialog/sheet/popover/select/menu and keeps the pin (req 13)', () => {
+    // Base UI 1.3 never preventDefaults Escape and registers its document
+    // listener after ours, so the dock cannot detect the popup that way. It
+    // reads Base UI's own data-open instead.
     render(<Harness />);
     fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
 
-    for (const slot of ['dialog-content', 'popover-content', 'select-content', 'dropdown-menu-content']) {
-      const popup = document.createElement('div');
-      popup.setAttribute('data-slot', slot);
-      document.body.appendChild(popup);
+    for (const slot of ESCAPE_OWNERS) {
+      const popup = mountPopup(slot, 'open');
 
       fireEvent.keyDown(document, { key: 'Escape' });
       expect(isOpen(), `pin must survive Escape while a ${slot} is open`).toBe(true);
@@ -306,6 +321,23 @@ describe('useDockGlide', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(isOpen()).toBe(false);
     expect(isPinned()).toBe(false);
+  });
+
+  it('still closes on Escape when a CLOSED popup is force-mounted in the DOM (req 13)', () => {
+    // The /calendar shape: Base UI force-mounts closed Select popups, so two sit
+    // in the DOM from first paint. A presence-only guard would read those as
+    // "a popup is open" and make Escape a permanent dead end on that page.
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+
+    const lingering = ESCAPE_OWNERS.map((slot) => mountPopup(slot, 'closed'));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(isOpen(), 'a force-mounted CLOSED popup must not swallow Escape').toBe(false);
+    expect(isPinned()).toBe(false);
+
+    lingering.forEach((el) => el.remove());
   });
 
   it('drops an unpinned preview when the host unmounts, but a pin survives (/groups round-trip)', () => {

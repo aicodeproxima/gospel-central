@@ -4,12 +4,17 @@ import { loginAs } from './helpers/loginAs';
 
 /**
  * Dock and Glide on a TOUCH tablet (the tablet-touch project: 768×1024,
- * hasTouch, no mouse hover). This is the population that lost the old
- * always-visible icon rail: hover previews are deliberately ignored for
- * touch (pointerType gate, req 15), so every open is a tap on the hamburger —
- * which pins. These tests drive that journey with real taps, not mouse
- * synthesis (pinNav's toggle.click() emits pointerType 'mouse' and proves
- * nothing here).
+ * hasTouch, no mouse hover — verified: pointer:coarse, hover:none, and .tap()
+ * really does emit pointerType 'touch'). This is the population that lost the
+ * old always-visible icon rail: hover previews are deliberately ignored for
+ * touch (pointerType gate, req 15), so every open is a tap on the hamburger,
+ * which pins.
+ *
+ * What each test here proves: the gate itself is only observable in the
+ * dedicated pointerover test below — a completed tap ends open+pinned whether
+ * the gate holds or not, so the journey tests prove the TAP FLOW (routing, pin
+ * stickiness, dismissal, geometry, tap-target sizing), not the gate. The unit
+ * counterpart lives in use-dock-glide.itest.tsx ("ignores touch").
  */
 
 const nav = (page: Page) => page.getByTestId('floating-nav');
@@ -52,6 +57,19 @@ test.describe('floating nav — touch tablet', () => {
     await expect(nav(page)).toHaveAttribute('data-open', 'false');
     await expect(nav(page)).toHaveAttribute('data-pinned', 'false');
     await expect.poll(() => mainMargin(page)).toBe(80);
+  });
+
+  test('a touch pointer over the launcher never opens a preview (req 15 gate)', async ({ page }) => {
+    // The ONLY window where the capability gate is observable. A full tap ends
+    // open+pinned whether the gate works or not (the enter fires before the
+    // click, and the pin latch then vetoes the armed close) — so the tap tests
+    // below cannot see the gate at all. Land a touch pointerover WITHOUT
+    // completing the tap: this fails the moment someone drops the pointerType
+    // check in useDockGlide.
+    await nav(page).dispatchEvent('pointerover', { pointerType: 'touch', pointerId: 1, bubbles: true });
+    await page.waitForTimeout(200);
+    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+    await expect(nav(page)).toHaveAttribute('data-pinned', 'false');
   });
 
   test('a tap on the launcher never opens a mere (dismissable) preview', async ({ page }) => {
