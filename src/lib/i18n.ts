@@ -23,6 +23,9 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.alerts': 'Alerts',
     'nav.reports': 'Reports',
     'nav.signOut': 'Sign Out',
+    'nav.primary': 'Primary navigation',
+    'nav.pinOpen': 'Pin navigation open',
+    'nav.unpinClose': 'Unpin and close navigation',
 
     // ── Common buttons ──────────────────────────────────────────
     'btn.save': 'Save Changes',
@@ -452,6 +455,9 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.alerts': 'Alertas',
     'nav.reports': 'Informes',
     'nav.signOut': 'Cerrar Sesión',
+    'nav.primary': 'Navegación principal',
+    'nav.pinOpen': 'Fijar la navegación abierta',
+    'nav.unpinClose': 'Desfijar y cerrar la navegación',
 
     // ── Common buttons ──────────────────────────────────────────
     'btn.save': 'Guardar Cambios',

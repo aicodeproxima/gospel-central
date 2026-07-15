@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { loginAs } from '../helpers/loginAs';
+import { pinNav } from '../helpers/pinNav';
 import { MOCK_DATE, appendJsonl, assertClockActor, prefsState } from './_lib';
 
 /**
@@ -48,6 +49,9 @@ test('S1 profilePhoto → Sidebar avatar (same-page, persistent)', async ({ page
   await loginAs(page, 'member3');
   await page.goto('/settings');
   await page.waitForLoadState('networkidle');
+  // The persistent chrome is now the floating dock: its contents only exist for
+  // the user (and for a width>0 scan) once it is open, so pin it before sampling.
+  await pinNav(page);
 
   const before = { sidebar: await page.evaluate(sidebarAvatar), settings: await page.evaluate(settingsAvatar), store: (await prefsState(page))?.profilePhotoBase64 ?? null };
   await page.locator('input[type="file"][accept*="image"]').setInputFiles({ name: 'p.png', mimeType: 'image/png', buffer: Buffer.from(TINY_PNG, 'base64') });
@@ -61,7 +65,7 @@ test('S1 profilePhoto → Sidebar avatar (same-page, persistent)', async ({ page
   await log(page, {
     id: 'S1', domain: 'settings', mutation: 'set profilePhoto', actor_role: 'member3', trigger_surface: '/settings file input',
     expected_reflections: [
-      { site_id: 'sidebar.avatar', site: 'Sidebar.tsx:47 img(profilePhotoBase64)', instance: 'desktop', observe_how: 'DOM img src', expected_delta: 'null→data:', source_citation: 'components/layout/Sidebar.tsx:42,47' },
+      { site_id: 'sidebar.avatar', site: 'FloatingNav img(profilePhotoBase64)', instance: 'desktop', observe_how: 'DOM img src', expected_delta: 'null→data:', source_citation: 'components/layout/FloatingNav.tsx (desktop chrome since the Dock-and-Glide port)' },
       { site_id: 'settings.avatar', site: 'settings/page.tsx:302 img(profilePhotoBase64)', instance: 'desktop', observe_how: 'DOM img src', expected_delta: 'null→data:', source_citation: 'app/(dashboard)/settings/page.tsx:302' },
     ],
     expected_site_count: 2, must_NOT_change: ['nav.labels'], verdict,
@@ -77,6 +81,7 @@ test('S2 language en→es → Sidebar nav labels (same-page i18n)', async ({ pag
   await loginAs(page, 'member3');
   await page.goto('/settings');
   await page.waitForLoadState('networkidle');
+  await pinNav(page);
 
   const before = { nav: await page.evaluate(navLabels), store: (await prefsState(page))?.language ?? 'en' };
   await page.getByRole('button', { name: /español/i }).first().click();
@@ -88,7 +93,7 @@ test('S2 language en→es → Sidebar nav labels (same-page i18n)', async ({ pag
   const verdict = navChanged ? 'PASS' : 'LEAK';
   await log(page, {
     id: 'S2', domain: 'settings', mutation: 'language en→es', actor_role: 'member3', trigger_surface: '/settings Español',
-    expected_reflections: [{ site_id: 'sidebar.nav', site: 'Sidebar nav via useTranslation', instance: 'desktop', observe_how: 'DOM nav labels', expected_delta: 'en→es strings', source_citation: 'lib/i18n.ts:714 useTranslation; Sidebar.tsx:56 navItems' }],
+    expected_reflections: [{ site_id: 'sidebar.nav', site: 'FloatingNav nav via useTranslation', instance: 'desktop', observe_how: 'DOM nav labels', expected_delta: 'en→es strings', source_citation: 'lib/i18n.ts useTranslation; components/layout/nav-items.tsx useNavItems' }],
     expected_site_count: 1, must_NOT_change: [], verdict,
     leak_sites: verdict === 'LEAK' ? ['sidebar.nav'] : [], classification: verdict === 'LEAK' ? 'FRONTEND' : null,
     evidence: { before, after }, dedup_vs_prior: 'new',

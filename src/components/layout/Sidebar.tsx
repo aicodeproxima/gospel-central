@@ -4,47 +4,33 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import {
-  Calendar,
-  Users,
-  Contact,
-  Settings,
-  BarChart3,
-  BookOpen,
-  LogOut,
-  ChevronLeft,
-  Shield,
-  Bell,
-} from 'lucide-react';
+import { BookOpen, LogOut, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
-import { canAccessReports, canSeeAdminPage } from '@/lib/utils/permissions';
 import { Button } from '@/components/ui/button';
 import { ROLE_LABELS } from '@/lib/types';
 import { useTranslation } from '@/lib/i18n';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import { useAlerts } from '@/lib/hooks/use-alerts';
 import { APP_VERSION } from '@/lib/version';
-
-const navItemDefs = [
-  { href: '/dashboard', i18nKey: 'nav.dashboard', icon: BookOpen },
-  { href: '/calendar', i18nKey: 'nav.calendar', icon: Calendar },
-  { href: '/contacts', i18nKey: 'nav.contacts', icon: Contact },
-  { href: '/groups', i18nKey: 'nav.groups', icon: Users },
-  { href: '/settings', i18nKey: 'nav.settings', icon: Settings },
-  { href: '/alerts', i18nKey: 'nav.alerts', icon: Bell },
-];
+import { useNavItems, isNavItemActive } from './nav-items';
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
+/**
+ * The expanded slide-in navigation for the /groups immersive layout. The
+ * standard dashboard uses `FloatingNav` instead; both take their items from
+ * `useNavItems` so the two lists stay in lockstep.
+ */
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   const profilePhotoBase64 = usePreferencesStore((s) => s.profilePhotoBase64);
   const { unseen } = useAlerts();
+  const items = useNavItems();
 
   // Avatar for the footer — the profile photo set in Settings now propagates
   // here (it used to live only on the Settings page). Falls back to initials.
@@ -57,15 +43,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {user.firstName?.[0] ?? ''}{user.lastName?.[0] ?? ''}
       </div>
     ) : null;
-
-  const navItems = navItemDefs.map((d) => ({ ...d, label: t(d.i18nKey) }));
-  const items = [
-    ...navItems,
-    ...(user && canAccessReports(user.role) ? [{ href: '/reports', label: t('nav.reports'), icon: BarChart3 }] : []),
-    // Admin: Branch Leader and above. Hidden for Group Leader / Team Leader /
-    // Member — those tiers manage their people via /groups.
-    ...(canSeeAdminPage(user) ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
-  ];
 
   return (
     <motion.aside
@@ -98,7 +75,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-3">
         {items.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          const isActive = isNavItemActive(pathname, item.href);
           const Icon = item.icon;
           const showBadge = item.href === '/alerts' && unseen > 0;
           return (

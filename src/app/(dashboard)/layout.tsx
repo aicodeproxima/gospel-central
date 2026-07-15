@@ -4,25 +4,28 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { FloatingNav } from '@/components/layout/FloatingNav';
 import { Topbar } from '@/components/layout/Topbar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { TopbarSlotProvider } from '@/components/layout/TopbarSlot';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useDockGlide } from '@/lib/hooks/use-dock-glide';
+import { useMotionDefaults } from '@/lib/hooks/use-reduced-motion-safe';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { Menu, X } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
   const [immersiveOpen, setImmersiveOpen] = useState(false);
-  // Tablet band (768–1279px) renders the sidebar as an icon rail for more
-  // content room. At ≥1280 `tabletRail` is always false, so the user's
-  // `collapsed` state drives the sidebar exactly as before (desktop
-  // unchanged). <768 uses the bottom-nav branch instead.
-  const [tabletRail, setTabletRail] = useState(false);
-  // ≥768px (md+). Gates the sidebar marginLeft on the single main column (see
+  // The floating nav's machine lives here, above the immersive/standard fork,
+  // for two reasons: the main column has to react to `open` for its margin, and
+  // keeping the hook mounted across the fork means a pinned menu survives a
+  // round-trip through /groups (which renders the overlay Sidebar instead).
+  const dock = useDockGlide();
+  const { reduced } = useMotionDefaults();
+  // ≥768px (md+). Gates the nav marginLeft on the single main column (see
   // the consolidated standard layout below) so mobile has NO left offset. Lazy-
   // init from matchMedia so desktop paints at the correct margin on the first
-  // post-hydration render (no 0→256 slide). SSR/hydration is covered by the
+  // post-hydration render (no 0→80 slide). SSR/hydration is covered by the
   // `if (!hydrated)` spinner gate below, so there's no hydration mismatch.
   const [isMdUp, setIsMdUp] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
@@ -65,22 +68,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!isImmersive) setImmersiveOpen(false);
   }, [isImmersive]);
 
-  // Track the tablet band (icon-rail sidebar) AND md+ (sidebar margin gate).
-  // Client-only (post-hydration) so there's no SSR width mismatch.
+  // Track md+ (the nav margin gate). Client-only (post-hydration) so there's no
+  // SSR width mismatch. The old 768–1279 "tablet rail" band is gone: the dock is
+  // a 52px launcher at every md+ width, so there is no rail to force.
   useEffect(() => {
-    const railMq = window.matchMedia('(min-width: 768px) and (max-width: 1279px)');
     const mdMq = window.matchMedia('(min-width: 768px)');
-    const apply = () => {
-      setTabletRail(railMq.matches);
-      setIsMdUp(mdMq.matches);
-    };
+    const apply = () => setIsMdUp(mdMq.matches);
     apply();
-    railMq.addEventListener('change', apply);
     mdMq.addEventListener('change', apply);
-    return () => {
-      railMq.removeEventListener('change', apply);
-      mdMq.removeEventListener('change', apply);
-    };
+    return () => mdMq.removeEventListener('change', apply);
   }, []);
 
   // Block render until hydration finishes. Avoids both the flash and
@@ -156,21 +152,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   // -- Standard layout ------------------------------------------------------
-  // Tablet forces the rail; ≥1280 uses the user's collapsed state unchanged.
-  const effectiveCollapsed = tabletRail || collapsed;
   return (
     <TopbarSlotProvider>
       <div className="flex h-full">
-        {/* Desktop + tablet sidebar (fixed, out of flow). Tablet (768–1279) is
-            forced to the icon rail; ≥1280 keeps the user-togglable collapsed
-            state (unchanged). Hidden below md — mobile uses the bottom nav. */}
+        {/* Desktop + tablet navigation: the floating "Dock and Glide" menu
+            (fixed, out of flow). Hidden below md — mobile uses the bottom nav. */}
         <div className="hidden md:block">
-          <Sidebar
-            collapsed={effectiveCollapsed}
-            onToggle={() => {
-              if (!tabletRail) setCollapsed((c) => !c);
-            }}
-          />
+          <FloatingNav dock={dock} />
         </div>
 
         {/* SINGLE main column — renders {children} EXACTLY ONCE. Previously the
@@ -179,16 +167,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             with component-local state (e.g. /calendar's `bookings`) had two live
             instances and a mutation updated only one → stale UI until nav
             (FINDING-1). Consolidated to one render:
-              - marginLeft (room for the fixed sidebar) is gated to md+ via
-                isMdUp, so there is NO sub-768 shift; at ≥md it's the exact same
-                animated 72/256 as before → desktop pixel-identical.
+              - marginLeft (room for the floating nav) is gated to md+ via
+                isMdUp, so there is NO sub-768 shift; at ≥md it clears the
+                launcher (80) or the opened panel (284) — the page is never
+                underneath the menu.
               - mobile padding (p-4 + bottom-nav inset) is re-expressed as
                 responsive classes that reset to the old desktop p-6 at md+.
               - min-w-0 keeps the tablet/mobile reflow (H-03/H-05); inert at ≥1280. */}
         <motion.main
           initial={false}
-          animate={{ marginLeft: isMdUp ? (effectiveCollapsed ? 72 : 256) : 0 }}
-          transition={{ duration: 0.2, ease: 'easeInOut' }}
+          animate={{ marginLeft: isMdUp ? (dock.open ? 284 : 80) : 0 }}
+          transition={reduced ? { duration: 0 } : { duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
           className="flex min-w-0 flex-1 flex-col"
         >
           {needsTopbar && <Topbar />}
