@@ -105,13 +105,27 @@ export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
             aria-label={toggleLabel}
             title={toggleLabel}
             className={cn(
-              'grid h-[50px] w-[50px] min-w-[50px] place-items-center rounded-lg text-foreground transition-all outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50',
+              'relative grid h-[50px] w-[50px] min-w-[50px] place-items-center rounded-lg text-foreground transition-all outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50',
               glide,
               open && 'h-[54px] w-[54px] min-w-[54px]',
               pinned && 'bg-accent text-accent-foreground',
             )}
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
+            {/* Unread signal for the COLLAPSED dock — its default state. The
+                Alerts row's real badge lives in the panel, which is inert and
+                aria-hidden until opened, so without this every md+ user loses
+                the ambient "you have unread alerts" cue the old sidebar showed
+                at every width (phones keep it via MobileNav). Decorative only:
+                the authoritative, announced count stays on the Alerts row, and
+                the toggle keeps its stable pin/unpin accessible name. */}
+            {!open && unseen > 0 && (
+              <span
+                aria-hidden="true"
+                data-testid="floating-nav-unread-dot"
+                className="pointer-events-none absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card"
+              />
+            )}
           </button>
 
           <div

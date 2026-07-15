@@ -154,6 +154,25 @@ describe('FloatingNav', () => {
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument();
   });
 
+  it('signals unread alerts on the COLLAPSED launcher, not just inside the panel', () => {
+    // The dock's default state is collapsed, and the panel (where the real
+    // badge lives) is inert + aria-hidden until opened — so without this dot
+    // md+ users would have no unread cue at all.
+    mockAlerts.unseen = 4;
+    render(<Harness />);
+    expect(screen.getByTestId('floating-nav-unread-dot')).toBeInTheDocument();
+
+    // Once open, the Alerts row's own badge carries the count — no double signal.
+    hoverOpen();
+    expect(screen.queryByTestId('floating-nav-unread-dot')).toBeNull();
+    expect(screen.getByLabelText('4 unread alerts')).toBeInTheDocument();
+
+    cleanup();
+    mockAlerts.unseen = 0;
+    render(<Harness />);
+    expect(screen.queryByTestId('floating-nav-unread-dot')).toBeNull();
+  });
+
   it('caps the alert badge at 9+ while announcing the true count', () => {
     mockAlerts.unseen = 12;
     render(<Harness />);

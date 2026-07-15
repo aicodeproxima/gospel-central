@@ -253,6 +253,19 @@ test.describe('floating nav — dock and glide', () => {
     await expect(navBody(page).getByRole('button', { name: /sign out/i })).toBeVisible();
   });
 
+  test('the collapsed launcher still signals unread alerts', async ({ page }) => {
+    // Collapsed is the dock's default state and its panel is inert until
+    // opened, so this dot is the only unread cue md+ users get — the old
+    // sidebar showed the badge at every width.
+    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+    await expect(page.getByTestId('floating-nav-unread-dot')).toBeVisible();
+
+    // Open: the Alerts row's announced badge takes over, no double signal.
+    await pinNav(page);
+    await expect(page.getByTestId('floating-nav-unread-dot')).toHaveCount(0);
+    await expect(navBody(page).getByLabel(/unread alerts/)).toBeVisible();
+  });
+
   test('Reports and Admin stay gated by role', async ({ page }) => {
     await pinNav(page);
     await expect(navBody(page).getByRole('link', { name: 'Reports' })).toBeVisible();
