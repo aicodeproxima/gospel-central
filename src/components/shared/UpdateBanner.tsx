@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import {
   CURRENT_COMMIT,
@@ -24,6 +25,11 @@ const DISMISS_KEY = 'gospel-central-update-dismissed';
  * animation, so it's reduced-motion-safe by construction.
  */
 export function UpdateBanner() {
+  const pathname = usePathname();
+  // The dock only exists inside the (dashboard) layout — on the public pages
+  // (/login, /first-login) there is no launcher lane to clear, and the notch
+  // just looks broken.
+  const hasDock = pathname !== '/login' && pathname !== '/first-login';
   const { t } = useTranslation();
   const [deployedCommit, setDeployedCommit] = useState<string | null>(null);
 
@@ -77,7 +83,7 @@ export function UpdateBanner() {
       // launcher sits at top:14 with z-[47] — so a full-bleed bar covers the
       // ONLY md+ nav control and swallows its clicks until dismissed. The old
       // sidebar merely lost its wordmark here; its links stayed reachable.
-      className="fixed inset-x-0 top-0 z-[9999] bg-primary px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-primary-foreground md:left-20"
+      className={`fixed inset-x-0 top-0 z-[9999] bg-primary px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-primary-foreground${hasDock ? ' md:left-20' : ''}`}
     >
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm font-medium">
         <span>{t('banner.updateAvailable')}</span>

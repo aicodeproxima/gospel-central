@@ -340,7 +340,12 @@ test.describe('floating nav — narrow widths', () => {
       await page.setViewportSize({ width, height: 900 });
       await loginAs(page, 'admin');
       await expect(nav(page)).toBeVisible();
-      expect(await mainMargin(page)).toBe(80);
+      // Park the mouse away from the dock before reading the collapsed margin:
+      // iteration 1 ends with a click ON the toggle, and a stationary cursor
+      // re-evaluates hover when the next page lays out beneath it — which
+      // opens a preview and races this read toward 284.
+      await pointerAway(page);
+      await expect.poll(() => mainMargin(page)).toBe(80);
 
       await pinNav(page);
       const box = await navBox(page);

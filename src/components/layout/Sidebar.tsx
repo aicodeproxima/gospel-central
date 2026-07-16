@@ -125,10 +125,16 @@ export function Sidebar({ onClose }: SidebarProps) {
           </div>
         )}
         <div className="flex items-center gap-2">
+          {/* autoFocus: the /groups open-menu trigger unmounts while this
+              overlay is up, so focus must land INSIDE the drawer on open
+              (standard drawer contract; the layout restores it to the trigger
+              on close). This is the overlay's only close button — the trigger
+              no longer doubles as one. */}
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
+            autoFocus
             className="shrink-0"
             title={t('nav.closeMenu')}
             aria-label={t('nav.closeMenu')}

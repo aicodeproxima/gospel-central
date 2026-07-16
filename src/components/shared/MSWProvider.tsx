@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 import { isDeadBackendBuild } from './mock-guard';
 
@@ -24,6 +25,8 @@ const DEAD_BACKEND = isDeadBackendBuild();
  * the first fetch escaped to the dead backend).
  */
 export function MSWProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hasDock = pathname !== '/login' && pathname !== '/first-login';
   // Non-mock builds (real backend) never gate.
   const [ready, setReady] = useState(!MOCK);
 
@@ -72,7 +75,7 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
   const banner = DEAD_BACKEND ? (
     <div
       role="alert"
-      className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-black md:left-20"
+      className={`fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-black${hasDock ? ' md:left-20' : ''}`}
     >
       Demo data isn’t active on this build — open the mock preview link instead.
     </div>

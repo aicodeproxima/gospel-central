@@ -34,4 +34,18 @@ export async function pinNav(page: Page): Promise<void> {
       { timeout: 10_000 },
     )
     .toBeGreaterThanOrEqual(255);
+
+  // The page margin is a SEPARATE framer tween on <main> (80 → 284) that the
+  // aside's width settle does not cover — at Playwright-WebKit's ~3fps it can
+  // still be mid-glide (or un-started) when the aside is already 256px wide,
+  // so callers comparing main/nav geometry raced it. Settle both.
+  const main = page.locator('main');
+  if (await main.count()) {
+    await expect
+      .poll(
+        async () => Math.round(parseFloat(await main.evaluate((el) => getComputedStyle(el).marginLeft))),
+        { timeout: 10_000 },
+      )
+      .toBe(284);
+  }
 }

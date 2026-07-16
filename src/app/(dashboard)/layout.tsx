@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -11,11 +11,14 @@ import { TopbarSlotProvider } from '@/components/layout/TopbarSlot';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDockGlide } from '@/lib/hooks/use-dock-glide';
 import { useMotionDefaults } from '@/lib/hooks/use-reduced-motion-safe';
+import { useTranslation } from '@/lib/i18n';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
-import { Menu, X } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [immersiveOpen, setImmersiveOpen] = useState(false);
+  const immersiveToggleRef = useRef<HTMLButtonElement | null>(null);
+  const wasImmersiveOpenRef = useRef(false);
   // The floating nav's machine lives here, above the immersive/standard fork,
   // for two reasons: the main column has to react to `open` for its margin, and
   // keeping the hook mounted across the fork means a pinned menu survives a
@@ -31,6 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
   );
   const { isAuthenticated, hydrated, hydrate, user } = useAuthStore();
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const isImmersive = pathname === '/groups';
@@ -67,6 +71,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isImmersive) setImmersiveOpen(false);
   }, [isImmersive]);
+
+  // Drawer focus contract: the open-menu button unmounts while the overlay is
+  // up (it duplicated the panel's X and the backdrop, and its slid-out position
+  // sat under the update banner), so when the overlay CLOSES focus must come
+  // back to the trigger rather than dropping to <body>.
+  useEffect(() => {
+    if (wasImmersiveOpenRef.current && !immersiveOpen) {
+      immersiveToggleRef.current?.focus({ preventScroll: true });
+    }
+    wasImmersiveOpenRef.current = immersiveOpen;
+  }, [immersiveOpen]);
 
   // Track md+ (the nav margin gate). Client-only (post-hydration) so there's no
   // SSR width mismatch. The old 768–1279 "tablet rail" band is gone: the dock is
@@ -105,19 +120,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </ErrorBoundary>
         </div>
 
-        {/* Floating hamburger / close button — slides to the sidebar's right
-            edge when the menu is open so it doesn't cover the sidebar header. */}
-        <motion.button
-          type="button"
-          onClick={() => setImmersiveOpen((v) => !v)}
-          aria-label={immersiveOpen ? 'Close menu' : 'Open menu'}
-          initial={false}
-          animate={{ left: immersiveOpen ? 208 : 16 }}
-          transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-          className="fixed top-4 z-50 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground shadow-lg backdrop-blur-md transition hover:bg-card hover:scale-105"
-        >
-          {immersiveOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </motion.button>
+        {/* Floating open-menu button. Rendered ONLY while the overlay is
+            closed: while open it used to slide to the panel's right edge
+            (left:208) — directly under the update banner's z-[9999] strip, so
+            a deploy made it unclickable — and it duplicated two other close
+            affordances (the panel's X and the backdrop). Closed, it sits at
+            left:16 inside the banner's cleared md+ lane. */}
+        <AnimatePresence>
+          {!immersiveOpen && (
+            <motion.button
+              ref={immersiveToggleRef}
+              type="button"
+              onClick={() => setImmersiveOpen(true)}
+              aria-label={t('nav.openMenu')}
+              title={t('nav.openMenu')}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduced ? 0 : 0.15 }}
+              className="fixed left-4 top-4 z-50 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground shadow-lg backdrop-blur-md transition hover:bg-card hover:scale-105"
+            >
+              <Menu className="h-5 w-5" />
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         {/* Slide-in sidebar overlay */}
         <AnimatePresence>
