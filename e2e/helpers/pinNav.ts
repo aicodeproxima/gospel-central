@@ -21,11 +21,17 @@ export async function pinNav(page: Page): Promise<void> {
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await expect(nav).toHaveAttribute('data-open', 'true');
-  // The width transition is 220ms; wait it out so callers measure or click a
-  // settled panel rather than a mid-glide one. Threshold rather than an exact
-  // width: ≥1280 the root `zoom: 0.9` renders the 256px panel at 230.4 device
-  // px, so only "much wider than the 52px launcher" is true at every width.
+  // Wait for the 220ms glide to FINISH, not merely to start: callers measure
+  // geometry against this, and a mid-glide panel yields a smaller dock and a
+  // half-moved page margin. Assert the authored computed width (~256px —
+  // zoom-independent, unlike boundingBox, which the >=1280 root zoom scales to
+  // 230.4) so the settle test is the same at every width. A loose "wider than
+  // the launcher" threshold raced the animation on Playwright-WebKit, which
+  // renders this page at ~3fps.
   await expect
-    .poll(async () => (await nav.boundingBox())?.width ?? 0, { timeout: 2_000 })
-    .toBeGreaterThan(200);
+    .poll(
+      async () => parseFloat(await nav.evaluate((el) => getComputedStyle(el).width)),
+      { timeout: 10_000 },
+    )
+    .toBeGreaterThanOrEqual(255);
 }

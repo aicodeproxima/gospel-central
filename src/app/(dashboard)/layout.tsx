@@ -137,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 transition={{ type: 'spring', damping: 24, stiffness: 260 }}
                 className="fixed left-0 top-0 z-[46] h-full"
               >
-                <Sidebar collapsed={false} onToggle={() => setImmersiveOpen(false)} />
+                <Sidebar onClose={() => setImmersiveOpen(false)} />
               </motion.div>
             </>
           )}

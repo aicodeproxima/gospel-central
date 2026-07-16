@@ -253,6 +253,39 @@ test.describe('floating nav — dock and glide', () => {
     await expect(navBody(page).getByRole('button', { name: /sign out/i })).toBeVisible();
   });
 
+  test('a top banner never covers the launcher — the only md+ nav control', async ({ page }) => {
+    // The update banner is fixed top-0 at z-[9999], ~60px tall (min-h-11
+    // buttons); the launcher sits at top:14 with z-[47]. Full-bleed, the bar
+    // sat right on it and swallowed its clicks until dismissed — the old
+    // sidebar only lost its wordmark, its links stayed reachable.
+    await page.route('**/version.json*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          version: '99.0.0',
+          commit: 'e2e0different0commit0000000000000000000000',
+          shortCommit: 'e2e0dif',
+          branch: 'main',
+          buildTime: '2030-01-01T00:00:00.000Z',
+        }),
+      }),
+    );
+    await page.goto('/dashboard');
+    const banner = page.locator('[role="alert"]').filter({ hasText: /new version is available/i });
+    await expect(banner).toBeVisible();
+
+    // The bar must start clear of the launcher's lane...
+    const b = (await banner.boundingBox())!;
+    const l = (await navBox(page))!;
+    expect(b.x, 'banner must start right of the launcher').toBeGreaterThanOrEqual(l.x + l.width);
+
+    // ...and the launcher must still actually take a click. Generous timeout:
+    // Playwright-WebKit drives this page at ~3fps, so waiting for the element
+    // to settle is slow — a tight bound here measures the renderer, not the bug.
+    await toggle(page).click({ timeout: 15_000 });
+    await expect(nav(page)).toHaveAttribute('data-open', 'true');
+  });
+
   test('the collapsed launcher still signals unread alerts', async ({ page }) => {
     // Collapsed is the dock's default state and its panel is inert until
     // opened, so this dot is the only unread cue md+ users get — the old

@@ -66,10 +66,13 @@ export function MSWProvider({ children }: { children: React.ReactNode }) {
   // z-[9999] deliberately tops the app's documented z-ladder (max 60,
   // BookingWizard overlay) — a dead-backend build is non-functional, so the
   // warning must outrank everything. pt accounts for the iOS notch.
+  // md:left-20 keeps it clear of the floating nav's 80px lane: a full-bleed
+  // bar at top:0 covers the dock's launcher (top:14, z-[47]) — the only md+
+  // nav control — and swallows its clicks.
   const banner = DEAD_BACKEND ? (
     <div
       role="alert"
-      className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-black"
+      className="fixed inset-x-0 top-0 z-[9999] bg-amber-500 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-black md:left-20"
     >
       Demo data isn’t active on this build — open the mock preview link instead.
     </div>

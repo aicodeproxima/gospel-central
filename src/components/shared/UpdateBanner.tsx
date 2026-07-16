@@ -72,7 +72,12 @@ export function UpdateBanner() {
   return (
     <div
       role="alert"
-      className="fixed inset-x-0 top-0 z-[9999] bg-primary px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-primary-foreground"
+      // md:left-20 keeps the bar out of the floating nav's 80px lane. It is
+      // ~60px tall (min-h-11 buttons) at top:0 with z-[9999], and the dock's
+      // launcher sits at top:14 with z-[47] — so a full-bleed bar covers the
+      // ONLY md+ nav control and swallows its clicks until dismissed. The old
+      // sidebar merely lost its wordmark here; its links stayed reachable.
+      className="fixed inset-x-0 top-0 z-[9999] bg-primary px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-primary-foreground md:left-20"
     >
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm font-medium">
         <span>{t('banner.updateAvailable')}</span>
