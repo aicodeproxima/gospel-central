@@ -2,9 +2,10 @@
 
 # Gospel Central — project rules & facts
 
-Gospel Central (renamed from "Diamond" 2026-06-27) is a **Bible-study room-booking admin/dashboard** app (frontend only). Mock backend; real Go
-backend cutover to Mike's `gospel-experience` is pending. This file loads automatically when working in
-this repo — keep it current.
+Gospel Central (renamed from "Diamond" 2026-06-27) is a **Bible-study room-booking admin/dashboard** app. Prod runs the
+in-bundle MSW mock; the real backend is OUR Supabase project (solo build since the 2026-07-05 pivot — Mike is off the
+project). The prod flip is owner-gated behind `docs/FLIP-PRECONDITIONS.md`. This file loads automatically when working
+in this repo — keep it current.
 
 ## Stack
 - **Next.js 16.2.3** (App Router, Turbopack) · **React 19.2.4** · TypeScript 5 · **Tailwind CSS v4**
@@ -16,9 +17,13 @@ this repo — keep it current.
 - iOS-Safari mock fix pins **`@mswjs/interceptors` at exact `0.41.3`** (not `^`).
 
 ## Repo / hosting
-- Canonical checkout: `C:\Users\aicod\Projects\_src\diamond-live` on branch **`feat/mobile-opt-main`**.
-  A second worktree at `C:\Users\aicod\Diamond` exists on the OLDER `feat/mobile-optimization` branch —
-  the user keeps both deliberately; do NOT edit `C:\Users\aicod\Diamond` without confirming.
+- Canonical checkout: `C:\Users\aicod\Projects\_src\diamond-live` on branch **`main`** — the ONLY
+  checkout and the only worktree (repo-cleanup 2026-07-17: 16 stale local branches, 9 stale remotes,
+  4 extra worktrees, 2 stashes retired behind `archive/*` tags; the old `C:\Users\aicod\Diamond`
+  clone was deleted after salvage — exec log `Case Study/audit/cleanup-2026-07-17.jsonl`).
+  Branch topology is exactly `main` + `feat/supabase-cutover`; cutover contains NO unique commits
+  and exists ONLY as the real-backend preview channel (branch-scoped Vercel env `MOCK_API=false`) —
+  fast-forward it to `main` after work lands. Fixes/features land on `main`.
 - Origin `github.com/aicodeproxima/gospel-central` (renamed from `Diamond` 2026-06-27; GitHub redirects the old path). Vercel project **`gospel-central`**, team `aicodeproximas-projects`
   (`team_vILmEnHlW1iEzWxhM3UJhzim`), git-connected; production branch `main` auto-deploys prod in ~40–90s.
 - **Prod URL is `gospel-central.vercel.app`** (legacy `diamond-delta-eight.vercel.app` also still resolves;
@@ -178,9 +183,10 @@ this repo — keep it current.
   was visibly broken. Reproduce the ISSUE the same way before claiming a root cause. Only a defect
   a user can never see or feel (build/type/invisible race) is exempt. See "Verification standard →
   THE USER'S EXPERIENCE ON PROD IS GOSPEL" — that section governs this whole file.
-- **NEVER merge or push `feat/mobile-opt-main` to `main`** — integration is the user's deliberate,
-  still-pending decision (needs Mike coordination). The real-backend cutover contract lives on `main`
-  (`docs/MIKE_HANDOFF.md`, `docs/BACKEND_GAPS.md`).
+- **NEVER flip prod to the real backend without `docs/FLIP-PRECONDITIONS.md`** — the flip is
+  owner-gated; Production currently has NO Supabase env rows, so `MOCK_API=false` alone is an
+  outage. (The old "never push feat/mobile-opt-main" rule is retired — that branch is archived
+  and deleted; its work is fully contained in `main`.)
 - **ALWAYS `git fetch` + compare to `origin/main`, and enumerate branches (`git branch -a`) before editing
   or building** — Diamond has had overlapping mobile branches rebuild the same surface (AgendaView, Tree3D,
   MSW SW-gate). Deployed/pushed is truth.

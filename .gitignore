@@ -65,3 +65,14 @@ vendor/*/node_modules/
 
 # masked-PAT capture artifacts from browser-automation sessions (SEC-7)
 .playwright-mcp/
+
+# local-only working artifacts (repo-cleanup 2026-07-17) — the "local == online 1-for-1"
+# invariant: these stay on this machine, never in history. git add -A stays safe.
+/Assets/
+/Case Study/
+/Things to work on/
+/tmp/
+/docs/dropdown-audit-2026-07-08/
+/OVERHAUL_PROGRESS.md
+/DOCK_GLIDE_PROGRESS.md
+/admin-things-to-pay.png

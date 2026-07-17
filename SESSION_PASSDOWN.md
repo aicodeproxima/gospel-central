@@ -1,6 +1,119 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **✅✅✅ LATEST — CUTOVER RE-VERIFY CLOSURE PLAN EXECUTED + BOTH CAVEATS RESOLVED (2026-07-14). Branch tip `074e8ca` (pushed).**
+> **🧹 LATEST — REPO/GIT/VERCEL/SUPABASE CLEANUP EXECUTED (2026-07-17, after REV3).** The
+> "local == online 1-for-1" invariant now HOLDS: branch topology is exactly **`main` +
+> `feat/supabase-cutover`** both sides (16 locals + 9 remotes retired behind 6 `archive/*` tags —
+> 5 pushed; `archive/stash-dropdown-1` is LOCAL-only, GitHub GH001-rejected its 955MB untracked
+> parent), worktrees 5→1, stashes dropped, `C:\Users\aicod\Diamond` clone DELETED after salvage,
+> `git status` clean (gitignore now covers the local-only artifact dirs). **Salvage highlights:**
+> stash@{1} secretly held the ONLY copy of the Meeting-1 Zoom recordings/transcripts/notes →
+> extracted to `Case Study/archive/stash1-untracked-2026-07-04/` (877MB); an uncommitted 93-line
+> mock-parity diff from the wt-mock-parity worktree → `Case Study/archive/wt-mock-parity-uncommitted-2026-07-17.patch`.
+> **New tools:** `scripts/verify-schema.mjs` (80/80 file-derived markers green vs live Supabase,
+> G8-tested; the survey's "19 triggers" was wrong — file-derived 14 confirmed) and
+> **`docs/FLIP-PRECONDITIONS.md`** (dated `vercel env ls` evidence: Production has NO Supabase
+> rows — `MOCK_API=false` alone = outage; ordering + post-flip probes + rollback). The
+> bash-guard's mobile-opt-main/admin-system push rules are RETIRED. `feat/supabase-cutover`
+> carries no unique commits (ancestor of main) and lives on ONLY as the real-backend preview
+> channel — fast-forward it to main after work lands. Cutover-era "on the other branch" claims
+> below this block are historical. Exec log: `Case Study/audit/cleanup-2026-07-17.jsonl`.
+> Prior context: Plan C (`8869646`) shipped the /groups dock-clearance fix the same day.
+
+> **✅🔁 LATEST-1 — REV2→REV3 VERIFICATION RUN COMPLETE (2026-07-17).** All 20 findings in
+> `Things to work on/Things to work on REV2 07142026.txt` verified LIVE on prod (main @ 9c2d30b,
+> Playwright, admin + branch1 sessions) → deliverable written:
+> **`Things to work on/Things to work on REV3 07172026.md`** + 9 evidence PNGs in
+> `Things to work on/rev3-evidence/`. **Score: 2/20 PATCHED (#6 partners unrestricted,
+> #12 contacts-under-teacher), 17 OPEN, 1 PARTIAL (#19 state persistence).** Each OPEN item
+> carries live repro + root cause + file:line + fix direction — a fix session can start cold from
+> REV3 alone. Highlights: #8 star trail root cause is GoldStarTrail fixed-divs × `:root zoom:0.9`
+> (proven 100→90 px, NOT the canvas); #15 expand-all centers the ROOT'S whole 17.8k-px subtree
+> container (block:'center') = the "random name"; #11 default marble on /groups measures ~2.5:1
+> contrast (AA needs 4.5); #7 wizard-created contact gets NO groupName (E2E proven); #20 = APPROVED
+> policy change (user 2026-07-17: BLs alternate physically between branches) with live baseline
+> 403-cross/200-own — scope = permissions.ts buildManageableScope + PERMISSIONS.md + test pins +
+> `viewerManageableUserIds` mock gates (NOT viewerSubtreeUserIds = read scope) + Supabase RLS
+> migration, all four sources together. **Step 5 adversarial cross-check ran and its 5 corrections
+> are APPLIED** (wrong mock-helper name in #20, #14 render-site undercount 4→7+2, #9 12:00pm
+> end-marker wording, line drifts #2/#4/#13, #11 wording). Docs stay UNTRACKED (repo convention).
+> The plan-named file `REV3 07152026` was superseded by the current-date name per user instruction.
+> Historical run ledger below (Entries 1–4).
+>
+> - **Entry 1 — Step 1 setup + Step 2 #14 code-map (DONE).** GROUND-TRUTH DRIFT: prod is now
+>   **main @ `9c2d30b`** (built 2026-07-17T04:54Z; plan said 94fa544 — stale). Checkout branch is
+>   now **main**; old cutover tip `a6e8bed` IS an ancestor of HEAD (branches converged; Dock&Glide
+>   nav is live on prod). Diffed `a6e8bed..HEAD`: ALL changes are nav-chrome → **every recon verdict
+>   in the plan table remains valid** (re-checked: settings still has NO groupsDefaultView control
+>   (#10); `nav.groups` still 'Groups' (#13)). **#14 mapped:** the rename target is
+>   `contact.currentStep` rendered as literal "Step {n}" at ContactDetailDialog.tsx:490,
+>   OrgNode.tsx:366, Tree3D.tsx:427, dashboard/page.tsx:336 (field: contact.ts:70). The i18n keys
+>   `wizard.step`/`misc.step` are wizard PROGRESS counters (BookingWizard.tsx:670,
+>   CreateUserWizard.tsx:212) — different concept, flag in REV3, presumably NOT renamed.
+>   Session: Playwright on prod, authenticated as Michael/Dev (persisted profile), desktop viewport.
+>   Early live: version footer `v1.0.0 · 9c2d30b` (#17); "Your Group" expanded, no collapse control (#18).
+> - **Entry 2 — Step 3 "Groups (desktop)" (DONE). All 8 verdicts live-confirmed:**
+>   **#1 OPEN** — contact "Abidan Ben-Gideoni" visible in tree, search "Abidan" → "No matches found"
+>   (evidence: rev3-evidence/groups-01-search-misses-contact.png). **#3b OPEN** — "iel" matches
+>   Gabriel/Gamaliel mid-name (substring); "Newport" returns users via church metadata; no highlight.
+>   **#4 OPEN** — Pipeline→First Study→Ahira Ben-Enan opens the Groups "Contact Details" dialog
+>   (status-button row), NOT ContactForm (groups-04-pipeline-contactdetails-modal.png). **#8 ROOT
+>   CAUSE REVISED + PROVEN**: it is NOT ParticleBackground (its geometry checks out) — it is
+>   **GoldStarTrail.tsx** (marble default theme): fixed divs at `left:clientX px` under
+>   `:root{zoom:0.9}` paint at ×0.9 — measured live: spawn@100→renders@90, 300→270, 600→540.
+>   Trail lands at 90% of cursor pos, drift grows toward bottom-right. Fix: divide by effective
+>   zoom (precedent: BookingSearchBar /rootZoom) or exclude the class from zoom. **#11 OPEN,
+>   root-cause refined**: /groups ALWAYS renders a dark starfield backdrop when
+>   backgroundStyle='none' (groups/page.tsx:368-376 `bg-[#04071a]`) while DEFAULT marble keeps
+>   near-black text; ContactLeaf `bg-card/40` → white@~0.3 over near-black = card rgb(79,81,95)
+>   vs text rgb(14,13,13) = **contrast ~2.5:1 (WCAG AA needs 4.5:1)** — fails on the DEFAULT
+>   theme, not just exotic combos (groups-15-expandall-scrolljump.png shows it). **#12 PASS** —
+>   contacts nested under own teacher incl. Members (Gamaliel→Samson, Simeon Niger→Adam etc.).
+>   **#13 OPEN** — dock nav label "Groups" (H1 is "Organization", tab is "Org Tree"). **#14 live** —
+>   "Step N" labels render throughout list view (21× "Step 4" etc.). **#15 OPEN + mechanism
+>   sharpened**: Expand click → scrollTop 0→7490/17875, centers "Simeon Niger" — requestFocus(root)
+>   scrollIntoView(block:'center') centers the ROOT'S WHOLE ~17.8k-px subtree container, so
+>   viewport lands mid-tree = the "random name".
+> - **Entry 3 — Groups-mobile + Contacts + Calendar page-groups (DONE):**
+>   **#2 OPEN (proven numerically @275×596):** search input rect x64–137 vs List/3D/overflow
+>   cluster x134–207 = geometric overlap; input squeezed to ~57px visible; NO magnifier collapse
+>   (groups-02-mobile-275-default.png). **#3a OPEN:** "B" under default All-fields returns 40
+>   contacts incl. Abidan Ben-Gideoni/Ahira Ben-Enan (word-start matcher hits "Ben-" +
+>   church metadata); DEFAULT Table view has ZERO `<mark>` highlights; Grid view highlights
+>   name-only (12 of 40 cards) with `bg-primary/25` (theme tint, NOT yellow)
+>   (contacts-03a-searchB-grid-highlight.png). **#5 OPEN:** New Contact form "Assigned teacher"
+>   renders 73 options EXPANDED on mount; Status properly collapsed
+>   (contacts-05-teacher-list-preexpanded.png). **#6 PASS w/ nuance:** partner (Branches) field
+>   has NO hierarchy scoping ("Jose" → Josephs across branches incl. mid-string matches); nuance:
+>   plain members (Clement) get no SUGGESTION in ContactForm (leaders+teacher-tag filter,
+>   ContactForm.tsx:135-147) though free text accepts anyone; ContactDetailDialog offers ALL users
+>   — inconsistency to flag. **#3c OPEN:** calendar search "iel" → "Gamaliel | Member" substring,
+>   0 marks; roleLabel matching pinned in code (BookingSearchBar.tsx:93-101). **#9 OPEN (live):**
+>   "All day" selects only 9/32 slot buttons = 8:00am–12:00pm morning block
+>   (calendar-09-allday-morning-only.png). **#7 OPEN (end-to-end):** booked Bible Study on NN Zion
+>   (Room 2, Joseph, new contact "Rev3 Testcontact") → created contact has groupName ABSENT +
+>   no locationId (confirm step has no church field either); teacher DID set (u-branch-1).
+>   Mock reseed on reload auto-cleaned the test contact (verified gone). **#19 evidence:**
+>   contacts view=grid PERSISTED across reload (localStorage contacts.view); calendar Week→reload→
+>   back to Day (live view/date/church NOT remembered — only the pref default is).
+> - **Entry 4 — Alerts + Settings + #20 baseline (DONE). STEP 3 COMPLETE — all 20 items verified live:**
+>   **#16 OPEN:** alert rows show only details + actor + timestamp ("Created Group Meeting
+>   booking | Michael | Jul 13, 5:11 PM") — no target/entity/reason (model has
+>   entityType/entityId/before/after/reason unshown). **#10 OPEN:** Settings has "Calendar
+>   Preferences → Default View" but NO Groups equivalent (full page text swept). **#17 OPEN:**
+>   About = v1.0.0 · 9c2d30b · built Jul 17 2026 · main; version still 1.0.0 → bump package.json
+>   (generate-version.mjs derives the rest). Settings also lists the backgroundStyle picker
+>   (None/Galaxy/Prismatic Burst/Light Pillar/Floating Lines/Liquid Chrome/Beams) = the "combo"
+>   axis for #11. **#20 baseline (as branch1, BL Newport News):** PUT VB contact → 403
+>   PERMISSION_DENIED; PUT own-branch NN contact → 200; GET sees all 70 contacts (READ-all).
+>   Baseline for the APPROVED relaxation. Signed back in as admin (browser left on /dashboard).
+>   Own-branch probe note wrote notes='rev3-authz-probe' to mock contact Abel — in-memory only,
+>   wiped on any reload (already reloaded since).
+> - **Resume pointer:** next = Step 4 write REV3 → `Things to work on/Things to work on REV3
+>   07172026.md` (structure: header + 20 items, original wording + Verdict/Live
+>   verification/Root cause/Fix direction), then Step 5 adversarial cross-check agent, final
+>   passdown entry. Evidence set (9 PNGs) complete in `Things to work on/rev3-evidence/`.
+
+> **✅✅✅ PRIOR — CUTOVER RE-VERIFY CLOSURE PLAN EXECUTED + BOTH CAVEATS RESOLVED (2026-07-14). Branch tip `074e8ca` (pushed).**
 > Supersedes everything below that conflicts. All 5 owner-approved follow-ups (a–e) done; the whole
 > re-verify loop is closed. Anti-drift exec log + summary:
 > `Case Study/audit/remediation-verify/reverify-2026-07-14.jsonl` + `SUMMARY-2026-07-14.md` (also backed
@@ -255,8 +368,9 @@
 > `feat/supabase-cutover` (8 commits ahead, tip `5bb6734`) branched at `5e6f30f` and does NOT contain
 > `ebc0e24` — fold it in when the cutover eventually lands on main (clean: their files vs my api layer
 > don't overlap). Re-derive `origin/main` live before any main-targeting action — this checkout is a
-> shared moving target. The backend migrations are ALSO committed on `feat/mobile-opt-main` (push
-> guard-blocked). **NEVER push feat/mobile-opt-main / feat/admin-system** (bash-guard hook). **Rotate
+> shared moving target. ~~The backend migrations are ALSO committed on `feat/mobile-opt-main` (push
+> guard-blocked). NEVER push feat/mobile-opt-main / feat/admin-system (bash-guard hook).~~
+> **[2026-07-17: both branches retired+archived; the hook rules are gone — see LATEST.]** **Rotate
 > the `sbp_` PAT + `sb_secret` key** — used this session; user said they'd rotate later. The MSW mock
 > stays PERMANENT dev/test/demo infra (CLAUDE.md), NOT removed by the cutover.
 >
