@@ -16,8 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // The floating nav's machine lives here, above the immersive/standard fork,
   // for two reasons: the main column has to react to `open` for its margin, and
   // keeping the hook mounted across the fork means a pinned menu survives a
-  // round-trip through /groups (which renders the overlay Sidebar instead).
-  const dock = useDockGlide();
+  // round-trip through /groups.
   const { reduced } = useMotionDefaults();
   // ≥768px (md+). Gates the nav marginLeft on the single main column (see
   // the consolidated standard layout below) so mobile has NO left offset. Lazy-
@@ -31,6 +30,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const isImmersive = pathname === '/groups';
+  // /groups is the one page whose PRIMARY interaction surface lives under the
+  // dock — the user orbits the 3D tree by dragging, launcher corner included —
+  // so an incidental mouse sweep must not fling the panel open across the
+  // canvas (it swallowed the next click and pinned itself). Click/focus only
+  // there, which is how that page's previous slide-in menu worked anyway.
+  const dock = useDockGlide({ hoverOpens: !isImmersive });
   // Only /calendar renders the Topbar — it hosts the calendar's toolbar
   // (navigation, view switcher, search). The other pages don't need a
   // top chrome row; theme controls live in /settings instead.
@@ -93,7 +98,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // now carries into and out of /groups with zero special-casing.
   if (isImmersive) {
     return (
-      <div className="relative h-full w-full overflow-hidden">
+      // data-dock-open lets the fullscreen page shift its own floating chrome
+      // clear of the open panel (the canvas keeps the whole viewport, so there
+      // is no margin doing it for them — see groups/page.tsx's toolbar).
+      <div className="relative h-full w-full overflow-hidden" data-dock-open={isMdUp && dock.open}>
         {/* Fullscreen content — wrapped so a render error in /groups
              reports to /api/error-log with the viewer's id/role/url */}
         <div className="h-full w-full">

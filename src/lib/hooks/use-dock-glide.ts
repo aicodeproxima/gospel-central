@@ -67,7 +67,23 @@ export interface UseDockGlideResult {
   onItemActivated: (event: React.MouseEvent) => void;
 }
 
-export function useDockGlide(): UseDockGlideResult {
+export interface UseDockGlideOptions {
+  /**
+   * Whether a hover-capable pointer entering the dock opens a preview
+   * (requirement 7). Default true.
+   *
+   * Set false where the dock floats over the page's PRIMARY interaction
+   * surface — /groups' 3D org tree, which the user orbits by dragging the very
+   * corner the launcher occupies. There, an incidental mouse sweep would open a
+   * 256px panel across the canvas and swallow the next click meant for the
+   * scene (observed: a sweep opened it, and the following drag-click landed on
+   * the toggle and pinned it). Those pages open on deliberate click/focus only
+   * — which is also exactly how /groups' previous slide-in menu behaved.
+   */
+  hoverOpens?: boolean;
+}
+
+export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): UseDockGlideResult {
   const [open, setOpenState] = useState(false);
   const [pinned, setPinnedState] = useState(false);
 
@@ -166,13 +182,17 @@ export function useDockGlide(): UseDockGlideResult {
   const onPointerEnter = useCallback(
     (event: React.PointerEvent) => {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      // Tracked even when hover cannot OPEN the dock: the close-timer guard
+      // reads this to know the pointer is still resting on an already-open
+      // panel, whatever opened it.
       hoveredRef.current = true;
+      if (!hoverOpens) return;
       // Capability is read off the EVENT, not a device-wide media query, so a
       // mouse attached to a touchscreen still gets the hover preview and a
       // finger on that same screen does not.
       if (event.pointerType !== 'touch') setOpen(true);
     },
-    [setOpen],
+    [setOpen, hoverOpens],
   );
 
   const onPointerLeave = useCallback(

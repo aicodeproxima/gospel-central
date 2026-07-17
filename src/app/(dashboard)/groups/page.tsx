@@ -427,7 +427,7 @@ export default function GroupsPage() {
           mid-width steps here (page-side only; toolbar classes untouched)
           gives the wrapped toolbar room without affecting >=xl (pt-24) or
           the <sm phone layout (pt-28, single column, dropdown menu). */}
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 md:pt-32 lg:pt-28 xl:pt-24">
+      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 md:pt-32 lg:pt-28 xl:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:[[data-dock-open=true]_&]:pl-[284px]">
         <div className="mx-auto max-w-6xl">
           <TeacherMetricsCards
             metrics={metrics}
@@ -439,7 +439,7 @@ export default function GroupsPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24">
+      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:[[data-dock-open=true]_&]:pl-[284px]">
         <div className="mx-auto max-w-6xl">
           <StudentPipeline contacts={contacts} users={users} onContactSelect={openContactById} />
         </div>
@@ -450,7 +450,16 @@ export default function GroupsPage() {
           data-tree-frame-top: its bottom edge is the TOP frame the camera-fit math
           centers the tree below (measured live, so it tracks the real toolbar height
           at any zoom). */}
-      <div data-tree-frame-top className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 sm:p-4 sm:pl-20">
+      {/* pl-16/sm:pl-20 clears the COLLAPSED dock launcher (14 + 52 = 66px).
+          When the dock opens it grows to 270px and would sit right on the
+          search bar — and this page has no content margin to push things aside
+          (the canvas is deliberately fullscreen), so the toolbar clears the
+          open panel itself. 284px matches the margin every other page animates
+          to. The dock only exists at md+, hence the md: gate. */}
+      <div
+        data-tree-frame-top
+        className="pointer-events-none absolute left-0 right-0 top-0 z-[45] flex flex-col gap-2 p-3 pl-16 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none sm:p-4 sm:pl-20 md:[[data-dock-open=true]_&]:pl-[284px]"
+      >
         {/* Single row: title + search + action buttons all on the same line */}
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <div className="hidden xl:flex items-center gap-2 rounded-full border border-white/15 bg-card/75 px-3 py-1.5 shadow-lg backdrop-blur-md">

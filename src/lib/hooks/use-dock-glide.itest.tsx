@@ -13,10 +13,10 @@ import { useDockGlide } from './use-dock-glide';
  * would never clear and the guard would look permanent.
  */
 
-function Harness({ showHost = true }: { showHost?: boolean }) {
+function Harness({ showHost = true, hoverOpens = true }: { showHost?: boolean; hoverOpens?: boolean }) {
   // Destructured rather than used as `dock.x` in the JSX — see FloatingNav.
   const { open, pinned, hostRef, bodyRef, toggleRef, hostHandlers, onToggleClick, onItemActivated } =
-    useDockGlide();
+    useDockGlide({ hoverOpens });
   return (
     <div>
       {/* Mirrors state OUTSIDE the host so the host-unmount scenario — the
@@ -98,6 +98,48 @@ describe('useDockGlide', () => {
     // A pen that reports hover capability is treated like a mouse.
     enter({ pointerType: 'pen' });
     expect(isOpen()).toBe(true);
+  });
+
+  describe('hoverOpens: false (immersive pages — /groups)', () => {
+    // The dock floats over the 3D canvas the user orbits by dragging, so an
+    // incidental sweep must not fling the panel open across their work and
+    // swallow the next click (which landed on the toggle and pinned it).
+    it('a hover-capable pointer does NOT open the dock', () => {
+      render(<Harness hoverOpens={false} />);
+
+      enter({ pointerType: 'mouse' });
+      expect(isOpen()).toBe(false);
+      enter({ pointerType: 'pen' });
+      expect(isOpen()).toBe(false);
+    });
+
+    it('still opens on a deliberate click and on keyboard focus', () => {
+      render(<Harness hoverOpens={false} />);
+
+      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+      expect(isOpen()).toBe(true);
+      expect(isPinned()).toBe(true);
+
+      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+      expect(isOpen()).toBe(false);
+
+      focusEl(screen.getByTestId('item'));
+      expect(isOpen()).toBe(true); // keyboard users keep their way in
+    });
+
+    it('still closes on leave once something else opened it', () => {
+      // hoveredRef must keep tracking even when hover cannot OPEN, or the
+      // close-timer guard would think the pointer never left.
+      render(<Harness hoverOpens={false} />);
+      focusEl(screen.getByTestId('item'));
+      expect(isOpen()).toBe(true);
+
+      enter();
+      leave();
+      focusEl(screen.getByTestId('outside'));
+      advance(200);
+      expect(isOpen()).toBe(false);
+    });
   });
 
   it('collapses an unpinned preview 170ms after the pointer leaves (req 8)', () => {
