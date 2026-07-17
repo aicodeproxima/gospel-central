@@ -100,6 +100,59 @@ test.describe('/groups — the dock over the 3D canvas', () => {
       .toBeLessThan(220);
   });
 
+  test('the Org Tree list column clears the dock — collapsed launcher AND open panel', async ({
+    page,
+  }) => {
+    // Regression: the tree tab was the ONE surface without a dock rule — the
+    // open panel covered ~50px of every card (measured live on prod
+    // 2026-07-17: panel right edge 243, cards at 193). The tablet band is
+    // where max-w-5xl centering can no longer hide the overlap, so pin the
+    // assertions there.
+    await page.setViewportSize({ width: 1000, height: 700 });
+    const listCol = page.locator('.max-w-5xl');
+    await expect(listCol).toBeVisible();
+
+    // Collapsed: the card column must clear the 66px launcher.
+    const launcher = (await nav(page).boundingBox())!;
+    await expect
+      .poll(async () => (await listCol.boundingBox())!.x)
+      .toBeGreaterThanOrEqual(launcher.x + launcher.width);
+
+    // Open: the column shifts past the 284px panel instead of hiding under it.
+    await toggle(page).click();
+    await expect(nav(page)).toHaveAttribute('data-open', 'true');
+    await expect
+      .poll(
+        async () => {
+          const n = (await nav(page).boundingBox())!;
+          const c = (await listCol.boundingBox())!;
+          return c.x >= n.x + n.width;
+        },
+        { timeout: 5_000 },
+      )
+      .toBe(true);
+
+    // Closing gives the space back.
+    await toggle(page).click();
+    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+    await expect
+      .poll(async () => (await listCol.boundingBox())!.x, { timeout: 5_000 })
+      .toBeLessThan(284);
+  });
+
+  test('phones get the full toolbar row back — no dead gap for a hidden launcher', async ({
+    page,
+  }) => {
+    // Regression: p-3 pl-16 reserved 64px (~23% of a 275px viewport) for the
+    // launcher, but FloatingNav is hidden below md — nothing rendered there.
+    await page.setViewportSize({ width: 275, height: 596 });
+    await expect(nav(page)).toBeHidden();
+    const toolbar = page.locator('[data-tree-frame-top]');
+    await expect
+      .poll(async () => toolbar.evaluate((el) => getComputedStyle(el).paddingLeft))
+      .toBe('12px'); // p-3, no launcher reservation
+  });
+
   test('keyboard focus opens it immediately — the dwell is pointer-only', async ({ page }) => {
     await toggle(page).focus();
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
