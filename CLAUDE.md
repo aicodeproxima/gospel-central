@@ -129,6 +129,28 @@ this repo — keep it current.
 - Rich Contact model in `src/lib/types/contact.ts`.
 
 ## Verification standard
+
+### THE USER'S EXPERIENCE ON PROD IS GOSPEL (this governs everything below)
+- **The source of truth is the deployed app, driven in a browser, as the USER experiences it.**
+  Nothing passes until it is fixed AND confirmed that way. Not "tests green", not "the DOM says
+  `data-open=true`", not "the code is right" — those are evidence, never proof.
+- **Reproduce the ISSUE and the FIX through the user's own journey.** Re-create their gesture, then
+  LOOK at the result (screenshot / see it), then re-run the same gesture after the fix.
+- **Headless is fine** — this is NOT a rule about visible windows. It is a rule about WHAT is
+  verified: their real journey on the deployed app, never a proxy that stands in for it.
+- **Only exception:** the defect is genuinely invisible to a user (build gate, type error, a race
+  with no observable surface). If a user can see or feel it, an assertion is not proof.
+- **A repro that cannot fail for the claimed reason disproves the diagnosis, not the bug.**
+- **Check the surfaces the user compares.** A fix that is "correct" on one page but inconsistent
+  with the others is not fixed — consistency is part of the experience.
+- WHY (both earned 2026-07-16/17 on the Dock-and-Glide nav, both mine):
+  (1) For "the menu pinned itself", the headless repro clicked at (40,40) — inside the launcher's
+  own 13–60px box. It proved "a button behaves like a button", was declared root cause, and
+  shipped a wrong fix. The real chain sat in that same probe's output, misread.
+  (2) A /groups-only fix silently broke "the menu works the same everywhere". 609 vitest +
+  chromium + webkit + live DOM assertions were ALL green. The user found it in seconds by
+  hovering the menu on two pages. Nobody had looked.
+
 - **Mobile device target = Galaxy S24 Ultra = 275×596 CSS @ DPR ~5.24.** This is the INTENTIONAL Samsung
   "Display size" zoom width — it is NOT the global 412×915 S24 rule and NOT a contradiction of it; Samsung's
   Display-size setting shifts CSS width and the user verifies at this narrowest realistic width. (412×915 is
@@ -144,8 +166,18 @@ this repo — keep it current.
 - Integration gate after multi-file changes: clean `npm run build` (`next build`) + ALL `npm run test`
   (`vitest run`) green. **The suite grows every audit loop — run it; never assert a fixed test count.**
 - Browser automation: **Chrome MCP / chrome-devtools MCP primary**; Playwright is the fallback only.
+  This is not a formality — Chrome MCP runs in the user's REAL Chrome, so they can watch and catch
+  what an assertion misses. A whole nav feature was "verified" via raw headless Playwright scripts
+  the user never saw, and shipped visibly broken (2026-07-17). Playwright suites remain the
+  regression gate; they are not the UX verification.
 
 ## NEVER / ALWAYS
+- **NEVER call anything fixed/done/passing until it is confirmed on the deployed app through the
+  USER'S OWN EXPERIENCE** — their gesture, their journey, and then actually LOOK at it. Green
+  tests and DOM assertions are evidence, not proof; they have been fully green while the feature
+  was visibly broken. Reproduce the ISSUE the same way before claiming a root cause. Only a defect
+  a user can never see or feel (build/type/invisible race) is exempt. See "Verification standard →
+  THE USER'S EXPERIENCE ON PROD IS GOSPEL" — that section governs this whole file.
 - **NEVER merge or push `feat/mobile-opt-main` to `main`** — integration is the user's deliberate,
   still-pending decision (needs Mike coordination). The real-backend cutover contract lives on `main`
   (`docs/MIKE_HANDOFF.md`, `docs/BACKEND_GAPS.md`).
