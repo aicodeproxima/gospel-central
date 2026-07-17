@@ -25,8 +25,6 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.signOut': 'Sign Out',
     'nav.primary': 'Primary navigation',
     'nav.pages': 'Pages',
-    'nav.closeMenu': 'Close menu',
-    'nav.openMenu': 'Open menu',
     'nav.pinOpen': 'Pin navigation open',
     'nav.unpinClose': 'Unpin and close navigation',
 
@@ -460,8 +458,6 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.signOut': 'Cerrar Sesión',
     'nav.primary': 'Navegación principal',
     'nav.pages': 'Páginas',
-    'nav.closeMenu': 'Cerrar menú',
-    'nav.openMenu': 'Abrir menú',
     'nav.pinOpen': 'Fijar la navegación abierta',
     'nav.unpinClose': 'Desfijar y cerrar la navegación',
 

@@ -24,8 +24,9 @@ import type { UseDockGlideResult } from '@/lib/hooks/use-dock-glide';
  * behavior lives in `useDockGlide`, the geometry and glass are here.
  *
  * Below md this never renders — the bottom `MobileNav` owns navigation there.
- * The /groups immersive overlay still renders `Sidebar` instead; both draw
- * their items from `useNavItems` so the two lists cannot drift.
+ * Every dashboard page renders this dock — including /groups, whose
+ * fullscreen 3D canvas it floats over (that page skips the 80/284 margin
+ * dance; the old slide-in Sidebar overlay is gone, user decision 2026-07-16).
  */
 export function FloatingNav({ dock }: { dock: UseDockGlideResult }) {
   const pathname = usePathname();

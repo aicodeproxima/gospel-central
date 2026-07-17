@@ -7,10 +7,11 @@ import { canAccessReports, canSeeAdminPage } from '@/lib/utils/permissions';
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * The primary navigation set, shared by the two surfaces that render it:
- * `FloatingNav` (the standard dashboard dock) and `Sidebar` (the /groups
- * immersive overlay). They present the list very differently, but the list
- * itself — hrefs, order, and the permission gates — must never drift apart.
+ * The primary navigation set — hrefs, order, and the permission gates —
+ * consumed by `FloatingNav` (the Dock-and-Glide menu on every md+ dashboard
+ * page, /groups included since the Sidebar overlay's retirement). Kept as its
+ * own module so any future nav surface draws from the same list instead of
+ * copying it.
  */
 
 export interface NavItemEntry {

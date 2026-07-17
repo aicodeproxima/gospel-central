@@ -19,9 +19,9 @@ function Harness({ showHost = true }: { showHost?: boolean }) {
     useDockGlide();
   return (
     <div>
-      {/* Mirrors state OUTSIDE the host so the /groups scenario — the hook
-          alive in the layout while the aside itself is unmounted — remains
-          observable after the host disappears. */}
+      {/* Mirrors state OUTSIDE the host so the host-unmount scenario — the
+          hook alive in the layout while the aside itself is unmounted —
+          remains observable after the host disappears. */}
       <div data-testid="probe" data-open={open} data-pinned={pinned} />
       {showHost && (
         <aside data-testid="host" ref={hostRef} data-open={open} data-pinned={pinned} {...hostHandlers}>
@@ -340,7 +340,7 @@ describe('useDockGlide', () => {
     lingering.forEach((el) => el.remove());
   });
 
-  it('drops an unpinned preview when the host unmounts, but a pin survives (/groups round-trip)', () => {
+  it('drops an unpinned preview when the host unmounts, but a pin survives the unmount', () => {
     const { rerender } = render(<Harness />);
 
     // Unpinned hover preview: nothing could dismiss it while the host is gone,

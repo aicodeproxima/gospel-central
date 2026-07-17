@@ -1,90 +1,72 @@
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 import { loginAs } from './helpers/loginAs';
+import { pinNav } from './helpers/pinNav';
 
 /**
- * The /groups immersive overlay — the ONE surface still served by Sidebar.tsx
- * after the Dock-and-Glide port. This spec exists because the Sidebar rewrite
- * (853e5f2) shipped with zero automated coverage of the overlay, and the
- * adversarial audit that noticed also found the open-state toggle sitting
- * under the update banner. The overlay contract locked here:
- *   - the open-menu trigger exists ONLY while the overlay is closed (its old
- *     slid-out position lived under the update banner's z-[9999] strip);
- *   - focus moves into the drawer on open and back to the trigger on close;
- *   - the panel's X, the backdrop, and a nav-link click all dismiss it;
- *   - labels are translated (the audit caught 'Close menu' beside 'Cerrar menú');
- *   - a pending-update banner never blocks opening the menu.
+ * /groups navigation — since the Sidebar overlay's retirement (user decision
+ * 2026-07-16) the page uses the SAME Dock-and-Glide menu as every other md+
+ * page. What is /groups-specific and locked here:
+ *   - the dock exists and works over the fullscreen 3D canvas;
+ *   - /groups skips the 80/284 margin dance (the canvas stays fullscreen and
+ *     the dock floats over it, like the old overlay did);
+ *   - a pin travels INTO and OUT OF /groups across client-side navigation;
+ *   - a pending-update banner never blocks the launcher here either.
  */
 
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 768, 'md+ only — below md the bottom MobileNav owns /groups navigation');
 
-const openBtn = (page: Page) => page.getByRole('button', { name: 'Open menu' });
-// The overlay panel is the only <aside> on /groups (the dock never mounts there).
-const overlay = (page: Page) => page.locator('aside').filter({ hasText: 'Gospel Central' });
-const closeBtn = (page: Page) => overlay(page).getByRole('button', { name: 'Close menu' });
+const nav = (page: Page) => page.getByTestId('floating-nav');
+const navBody = (page: Page) => page.getByTestId('floating-nav-body');
+const toggle = (page: Page) => nav(page).getByRole('button', { name: /navigation/i });
 
-test.describe('/groups immersive overlay', () => {
+test.describe('/groups — same dock as everywhere', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'admin');
     await page.goto('/groups');
-    await expect(openBtn(page)).toBeVisible({ timeout: 15_000 });
+    await expect(nav(page)).toBeVisible({ timeout: 20_000 });
   });
 
-  test('trigger opens the drawer, hides itself, and hands focus to the X', async ({ page }) => {
-    await openBtn(page).click();
-
-    await expect(overlay(page)).toBeVisible();
-    // The trigger must be GONE while open — its old open-state position
-    // (left:208) sat fully under the update banner.
-    await expect(openBtn(page)).toHaveCount(0);
-    // Drawer focus contract: the trigger unmounted, so focus lands on the X.
-    await expect(closeBtn(page)).toBeFocused();
-
-    // X closes and returns focus to the remounted trigger.
-    await closeBtn(page).click();
-    await expect(overlay(page)).toHaveCount(0);
-    await expect(openBtn(page)).toBeFocused();
-  });
-
-  test('the backdrop dismisses an open overlay', async ({ page }) => {
-    await openBtn(page).click();
-    await expect(overlay(page)).toBeVisible();
-
-    // Click well right of the 256px panel — the z-[46] backdrop owns that space.
-    await page.mouse.click(640, 400);
-    await expect(overlay(page)).toHaveCount(0);
-    await expect(openBtn(page)).toBeVisible();
-  });
-
-  test('a nav link routes out of /groups and the standard dock takes over', async ({ page }) => {
-    await openBtn(page).click();
-    await overlay(page).getByRole('link', { name: 'Contacts' }).click();
-
-    await page.waitForURL('**/contacts');
-    // Standard layout resumes: the dock exists, the immersive trigger does not.
-    await expect(page.getByTestId('floating-nav')).toBeVisible();
-    await expect(openBtn(page)).toHaveCount(0);
-  });
-
-  test('trigger and X are translated as a pair (es)', async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'gospel-central-preferences',
-        JSON.stringify({ state: { language: 'es' }, version: 4 }),
-      );
+  test('the dock floats over the fullscreen canvas — no margin, old overlay gone', async ({ page }) => {
+    // Same launcher, same geometry contract as the standard pages.
+    const style = await nav(page).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { top: cs.top, left: cs.left, position: cs.position };
     });
-    await page.goto('/groups');
+    expect(style).toEqual({ top: '14px', left: '14px', position: 'fixed' });
 
-    const abrir = page.getByRole('button', { name: 'Abrir menú' });
-    await expect(abrir).toBeVisible({ timeout: 15_000 });
-    await abrir.click();
-    // The audit's split-language finding: an English 'Close menu' used to sit
-    // beside the translated X. Both names now come from the same locale.
-    await expect(overlay(page).getByRole('button', { name: 'Cerrar menú' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Close menu' })).toHaveCount(0);
+    // The old immersive chrome must be fully retired: no round hamburger, no
+    // second aside, and the content is NOT margin-shifted (fullscreen canvas).
+    await expect(page.getByRole('button', { name: 'Open menu' })).toHaveCount(0);
+    expect(await page.locator('aside').count()).toBe(1); // the dock only
+    expect(await page.locator('main').count()).toBe(0); // immersive branch has no <main>
+
+    // Pin it: the panel opens over the canvas and all links are live.
+    await pinNav(page);
+    await expect(navBody(page).getByRole('link', { name: 'Groups' })).toHaveAttribute('aria-current', 'page');
+    await expect(navBody(page).getByRole('button', { name: /sign out/i })).toBeVisible();
   });
 
-  test('a pending-update banner never blocks opening the menu', async ({ page }) => {
+  test('a pin travels into and out of /groups (client-side)', async ({ page }) => {
+    // Pin ON /groups, route away via the panel — still pinned there…
+    await pinNav(page);
+    await navBody(page).getByRole('link', { name: 'Contacts' }).click();
+    await page.waitForURL('**/contacts');
+    await expect(nav(page)).toHaveAttribute('data-pinned', 'true');
+    await expect(nav(page)).toHaveAttribute('data-open', 'true');
+
+    // …and back INTO /groups, still pinned, panel usable over the canvas.
+    await navBody(page).getByRole('link', { name: 'Groups' }).click();
+    await page.waitForURL('**/groups');
+    await expect(nav(page)).toHaveAttribute('data-pinned', 'true');
+    await expect(navBody(page).getByRole('link', { name: 'Groups' })).toHaveAttribute('aria-current', 'page');
+
+    // Unpin works here like anywhere else.
+    await toggle(page).click();
+    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+  });
+
+  test('a pending-update banner never blocks the launcher on /groups', async ({ page }) => {
     await page.route('**/version.json*', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -102,9 +84,11 @@ test.describe('/groups immersive overlay', () => {
     const banner = page.locator('[role="alert"]').filter({ hasText: /new version is available/i });
     await expect(banner).toBeVisible();
 
-    // The trigger sits at left:16 inside the banner's cleared md+ lane — the
-    // click must land on the button, not the banner.
-    await openBtn(page).click({ timeout: 15_000 });
-    await expect(overlay(page)).toBeVisible();
+    // Launcher at left:14 sits inside the banner's cleared md+ lane.
+    const b = (await banner.boundingBox())!;
+    const l = (await nav(page).boundingBox())!;
+    expect(b.x, 'banner must start right of the launcher').toBeGreaterThanOrEqual(l.x + l.width);
+    await toggle(page).click({ timeout: 15_000 });
+    await expect(nav(page)).toHaveAttribute('data-open', 'true');
   });
 });

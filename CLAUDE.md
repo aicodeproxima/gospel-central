@@ -65,11 +65,12 @@ this repo — keep it current.
   `Assets/GPT Assets/Floating Menu Concept A - Dock and Glide.html`): 52px launcher at 14px inset →
   256px glass panel on hover/focus/pin; main margin animates 80↔284. The old always-visible sidebar
   and the 768–1279 icon "tablet rail" are GONE — touch tablets tap the hamburger to pin (hover is
-  pointer-EVENT-gated, `pointerType !== 'touch'`). `Sidebar.tsx` now serves ONLY the /groups
-  immersive overlay; both surfaces draw items from `components/layout/nav-items.tsx` (`useNavItems`).
-  Nav state is transient (not persisted); a pin survives a /groups round-trip (hook is hoisted above
-  the layout fork). e2e: `floating-nav.spec.ts` (chromium+webkit) + `floating-nav-touch.spec.ts`
-  (tablet-touch project, real taps).
+  pointer-EVENT-gated, `pointerType !== 'touch'`). `Sidebar.tsx` is DELETED (2026-07-16): /groups
+  uses the same dock, floating over the fullscreen canvas (no margin dance there); items come
+  from `components/layout/nav-items.tsx` (`useNavItems`).
+  Nav state is transient (not persisted); a pin survives every client-side route change, /groups
+  included. e2e: `floating-nav.spec.ts` (chromium+webkit), `groups-overlay.spec.ts` (/groups dock)
+  + `floating-nav-touch.spec.ts` (tablet-touch project, real taps).
 - `use-auth.ts` catch is a **catch-all** — a transport failure looks like an auth error unless you read it.
   Typed errors distinguish `NETWORK_ERROR` (status 0) from a real `401 UNAUTHORIZED`; `skipAuthRedirect`
   keeps the login toast honest. A dead-backend banner self-announces a flag-less build.

@@ -94,10 +94,13 @@ export function useDockGlide(): UseDockGlideResult {
     hostEl.current = node;
     if (!node) {
       // The dock unmounted while this hook — which lives in the layout — stays
-      // alive. In practice that means navigating to /groups, which renders the
-      // immersive overlay instead. (NOT a resize below md: the layout only
-      // CSS-hides the dock via `hidden md:block`, so it stays mounted at every
-      // width and this callback never fires on a resize.) Two resets:
+      // alive. Since /groups adopted the dock (2026-07-16) no dashboard route
+      // unmounts it anymore — this fires only if the whole layout goes (e.g.
+      // logout) or a future route opts out again. (NOT a resize below md: the
+      // layout only CSS-hides the dock via `hidden md:block`, so it stays
+      // mounted at every width and this callback never fires on a resize.)
+      // Two resets, kept because the hook must stay correct without knowing
+      // its consumers:
       // 1. `hoveredRef` is edge-triggered; if the host disappears under the
       //    cursor, pointerleave never fires and a stuck `true` would veto
       //    every scheduled close after remount.
