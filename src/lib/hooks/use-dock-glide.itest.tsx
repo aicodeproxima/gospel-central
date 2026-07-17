@@ -13,10 +13,10 @@ import { useDockGlide } from './use-dock-glide';
  * would never clear and the guard would look permanent.
  */
 
-function Harness({ showHost = true, hoverOpens = true }: { showHost?: boolean; hoverOpens?: boolean }) {
+function Harness({ showHost = true }: { showHost?: boolean }) {
   // Destructured rather than used as `dock.x` in the JSX — see FloatingNav.
   const { open, pinned, hostRef, bodyRef, toggleRef, hostHandlers, onToggleClick, onItemActivated } =
-    useDockGlide({ hoverOpens });
+    useDockGlide();
   return (
     <div>
       {/* Mirrors state OUTSIDE the host so the host-unmount scenario — the
@@ -42,6 +42,13 @@ function Harness({ showHost = true, hoverOpens = true }: { showHost?: boolean; h
   );
 }
 
+// `fireEvent` wraps dispatch in act() for us, but a close timer firing and a
+// programmatic focus() both land state updates from outside React — without
+// act() the update is scheduled and never flushed, so the DOM would still show
+// the previous state and every assertion below would read a stale value.
+const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+const focusEl = (element: HTMLElement) => act(() => element.focus());
+
 const host = () => screen.getByTestId('host');
 const probe = () => screen.getByTestId('probe');
 const isOpen = () => probe().getAttribute('data-open') === 'true';
@@ -54,17 +61,19 @@ const isPinned = () => probe().getAttribute('data-pinned') === 'true';
  * crossing as coming from outside the document, which is what a real
  * enter/leave of the dock looks like.
  */
-const enter = (init: { pointerType?: string; pointerId?: number } = {}) =>
+type PointerInit = { pointerType?: string; pointerId?: number };
+/** The dwell a hover-capable pointer must rest before the dock opens (req 7). */
+const DWELL = 180;
+/** Raw pointer arrival — no dwell. Use to model a pointer merely passing through. */
+const pointerIn = (init: PointerInit = {}) =>
   fireEvent.pointerOver(host(), { pointerType: 'mouse', pointerId: 1, relatedTarget: null, ...init });
-const leave = (init: { pointerType?: string; pointerId?: number } = {}) =>
+/** Hover AND settle: what "the user hovers the launcher" means now. */
+const enter = (init: PointerInit = {}) => {
+  pointerIn(init);
+  advance(DWELL);
+};
+const leave = (init: PointerInit = {}) =>
   fireEvent.pointerOut(host(), { pointerType: 'mouse', pointerId: 1, relatedTarget: null, ...init });
-
-// `fireEvent` wraps dispatch in act() for us, but a close timer firing and a
-// programmatic focus() both land state updates from outside React — without
-// act() the update is scheduled and never flushed, so the DOM would still show
-// the previous state and every assertion below would read a stale value.
-const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
-const focusEl = (element: HTMLElement) => act(() => element.focus());
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -100,45 +109,65 @@ describe('useDockGlide', () => {
     expect(isOpen()).toBe(true);
   });
 
-  describe('hoverOpens: false (immersive pages — /groups)', () => {
-    // The dock floats over the 3D canvas the user orbits by dragging, so an
-    // incidental sweep must not fling the panel open across their work and
-    // swallow the next click (which landed on the toggle and pinned it).
-    it('a hover-capable pointer does NOT open the dock', () => {
-      render(<Harness hoverOpens={false} />);
+  describe('hover intent (req 7) — a transit must not open it', () => {
+    // The reported bug: the launcher sits on /groups' 3D canvas, so orbiting
+    // the tree swept the pointer across it, the panel flew open over the
+    // scene, and the click made to dismiss it landed on the hamburger — a PIN
+    // toggle — so the menu pinned itself. Gate the trigger, not the toggle.
+    it('a pointer that passes straight through never opens it', () => {
+      render(<Harness />);
 
-      enter({ pointerType: 'mouse' });
+      pointerIn();
+      advance(DWELL - 1); // still inside the dwell
       expect(isOpen()).toBe(false);
-      enter({ pointerType: 'pen' });
-      expect(isOpen()).toBe(false);
+      leave(); // swept onward
+      advance(500);
+      expect(isOpen(), 'a transit must never open the dock, even late').toBe(false);
     });
 
-    it('still opens on a deliberate click and on keyboard focus', () => {
-      render(<Harness hoverOpens={false} />);
-
-      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+    it('a pointer that rests opens it', () => {
+      render(<Harness />);
+      pointerIn();
+      advance(DWELL);
       expect(isOpen()).toBe(true);
+    });
+
+    it('a click that lands mid-dwell is not undone by the dwell firing after it', () => {
+      // Regression: the pointer ARRIVES on the launcher and clicks faster than
+      // the dwell (a real user unpinning, and what Playwright's click does).
+      // The dwell is still in flight when the click closes the panel — and it
+      // used to fire ~180ms later and re-open it under the user's hand.
+      // pointerIn() deliberately does NOT advance: that is the whole scenario.
+      render(<Harness />);
+      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 }); // pinned + open
       expect(isPinned()).toBe(true);
 
-      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 });
+      pointerIn(); // pointer lands on the launcher; dwell now pending
+      fireEvent.click(screen.getByTestId('toggle'), { detail: 1 }); // unpin -> close
       expect(isOpen()).toBe(false);
 
-      focusEl(screen.getByTestId('item'));
-      expect(isOpen()).toBe(true); // keyboard users keep their way in
+      advance(500); // pointer never moved away
+      expect(isOpen(), 'a pending dwell must not re-open what a click just closed').toBe(false);
+      expect(isPinned()).toBe(false);
     });
 
-    it('still closes on leave once something else opened it', () => {
-      // hoveredRef must keep tracking even when hover cannot OPEN, or the
-      // close-timer guard would think the pointer never left.
-      render(<Harness hoverOpens={false} />);
+    it('keyboard focus is exempt — it opens at once', () => {
+      render(<Harness />);
       focusEl(screen.getByTestId('item'));
       expect(isOpen()).toBe(true);
+    });
 
-      enter();
+    it('re-entering restarts the dwell rather than opening instantly', () => {
+      render(<Harness />);
+      pointerIn();
+      advance(100);
       leave();
-      focusEl(screen.getByTestId('outside'));
-      advance(200);
+      advance(100);
+      pointerIn();
+      advance(100); // 200ms hovered in total, but only 100ms since re-entry
       expect(isOpen()).toBe(false);
+      advance(80);
+      expect(isOpen()).toBe(true);
     });
   });
 

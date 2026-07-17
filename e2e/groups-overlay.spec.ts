@@ -4,13 +4,16 @@ import { loginAs } from './helpers/loginAs';
 
 /**
  * /groups navigation — the page uses the SAME Dock-and-Glide menu as every
- * other md+ page (the slide-in Sidebar overlay was retired 2026-07-16), with
- * two deliberate differences this spec locks down, both from real user reports:
+ * other md+ page, and this spec exists to keep it that way (the slide-in
+ * Sidebar overlay was retired 2026-07-16). Two user-reported bugs are pinned
+ * here:
  *
- *   1. Hover does NOT open it here. The launcher sits on the corner of the 3D
- *      canvas the user orbits by dragging, so an incidental sweep used to fling
- *      the panel open and swallow the next click — which landed on the toggle
- *      and pinned it ("it just got pinned on me when I didn't click to pin").
+ *   1. "It got pinned on me when I didn't click to pin it." The launcher sits
+ *      on the corner of the 3D canvas the user orbits by dragging: a sweep
+ *      opened the panel, and the click made to dismiss it hit the hamburger —
+ *      a PIN toggle — so the menu pinned itself. Hover now needs a dwell, so a
+ *      transit opens nothing. Hover itself still works here, exactly as it does
+ *      on every other page.
  *   2. The page's floating toolbar clears the OPEN panel. /groups keeps its
  *      canvas fullscreen, so there is no content margin doing that for it, and
  *      the panel used to cover the search bar.
@@ -52,24 +55,28 @@ test.describe('/groups — the dock over the 3D canvas', () => {
     expect(await page.locator('main').count()).toBe(0); // fullscreen: no margin column
   });
 
-  test('mousing over the canvas corner never opens or pins the menu', async ({ page }) => {
-    // The reported bug, reproduced as a test: sweep the pointer across the
-    // launcher the way a user orbiting the tree does.
+  test('sweeping the canvas corner never opens it — but resting does', async ({ page }) => {
+    // The reported bug as a test: orbiting the tree sweeps the pointer across
+    // the launcher. A transit must open nothing (and so can never pin).
     await page.mouse.move(700, 450);
-    await page.mouse.move(400, 300, { steps: 8 });
-    await page.mouse.move(40, 40, { steps: 8 });
-    await page.waitForTimeout(500);
-
-    await expect(nav(page), 'hover must not open the dock on /groups').toHaveAttribute('data-open', 'false');
+    await page.mouse.move(400, 300, { steps: 6 });
+    await page.mouse.move(36, 36, { steps: 6 });
+    await page.mouse.move(500, 400, { steps: 6 }); // straight through
+    await page.waitForTimeout(600);
+    await expect(nav(page), 'a transit must not open the dock').toHaveAttribute('data-open', 'false');
     await expect(nav(page)).toHaveAttribute('data-pinned', 'false');
 
-    // Resting on it changes nothing either — only a deliberate click opens it.
+    // …but hover still WORKS here, same as every other page: rest on it.
     await nav(page).hover();
-    await page.waitForTimeout(400);
-    await expect(nav(page)).toHaveAttribute('data-open', 'false');
+    await expect(nav(page), 'resting must open the preview on /groups too').toHaveAttribute(
+      'data-open',
+      'true',
+      { timeout: 3_000 },
+    );
+    await expect(nav(page), 'a hover preview is never a pin').toHaveAttribute('data-pinned', 'false');
   });
 
-  test('clicking the launcher opens it, and the toolbar clears the panel', async ({ page }) => {
+  test('opening it clears the page toolbar rather than covering it', async ({ page }) => {
     // Collapsed: the toolbar already clears the 66px launcher.
     expect(await navCoversSearch(page), 'collapsed dock must not cover the search bar').toBe(false);
 
@@ -93,7 +100,7 @@ test.describe('/groups — the dock over the 3D canvas', () => {
       .toBeLessThan(220);
   });
 
-  test('keyboard focus still opens it (hover suppression must not break a11y)', async ({ page }) => {
+  test('keyboard focus opens it immediately — the dwell is pointer-only', async ({ page }) => {
     await toggle(page).focus();
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
     // Focus-opened is a preview, not a pin — Escape closes it.

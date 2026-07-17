@@ -30,12 +30,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const isImmersive = pathname === '/groups';
-  // /groups is the one page whose PRIMARY interaction surface lives under the
-  // dock — the user orbits the 3D tree by dragging, launcher corner included —
-  // so an incidental mouse sweep must not fling the panel open across the
-  // canvas (it swallowed the next click and pinned itself). Click/focus only
-  // there, which is how that page's previous slide-in menu worked anyway.
-  const dock = useDockGlide({ hoverOpens: !isImmersive });
+  // ONE dock, identical on every page — /groups included. (An earlier attempt
+  // to make /groups click-only fixed the symptom by breaking that promise; the
+  // real culprit was hover firing on a mere transit, which useDockGlide now
+  // gates behind a dwell for everyone.)
+  const dock = useDockGlide();
   // Only /calendar renders the Topbar — it hosts the calendar's toolbar
   // (navigation, view switcher, search). The other pages don't need a
   // top chrome row; theme controls live in /settings instead.

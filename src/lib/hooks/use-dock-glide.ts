@@ -69,21 +69,24 @@ export interface UseDockGlideResult {
 
 export interface UseDockGlideOptions {
   /**
-   * Whether a hover-capable pointer entering the dock opens a preview
-   * (requirement 7). Default true.
+   * Dwell (ms) a hover-capable pointer must rest on the dock before it opens
+   * (requirement 7). Mirrors the 170ms close delay: a pointer merely TRANSITING
+   * the launcher — the top-left corner, which on /groups is the 3D canvas the
+   * user orbits by dragging — must not fling a 256px panel across their work.
    *
-   * Set false where the dock floats over the page's PRIMARY interaction
-   * surface — /groups' 3D org tree, which the user orbits by dragging the very
-   * corner the launcher occupies. There, an incidental mouse sweep would open a
-   * 256px panel across the canvas and swallow the next click meant for the
-   * scene (observed: a sweep opened it, and the following drag-click landed on
-   * the toggle and pinned it). Those pages open on deliberate click/focus only
-   * — which is also exactly how /groups' previous slide-in menu behaved.
+   * This is the fix for a real report: an incidental sweep opened the panel,
+   * and the click the user made to dismiss it landed on the hamburger, which
+   * is a PIN toggle (see onToggleClick) — so the menu pinned itself. The
+   * hamburger cannot instead mean "close", because hover has always already
+   * opened the panel by the time the pointer reaches it, so pinning by mouse
+   * would become impossible. Gate the trigger, not the toggle.
+   *
+   * Keyboard focus is exempt: it is deliberate by definition and opens at once.
    */
-  hoverOpens?: boolean;
+  openDelayMs?: number;
 }
 
-export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): UseDockGlideResult {
+export function useDockGlide({ openDelayMs = 180 }: UseDockGlideOptions = {}): UseDockGlideResult {
   const [open, setOpenState] = useState(false);
   const [pinned, setPinnedState] = useState(false);
 
@@ -99,6 +102,7 @@ export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): U
 
   const activePointersRef = useRef<Set<number>>(new Set());
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressFocusOpenRef = useRef(false);
   // Stands in for the asset's `host.matches(':hover')` guard. Set on
   // pointerenter / cleared on pointerleave, which is precisely the interval
@@ -121,6 +125,7 @@ export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): U
       //    cursor, pointerleave never fires and a stuck `true` would veto
       //    every scheduled close after remount.
       hoveredRef.current = false;
+      if (openTimerRef.current) clearTimeout(openTimerRef.current);
       // 2. A PIN deliberately survives the round-trip; an unpinned hover
       //    preview must not — nothing can dismiss it while the host is gone,
       //    so it would come back open and shove the margin to 284.
@@ -157,6 +162,11 @@ export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): U
   const setOpen = useCallback(
     (next: boolean, { force = false, restoreFocus = false }: SetOpenOptions = {}) => {
       if (pinnedRef.current && !next && !force) return;
+      // Any deliberate close outranks a hover-dwell already in flight. Without
+      // this, clicking the hamburger to UNPIN closes the panel and then the
+      // pending timer re-opens it ~180ms later, because the pointer is still
+      // resting on the launcher it just clicked.
+      if (!next && openTimerRef.current) clearTimeout(openTimerRef.current);
       if (!next && (restoreFocus || bodyEl.current?.contains(document.activeElement))) {
         focusToggleWithoutOpening();
       }
@@ -182,22 +192,27 @@ export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): U
   const onPointerEnter = useCallback(
     (event: React.PointerEvent) => {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-      // Tracked even when hover cannot OPEN the dock: the close-timer guard
-      // reads this to know the pointer is still resting on an already-open
-      // panel, whatever opened it.
       hoveredRef.current = true;
-      if (!hoverOpens) return;
       // Capability is read off the EVENT, not a device-wide media query, so a
       // mouse attached to a touchscreen still gets the hover preview and a
       // finger on that same screen does not.
-      if (event.pointerType !== 'touch') setOpen(true);
+      if (event.pointerType === 'touch') return;
+      // Hover INTENT: only a pointer that stays opens the panel. `hoveredRef`
+      // is re-checked when the timer fires so a sweep that has already left
+      // cannot open it late.
+      if (openTimerRef.current) clearTimeout(openTimerRef.current);
+      openTimerRef.current = setTimeout(() => {
+        if (hoveredRef.current) setOpen(true);
+      }, openDelayMs);
     },
-    [setOpen, hoverOpens],
+    [setOpen, openDelayMs],
   );
 
   const onPointerLeave = useCallback(
     (event: React.PointerEvent) => {
       hoveredRef.current = false;
+      // A pointer that left before the dwell elapsed was only passing through.
+      if (openTimerRef.current) clearTimeout(openTimerRef.current);
       // A pointer still down as it leaves means the user is dragging out of the
       // menu: collapse promptly, and don't let retained focus veto the close.
       const draggingAway = activePointersRef.current.has(event.pointerId);
@@ -296,6 +311,7 @@ export function useDockGlide({ hoverOpens = true }: UseDockGlideOptions = {}): U
       window.removeEventListener('pointercancel', releasePointer);
       window.removeEventListener('blur', releaseAllPointers);
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (openTimerRef.current) clearTimeout(openTimerRef.current);
     };
   }, [setOpen, setPinned]);
 

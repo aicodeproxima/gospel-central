@@ -64,10 +64,18 @@ function setUser(role: UserRole) {
 const nav = () => screen.getByTestId('floating-nav');
 const body = () => screen.getByTestId('floating-nav-body');
 const toggle = () => screen.getByRole('button', { name: /navigation/i });
-const hoverOpen = () =>
+/**
+ * Hover the launcher AND wait out the dwell: hovering opens the dock only for a
+ * pointer that RESTS on it (req 7's hover intent — a mere transit opens
+ * nothing, so a sweep can never fling the panel across the page).
+ */
+const hoverOpen = () => {
   fireEvent.pointerOver(nav(), { pointerType: 'mouse', pointerId: 1, relatedTarget: null });
+  act(() => void vi.advanceTimersByTime(200));
+};
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   mockPathname.current = '/dashboard';
   mockAlerts.unseen = 0;
   mockAuth.logout = () => {};
@@ -78,6 +86,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
 });
 
