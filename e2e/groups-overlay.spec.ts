@@ -171,10 +171,10 @@ test.describe('/groups — the dock over the 3D canvas', () => {
     await expect(nav(page)).toHaveAttribute('data-pinned', 'true');
     await expect(nav(page)).toHaveAttribute('data-open', 'true');
 
-    await navBody(page).getByRole('link', { name: 'Groups' }).click();
+    await navBody(page).getByRole('link', { name: 'Org Tree' }).click();
     await page.waitForURL('**/groups');
     await expect(nav(page)).toHaveAttribute('data-pinned', 'true');
-    await expect(navBody(page).getByRole('link', { name: 'Groups' })).toHaveAttribute('aria-current', 'page');
+    await expect(navBody(page).getByRole('link', { name: 'Org Tree' })).toHaveAttribute('aria-current', 'page');
   });
 
   test('a pending-update banner never blocks the launcher on /groups', async ({ page }) => {

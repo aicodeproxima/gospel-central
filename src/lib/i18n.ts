@@ -16,12 +16,14 @@ export const translations: Record<string, Record<string, string>> = {
   en: {
     // ── Navigation ──────────────────────────────────────────────
     'nav.dashboard': 'Dashboard',
+    'nav.home': 'Home',
     'nav.calendar': 'Calendar',
     'nav.contacts': 'Contacts',
-    'nav.groups': 'Groups',
+    'nav.groups': 'Org Tree',
     'nav.settings': 'Settings',
     'nav.alerts': 'Alerts',
     'nav.reports': 'Reports',
+    'nav.admin': 'Admin',
     'nav.signOut': 'Sign Out',
     'nav.primary': 'Primary navigation',
     'nav.pages': 'Pages',
@@ -190,7 +192,7 @@ export const translations: Record<string, Record<string, string>> = {
     'contacts.failed': 'failed',
 
     // ── Groups page ─────────────────────────────────────────────
-    'page.groups.title': 'Organization',
+    'page.groups.title': 'Org Tree',
     'groups.searchPlaceholder': 'Search users, groups, teams...',
     'groups.3d': '3D',
     'groups.list': 'List',
@@ -268,6 +270,7 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.colorAccent': 'Color Accent',
     'settings.language': 'Language',
     'settings.calendarPrefs': 'Calendar Preferences',
+    'settings.groupsPrefs': 'Org Tree Preferences',
     'settings.defaultView': 'Default View',
     'settings.timeFormat': 'Time Format',
     'settings.notifications': 'Notifications',
@@ -449,12 +452,14 @@ export const translations: Record<string, Record<string, string>> = {
   es: {
     // ── Navigation ──────────────────────────────────────────────
     'nav.dashboard': 'Panel',
+    'nav.home': 'Inicio',
     'nav.calendar': 'Calendario',
     'nav.contacts': 'Contactos',
-    'nav.groups': 'Grupos',
+    'nav.groups': 'Árbol Org.',
     'nav.settings': 'Ajustes',
     'nav.alerts': 'Alertas',
     'nav.reports': 'Informes',
+    'nav.admin': 'Admin',
     'nav.signOut': 'Cerrar Sesión',
     'nav.primary': 'Navegación principal',
     'nav.pages': 'Páginas',
@@ -621,7 +626,7 @@ export const translations: Record<string, Record<string, string>> = {
     'contacts.failed': 'fallidos',
 
     // ── Groups page ─────────────────────────────────────────────
-    'page.groups.title': 'Organización',
+    'page.groups.title': 'Árbol Org.',
     'groups.searchPlaceholder': 'Buscar usuarios, grupos, equipos...',
     'groups.3d': '3D',
     'groups.list': 'Lista',
@@ -699,6 +704,7 @@ export const translations: Record<string, Record<string, string>> = {
     'settings.colorAccent': 'Color de Acento',
     'settings.language': 'Idioma',
     'settings.calendarPrefs': 'Preferencias del Calendario',
+    'settings.groupsPrefs': 'Preferencias del Árbol Org.',
     'settings.defaultView': 'Vista Predeterminada',
     'settings.timeFormat': 'Formato de Hora',
     'settings.notifications': 'Notificaciones',

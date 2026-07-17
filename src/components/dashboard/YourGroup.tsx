@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Download, FileText } from 'lucide-react';
+import { Users, Download, FileText, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/lib/i18n';
+import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import { buildYourGroup } from '@/lib/utils/church';
 import { canExportMemberList } from '@/lib/utils/permissions';
 import { exportCSV, downloadCSV } from '@/lib/utils/csv';
@@ -69,9 +70,35 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
     downloadCSV(lines.join('\n'), 'gospel-central-members.txt');
   };
 
+  // REV3 #18: collapsible, COLLAPSED by default, persisted in the preferences
+  // store (not a loose localStorage key — the store already owns dashboard
+  // prefs like dashboardChurchId). The member-count summary stays visible in
+  // the header so the section still informs at a glance while collapsed.
+  const open = usePreferencesStore((s) => s.dashboardYourGroupOpen);
+  const setOpen = usePreferencesStore((s) => s.setDashboardYourGroupOpen);
+
   return (
     <motion.div variants={item}>
-      <h2 className="mb-4 text-xl font-semibold">{t('dash.yourGroup')}</h2>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="mb-4 flex w-full touch-manipulation items-center justify-between gap-2 text-left"
+      >
+        <span className="flex items-center gap-2 text-xl font-semibold">
+          {t('dash.yourGroup')}
+          {memberCount > 0 && (
+            <span className="flex items-center gap-1 text-sm font-normal text-muted-foreground">
+              <Users className="h-4 w-4 text-primary" />
+              {memberCount} {t('dash.members')}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
       <Card>
         <CardContent className="space-y-4 p-5">
           {above.length > 0 && (
@@ -147,6 +174,7 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
           )}
         </CardContent>
       </Card>
+      )}
     </motion.div>
   );
 }

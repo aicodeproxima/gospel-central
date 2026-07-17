@@ -7,30 +7,35 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { canSeeAdminPage } from '@/lib/utils/permissions';
 import { useAlerts } from '@/lib/hooks/use-alerts';
+import { useTranslation } from '@/lib/i18n';
 
 interface NavItem {
   href: string;
-  label: string;
+  /** i18n key — labels route through the same nav.* keys the Dock uses, so a
+   *  rename (e.g. Groups→"Org Tree", REV3 #13) hits every nav surface at once.
+   *  'nav.home' is mobile-specific: the bottom bar says Home, not Dashboard. */
+  labelKey: string;
   icon: typeof BookOpen;
 }
 
 const baseItems: NavItem[] = [
-  { href: '/dashboard', label: 'Home', icon: BookOpen },
-  { href: '/calendar', label: 'Calendar', icon: Calendar },
-  { href: '/contacts', label: 'Contacts', icon: Contact },
-  { href: '/groups', label: 'Groups', icon: Users },
-  { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/alerts', label: 'Alerts', icon: Bell },
+  { href: '/dashboard', labelKey: 'nav.home', icon: BookOpen },
+  { href: '/calendar', labelKey: 'nav.calendar', icon: Calendar },
+  { href: '/contacts', labelKey: 'nav.contacts', icon: Contact },
+  { href: '/groups', labelKey: 'nav.groups', icon: Users },
+  { href: '/settings', labelKey: 'nav.settings', icon: Settings },
+  { href: '/alerts', labelKey: 'nav.alerts', icon: Bell },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { t } = useTranslation();
   // Bug C from Phase 2 audit — Admin link was missing here. Branch Leaders
   // on mobile had no way to reach /admin without typing the URL.
   const user = useAuthStore((s) => s.user);
   const { unseen } = useAlerts();
   const items: NavItem[] = canSeeAdminPage(user)
-    ? [...baseItems, { href: '/admin', label: 'Admin', icon: Shield }]
+    ? [...baseItems, { href: '/admin', labelKey: 'nav.admin', icon: Shield }]
     : baseItems;
 
   return (
@@ -66,7 +71,7 @@ export function MobileNav() {
                   </span>
                 )}
               </span>
-              <span className="max-w-full truncate">{item.label}</span>
+              <span className="max-w-full truncate">{t(item.labelKey)}</span>
             </Link>
           );
         })}

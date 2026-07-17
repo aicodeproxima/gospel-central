@@ -51,6 +51,7 @@ import {
   Settings2,
   Info,
   MessageSquare,
+  Network,
 } from 'lucide-react';
 import { InfoButton } from '@/components/shared/InfoButton';
 import { settingsHelp } from '@/components/shared/pageHelp';
@@ -718,6 +719,39 @@ export default function SettingsPage() {
                 <SelectContent>
                   <SelectItem value="12h">12-hour (9:00 am)</SelectItem>
                   <SelectItem value="24h">24-hour (09:00)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5b. Org Tree Preferences (REV3 #10) — surfaces the groupsDefaultView
+          pref that already existed store-side (the /groups toolbar toggle
+          silently persists it); mirrors the Calendar card's markup. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Network className="h-5 w-5" />
+            {t('settings.groupsPrefs')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t('settings.defaultView')}</Label>
+              <Select
+                value={prefs.groupsDefaultView}
+                onValueChange={(v) => v && prefs.setGroupsDefaultView(v as 'list' | '3d')}
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {prefs.groupsDefaultView === 'list' ? t('groups.list') : t('groups.3d')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="list">{t('groups.list')}</SelectItem>
+                  <SelectItem value="3d">{t('groups.3d')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

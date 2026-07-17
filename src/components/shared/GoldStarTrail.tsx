@@ -35,8 +35,15 @@ export function GoldStarTrail() {
           <path d="M12 2l2.9 6.9 7.1.6-5.4 4.6 1.7 7-6.3-3.8-6.3 3.8 1.7-7-5.4-4.6 7.1-.6z"/>
         </svg>
       `;
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
+      // The app sets `:root { zoom: 0.9 }` at >=1280px, which scales these
+      // position:fixed pixel lengths at paint time — an unadjusted clientX/Y
+      // renders every star at 0.9x its coordinate (~10% drift toward the
+      // top-left, growing to ~130px at the far corner; REV3 #8). Divide by the
+      // effective root zoom, same as BookingSearchBar's portal positioning.
+      const zoom =
+        parseFloat(getComputedStyle(document.documentElement).zoom || '1') || 1;
+      el.style.left = `${x / zoom}px`;
+      el.style.top = `${y / zoom}px`;
       document.body.appendChild(el);
       // Auto-cleanup after the CSS animation completes.
       window.setTimeout(() => {

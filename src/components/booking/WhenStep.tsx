@@ -135,12 +135,12 @@ export function WhenStep({
   function handleAllDay() {
     const run = longestFreeRun(slots);
     if (!run) return;
-    // Cap at 8 slots (4h). Before a room is chosen the grid is nearly empty
-    // (only global blocked slots), so the raw longest run can be the whole
-    // 16-hour day — a range no real room ever fits, which would grey out
-    // every room on the next step (ultracode-gate F3).
-    const endExclusive = Math.min(run.endExclusive, run.start + 8);
-    onRangeChange(run.start, endExclusive);
+    // "All day" selects the WHOLE free run — true to its label (user decision
+    // 2026-07-17, REV3 #9; the old 8-slot/4h cap made the button select only
+    // the morning and silently leave the afternoon unreserved). The range is
+    // still conflict-bounded by longestFreeRun; if no room fits the full run
+    // on the next step, shrinking the range is the user's explicit call.
+    onRangeChange(run.start, run.endExclusive);
   }
 
   function handleClear() {

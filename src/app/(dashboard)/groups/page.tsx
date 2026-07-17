@@ -230,13 +230,19 @@ export default function GroupsPage() {
 
   const handleExpandAll = useCallback(() => {
     setExpandedIds(new Set(allIds));
-    // Frame the primary root's subtree — the same readable, dolly-capped path as
-    // expanding a single branch, so it lands as root + its immediate children
-    // (anchored on the root, no overlap) and the user drills DOWN from there.
-    // (A whole-tree fit strands the camera in the member band / overlaps cards.)
-    const rootId = orgTree[0]?.id;
-    if (rootId) requestFocus({ kind: 'subtree', id: rootId });
-  }, [allIds, orgTree]);
+    // 3D only: frame the primary root's subtree — the same readable, dolly-capped
+    // path as expanding a single branch (a whole-tree fit strands the camera in
+    // the member band / overlaps cards).
+    // LIST view must NOT focus (REV3 #15): the root's DOM node is the container
+    // of the whole expanded subtree (~18k px tall), so the auto-center effect's
+    // scrollIntoView(block:'center') aligns the tree's MIDPOINT with the viewport
+    // — "centering" whoever happens to live there. Expanding never moves the
+    // list viewport; search/jump keep their centering (node-sized targets).
+    if (viewMode === '3d') {
+      const rootId = orgTree[0]?.id;
+      if (rootId) requestFocus({ kind: 'subtree', id: rootId });
+    }
+  }, [allIds, orgTree, viewMode]);
 
   const handleCollapseAll = useCallback(() => {
     setExpandedIds(new Set());

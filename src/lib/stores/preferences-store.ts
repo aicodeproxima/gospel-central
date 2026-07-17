@@ -111,6 +111,13 @@ interface PreferencesState {
    * (every relevant event counts). Additive key: no persist-version bump.
    */
   alertsLastSeenAt: string | null;
+  /**
+   * REV3 #18 (2026-07-17): whether the dashboard's "Your Group" card body is
+   * expanded. Default FALSE (collapsed) per the request; the header keeps the
+   * member-count summary visible either way. Additive key: no persist-version
+   * bump needed (zustand shallow-merges defaults; no partialize list).
+   */
+  dashboardYourGroupOpen: boolean;
 
   setColorTheme: (theme: ColorTheme) => void;
   setLanguage: (lang: Language) => void;
@@ -125,6 +132,7 @@ interface PreferencesState {
   resetBackgroundConfig: (style: BackgroundStyle) => void;
   setDashboardChurchId: (areaId: string | null) => void;
   setGroupsDefaultView: (view: '3d' | 'list') => void;
+  setDashboardYourGroupOpen: (open: boolean) => void;
   /** Mark alerts seen up to the given event ISO timestamp (the newest relevant
    *  event at visit time). Pass the event's own timestamp, not wall-clock. */
   setAlertsLastSeen: (iso: string) => void;
@@ -229,6 +237,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       backgroundConfig: {},
       dashboardChurchId: null,
       groupsDefaultView: 'list',
+      dashboardYourGroupOpen: false,
       alertsLastSeenAt: null,
       previousColorTheme: null,
       previousBackgroundStyle: null,
@@ -282,6 +291,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       },
       setDashboardChurchId: (areaId) => set({ dashboardChurchId: areaId }),
       setGroupsDefaultView: (view) => set({ groupsDefaultView: view }),
+      setDashboardYourGroupOpen: (open) => set({ dashboardYourGroupOpen: open }),
       setAlertsLastSeen: (iso) => set({ alertsLastSeenAt: iso }),
     }),
     {
