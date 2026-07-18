@@ -55,6 +55,18 @@ function findWordStarts(text: string): WordStart[] {
  * matched ranges sorted by start, non-overlapping, or null if any token
  * fails to match.
  */
+/**
+ * REV3 #3 (user spec 2026-07-17): the DEFAULT search semantic is "prefix of
+ * the full visible label" — typing "B" matches only names that START with B
+ * ("Abidan Ben-Gideoni" does NOT match via its surname). Returns the single
+ * highlight range covering the matched prefix, or null.
+ */
+export function fullPrefixRange(text: string, query: string): MatchRange[] | null {
+  const q = query.trim().toLowerCase();
+  if (!q || !text) return null;
+  return text.toLowerCase().startsWith(q) ? [{ start: 0, end: q.length }] : null;
+}
+
 export function prefixMatch(text: string, query: string): MatchRange[] | null {
   const trimmedQuery = query.trim();
   if (trimmedQuery === '') return null;

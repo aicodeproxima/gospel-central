@@ -5,6 +5,8 @@ import { Search, X, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { buildSearchIndex, searchEntriesWithTotal, type SearchEntry } from '@/lib/utils/tree-search';
+import { fullPrefixRange } from '@/lib/utils/text-match';
+import { HighlightedText } from '@/components/shared/HighlightedText';
 import type { OrgNode, Contact } from '@/lib/types';
 
 interface TreeSearchBarProps {
@@ -128,12 +130,27 @@ export function TreeSearchBar({ roots, contacts, onSelect, autoFocus }: TreeSear
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{entry.name}</div>
+                          <div className="text-sm font-medium truncate">
+                            <HighlightedText text={entry.name} ranges={fullPrefixRange(entry.name, query)} />
+                          </div>
                           <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
                             <span className="rounded bg-muted/60 px-1 py-0.5">
                               {entry.roleLabel}
                             </span>
                             {entry.groupName && <span>• {entry.groupName}</span>}
+                            {/* Tier-2 match (REV3 #3): the row is here because a
+                                preaching PARTNER's name starts with the query —
+                                show which one, highlighted, so the match is
+                                never a mystery. */}
+                            {!fullPrefixRange(entry.name, query) &&
+                              (entry.partnerNames ?? [])
+                                .filter((p) => fullPrefixRange(p, query))
+                                .slice(0, 1)
+                                .map((p) => (
+                                  <span key={p}>
+                                    • via <HighlightedText text={p} ranges={fullPrefixRange(p, query)} />
+                                  </span>
+                                ))}
                           </div>
                           {entry.ancestors.length > 0 && (
                             <div className="mt-0.5 flex items-center gap-0.5 text-[10px] text-muted-foreground/80">

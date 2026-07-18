@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 import { Search, X, ChevronRight, CalendarDays, Clock, MapPin } from 'lucide-react';
 import { format, parseISO, compareAsc } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { fullPrefixRange } from '@/lib/utils/text-match';
+import { HighlightedText } from '@/components/shared/HighlightedText';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -89,15 +91,12 @@ export function BookingSearchBar({
     return entries;
   }, [bookings, users]);
 
-  // Predictive filter — case-insensitive substring match on name + role.
+  // Predictive filter — NAME-PREFIX only (REV3 #3 user spec: "iel" no longer
+  // matches Gamaliel mid-name, and role labels don't match at all).
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return index;
-    return index.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.roleLabel.toLowerCase().includes(q),
-    );
+    return index.filter((e) => e.name.toLowerCase().startsWith(q));
   }, [index, query]);
 
   // Close dropdown on outside click. The results panel is PORTALED to body
@@ -245,7 +244,9 @@ export function BookingSearchBar({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">{entry.name}</div>
+                            <div className="text-sm font-medium truncate">
+                              <HighlightedText text={entry.name} ranges={fullPrefixRange(entry.name, query)} />
+                            </div>
                             <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
                               <span className="rounded bg-muted/60 px-1 py-0.5">
                                 {entry.roleLabel}

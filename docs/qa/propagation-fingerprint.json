@@ -1,7 +1,7 @@
 {
   "phase": "START",
   "capturedAtNote": "wall-clock omitted (Date unavailable in mock-clock world); git+seed are the anchors",
-  "gitSha": "8479ee6",
+  "gitSha": "ec491fb",
   "gitBranch": "main",
   "mockDate": "2026-06-22T12:00:00",
   "node": "v24.13.1",
@@ -18,7 +18,7 @@
     "method": "contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)",
     "verdict": "PASS",
     "evidence": {
-      "selectedName": "AAaron Virginia Beach ZionPatrobas UnbaptizedStep 8/3511Jun 14",
+      "selectedName": "AAaronVirginia Beach ZionPatrobas UnbaptizedSermon 8/3511Jun 14",
       "target": "Potential",
       "chipsBefore": {
         "All": 70,

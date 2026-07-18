@@ -363,21 +363,35 @@ export default function ContactsPage() {
   // Client-side filtering + sorting (all data is in memory from MSW)
   const filtered = useMemo(() => {
     let result = visibleContacts;
+    // REV3 #3 (user spec 2026-07-17): the DEFAULT ('All fields') search is
+    // tiered full-label prefix — tier 1 = contact NAME starts with the query
+    // (alphabetical), tier 2 = a preaching-PARTNER name starts with it
+    // (following, alphabetical). Typing "B" no longer surfaces "Abidan
+    // Ben-Gideoni" via the surname or church metadata. Teacher/TL/GL/partner
+    // scoping stays available — explicitly, via the field dropdown.
+    let tiered = false;
     if (search.trim()) {
-      // Phase 5 (packet): PREFIX matching, Outlook-style — "D" matches only
-      // D-initial words. Scoped by the field dropdown; 'all' spans
-      // contact/teacher/TL/GL/branch plus email/phone (CONT-7: keeps
-      // imported records findable — notes/subject substring search dropped
-      // by the packet's prefix-matching spec).
-      result = result.filter((c) => {
-        const f = searchIndex.get(c.id);
-        if (!f) return false;
-        // "Branch" = the contact's preaching partners (user semantic); the
-        // church name stays reachable under All fields.
-        const fields =
-          searchField === 'all'
-            ? [f.contact, f.teacher, f.tl, f.gl, ...f.branches, f.church, f.email, f.phone]
-            : searchField === 'contact'
+      if (searchField === 'all') {
+        const q = search.trim().toLowerCase();
+        const nameOf = (c: (typeof result)[number]) => searchIndex.get(c.id)?.contact ?? '';
+        const tier1 = result
+          .filter((c) => nameOf(c).toLowerCase().startsWith(q))
+          .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+        const tier2 = result
+          .filter((c) => {
+            if (nameOf(c).toLowerCase().startsWith(q)) return false;
+            return (searchIndex.get(c.id)?.branches ?? []).some((b) => b.toLowerCase().startsWith(q));
+          })
+          .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+        result = [...tier1, ...tier2];
+        tiered = true; // tier order IS the result order — skip the sort below
+      } else {
+        // Scoped fields keep the Outlook-style word-start matcher.
+        result = result.filter((c) => {
+          const f = searchIndex.get(c.id);
+          if (!f) return false;
+          const fields =
+            searchField === 'contact'
               ? [f.contact]
               : searchField === 'teacher'
                 ? [f.teacher]
@@ -386,8 +400,9 @@ export default function ContactsPage() {
                   : searchField === 'group_leader'
                     ? [f.gl]
                     : f.branches;
-        return fields.some((t) => !!t && prefixMatch(t, search) !== null);
-      });
+          return fields.some((t) => !!t && prefixMatch(t, search) !== null);
+        });
+      }
     }
     const effectiveStage = stageFilter.startsWith('all') ? '' : stageFilter;
     if (effectiveStage) result = result.filter((c) => c.pipelineStage === effectiveStage);
@@ -397,18 +412,21 @@ export default function ContactsPage() {
     if (branchFilter !== 'all')
       result = result.filter((c) => searchIndex.get(c.id)?.branches.includes(branchFilter));
 
-    // Sort
-    const stageOrder: Record<string, number> = {
-      first_study: 0, unbaptized: 1, potential: 2, baptism_ready: 3, needs_help: 4, baptized: 5,
-    };
-    result = [...result].sort((a, b) => {
-      switch (sortKey) {
-        case 'sessions': return b.totalSessions - a.totalSessions;
-        case 'stage': return (stageOrder[b.pipelineStage] || 0) - (stageOrder[a.pipelineStage] || 0);
-        case 'updated': return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        default: return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
-      }
-    });
+    // Sort — skipped while a tiered default search is active: the user-specced
+    // order there is name-tier (alphabetical) then partner-tier (alphabetical).
+    if (!tiered) {
+      const stageOrder: Record<string, number> = {
+        first_study: 0, unbaptized: 1, potential: 2, baptism_ready: 3, needs_help: 4, baptized: 5,
+      };
+      result = [...result].sort((a, b) => {
+        switch (sortKey) {
+          case 'sessions': return b.totalSessions - a.totalSessions;
+          case 'stage': return (stageOrder[b.pipelineStage] || 0) - (stageOrder[a.pipelineStage] || 0);
+          case 'updated': return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          default: return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+        }
+      });
+    }
 
     return result;
   }, [visibleContacts, search, searchField, stageFilter, glFilter, tlFilter, branchFilter, sortKey, searchIndex]);
@@ -979,6 +997,7 @@ export default function ContactsPage() {
         <ContactsTable
           contacts={filtered}
           users={users}
+          query={search}
           sortKey={sortKey}
           onSort={(k) => setSortKey(k)}
           selectMode={selectMode}

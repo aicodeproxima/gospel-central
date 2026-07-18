@@ -39,7 +39,9 @@ export function HighlightedText({ text, ranges, className }: HighlightedTextProp
     <span className={className}>
       {segments.map((segment, i) =>
         segment.highlighted ? (
-          <mark key={i} className="rounded-[2px] bg-primary/25 text-inherit">
+          // Explicit YELLOW (user spec, REV3 #3) — deliberately NOT --primary,
+          // which tinted gold/blue/purple per theme and read as "no highlight".
+          <mark key={i} className="rounded-[2px] bg-yellow-300/70 text-foreground dark:bg-yellow-400/40">
             {segment.text}
           </mark>
         ) : (

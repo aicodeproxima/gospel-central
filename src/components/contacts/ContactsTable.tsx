@@ -27,8 +27,11 @@ import {
   getAssignedTeacher,
   initialsOf,
   stepLabel,
+  resolvePartnerSlots,
   type ContactSortKey,
 } from '@/lib/utils/contact-helpers';
+import { fullPrefixRange, prefixMatch } from '@/lib/utils/text-match';
+import { HighlightedText } from '@/components/shared/HighlightedText';
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -42,6 +45,9 @@ interface ContactsTableProps {
   onEdit: (contact: Contact) => void;
   onDelete: (id: string) => void;
   canEdit: (contact: Contact) => boolean;
+  /** Active search query — highlights the matched name / partner (REV3 #3:
+   *  the Table view previously rendered 0 <mark>s while Grid highlighted). */
+  query?: string;
 }
 
 function SortHeader({
@@ -83,6 +89,7 @@ function ContactsTableInner({
   onEdit,
   onDelete,
   canEdit,
+  query,
 }: ContactsTableProps) {
   const { t, tStage } = useTranslation();
 
@@ -114,6 +121,15 @@ function ContactsTableInner({
             const step = stepLabel(c, t('contact.sermon'));
             const editable = canEdit(c);
             const handleRow = () => (selectMode ? onToggleSelect(c.id) : onRowClick(c.id));
+            // REV3 #3 highlights: name prefix (falling back to word-start for
+            // scoped searches); a tier-2 row (matched via a preaching partner)
+            // shows "via <partner>" so the match is never a mystery.
+            const fullName = `${c.firstName} ${c.lastName}`.trim();
+            const nameRanges = query ? (fullPrefixRange(fullName, query) ?? prefixMatch(fullName, query)) : null;
+            const viaPartner =
+              query && !nameRanges
+                ? resolvePartnerSlots(users, c).find((p) => fullPrefixRange(p.name, query))
+                : undefined;
             return (
               <TableRow
                 key={c.id}
@@ -141,7 +157,7 @@ function ContactsTableInner({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium truncate">
-                          {c.firstName} {c.lastName}
+                          <HighlightedText text={fullName} ranges={nameRanges} />
                         </span>
                         {c.currentlyStudying && (
                           <span
@@ -150,6 +166,15 @@ function ContactsTableInner({
                           />
                         )}
                       </div>
+                      {viaPartner && (
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          via{' '}
+                          <HighlightedText
+                            text={viaPartner.name}
+                            ranges={fullPrefixRange(viaPartner.name, query!)}
+                          />
+                        </span>
+                      )}
                       {c.groupName && (
                         <span className="text-[10px] text-muted-foreground truncate block">
                           {c.groupName}

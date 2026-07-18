@@ -9,7 +9,7 @@ import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { getAssignedTeacher, initialsOf, stepLabel, resolvePartnerSlots } from '@/lib/utils/contact-helpers';
-import { prefixMatch } from '@/lib/utils/text-match';
+import { prefixMatch, fullPrefixRange } from '@/lib/utils/text-match';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 
 interface ContactCardProps {
@@ -48,7 +48,9 @@ function ContactCardInner({
   // the highlight (finding 102).
   const branches = resolvePartnerSlots(users, contact).slice(0, 3);
 
-  const nameRanges = query ? prefixMatch(fullName, query) : null;
+  // REV3 #3: full-label prefix first (the default search semantic), falling
+  // back to word-start ranges so scoped-field searches keep their highlight.
+  const nameRanges = query ? (fullPrefixRange(fullName, query) ?? prefixMatch(fullName, query)) : null;
 
   const handleClick = () => {
     if (selectMode && onToggleSelect) {
@@ -165,7 +167,7 @@ function ContactCardInner({
           </div>
           <div className="min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1.5">
             <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
-              Step
+              {t('contact.sermon')}
             </p>
             <p className="mt-1 text-xs font-semibold truncate">{step || '—'}</p>
           </div>
@@ -186,7 +188,8 @@ function ContactCardInner({
                     p.slot === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground',
                   )}
                 >
-                  {p.name}
+                  {/* Partner names highlight too (REV3 #3 tier-2 matches). */}
+                  <HighlightedText text={p.name} ranges={query ? fullPrefixRange(p.name, query) : null} />
                 </span>
               ))}
             </div>
