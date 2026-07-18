@@ -83,7 +83,7 @@ export function YourGroup({ viewer, users }: YourGroupProps) {
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="mb-4 flex w-full touch-manipulation items-center justify-between gap-2 text-left"
+        className="mb-4 flex min-h-[44px] w-full touch-manipulation items-center justify-between gap-2 text-left"
       >
         <span className="flex items-center gap-2 text-xl font-semibold">
           {t('dash.yourGroup')}

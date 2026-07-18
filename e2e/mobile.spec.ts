@@ -53,7 +53,7 @@ test.describe('mobile (S24 Ultra) fitment', () => {
   });
 
   // B25 — the org page must fit phone width with no pan in BOTH view modes.
-  // List is the DEFAULT since G1 (groupsDefaultView), and the "Organization"
+  // List is the DEFAULT since G1 (groupsDefaultView), and the "Org Tree"
   // title pill is xl-only — so assert readiness via rendered org rows, then
   // toggle to 3D and re-check fitment there.
   test('B25 the org page fits phone width in List and 3D views', async ({ page }) => {

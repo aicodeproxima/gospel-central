@@ -1,42 +1,42 @@
 {
   "phase": "START",
   "capturedAtNote": "wall-clock omitted (Date unavailable in mock-clock world); git+seed are the anchors",
-  "gitSha": "f55880f",
-  "gitBranch": "feat/mobile-opt-main",
+  "gitSha": "8479ee6",
+  "gitBranch": "main",
   "mockDate": "2026-06-22T12:00:00",
   "node": "v24.13.1",
   "playwright": "1.61.1",
   "seedCounts": {
     "users": 132,
-    "contacts": 50,
-    "bookings": 105,
+    "contacts": 70,
+    "bookings": 106,
     "areas": 2,
-    "blockedSlots": 4,
+    "blockedSlots": 5,
     "auditLog": 101
   },
   "z0": {
     "method": "contacts bulk stage-change (substituted for the 9-step study wizard for harness reliability; study cascade observed as a batch-1 cell)",
     "verdict": "PASS",
     "evidence": {
-      "selectedName": "AAaron Unbaptized ContactPatrobas UnbaptizedStep 8/3511Jun 14",
+      "selectedName": "AAaron Virginia Beach ZionPatrobas UnbaptizedStep 8/3511Jun 14",
       "target": "Potential",
       "chipsBefore": {
-        "All": 50,
-        "First Study": 10,
-        "Unbaptized": 14,
-        "Potential": 12,
-        "Baptism Ready": 6,
-        "Needs Help": 4,
-        "Baptized": 4
+        "All": 70,
+        "First Study": 14,
+        "Unbaptized": 18,
+        "Potential": 16,
+        "Baptism Ready": 8,
+        "Needs Help": 6,
+        "Baptized": 8
       },
       "chipsAfter": {
-        "All": 50,
-        "First Study": 10,
-        "Unbaptized": 13,
-        "Potential": 13,
-        "Baptism Ready": 6,
-        "Needs Help": 4,
-        "Baptized": 4
+        "All": 70,
+        "First Study": 14,
+        "Unbaptized": 17,
+        "Potential": 17,
+        "Baptism Ready": 8,
+        "Needs Help": 6,
+        "Baptized": 8
       },
       "potentialDelta": 1
     }

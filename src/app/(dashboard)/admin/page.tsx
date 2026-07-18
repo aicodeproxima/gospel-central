@@ -66,7 +66,7 @@ const TAB_SPECS: TabSpec[] = [
   },
   {
     key: 'groups',
-    label: 'Groups',
+    label: 'Org Tree',
     description: 'Manage the org tree — branches, groups, teams. Reassign users between nodes.',
     icon: Network,
   },

@@ -99,13 +99,13 @@ export const contactsHelp: PageHelp = {
     },
     {
       heading: 'How contacts feed the org tree',
-      body: 'Every contact has an assigned teacher. The Groups page reads the live contact list to compute the 3 metric icons (currently studying, total studies, bearing fruit) for every person in the tree. Editing a contact\u2019s pipeline stage or session count updates the org tree immediately.',
+      body: 'Every contact has an assigned teacher. The Org Tree page reads the live contact list to compute the 3 metric icons (currently studying, total studies, bearing fruit) for every person in the tree. Editing a contact\u2019s pipeline stage or session count updates the org tree immediately.',
     },
   ],
 };
 
 export const groupsHelp: PageHelp = {
-  title: 'Groups & Organization',
+  title: 'Org Tree & Organization',
   summary: 'Active-Directory-style org tree showing the entire church hierarchy from admin down to member. Track teacher performance and student pipeline.',
   sections: [
     {

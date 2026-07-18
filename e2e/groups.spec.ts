@@ -9,7 +9,8 @@ test.describe('List B — groups', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'branch1');
     await page.goto('/groups');
-    await expect(page.getByText(/organization/i).first()).toBeVisible();
+    // H1 + tab both say "Org Tree" since the REV3 #13 rename (was "Organization").
+    await expect(page.getByText(/org tree/i).first()).toBeVisible();
   });
 
   test('B25 toggle 3D → List view shows the org as a list', async ({ page }) => {

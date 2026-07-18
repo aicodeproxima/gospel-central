@@ -1471,7 +1471,7 @@ export function Tree3D(props: Tree3DProps) {
               className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none"
               aria-hidden="true"
             />
-            <p className="text-sm text-muted-foreground">Loading organization…</p>
+            <p className="text-sm text-muted-foreground">Loading org tree…</p>
           </div>
         )}
         {/* Hint overlay — also the BOTTOM frame edge the camera-fit math centers

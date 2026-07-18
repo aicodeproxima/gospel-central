@@ -17,12 +17,13 @@ test.describe('permission boundaries — UI affordances', () => {
   test('Add User on /groups is gated to Team Leader+', async ({ page }) => {
     await loginAs(page, 'member3');
     await page.goto('/groups');
-    await expect(page.getByText(/organization/i).first()).toBeVisible(); // loaded
+    // "Org Tree" since the REV3 #13 rename (H1 + tab; was "Organization").
+    await expect(page.getByText(/org tree/i).first()).toBeVisible(); // loaded
     await expect(page.getByRole('button', { name: /add user/i })).toHaveCount(0);
 
     await loginAs(page, 'team1');
     await page.goto('/groups');
-    await expect(page.getByText(/organization/i).first()).toBeVisible();
+    await expect(page.getByText(/org tree/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /add user/i }).first()).toBeVisible();
   });
 
