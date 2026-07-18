@@ -487,7 +487,7 @@ function ViewMode({
           value={
             contact.currentlyStudying && contact.currentSubject ? (
               <div>
-                <div className="font-semibold text-base">Step {contact.currentStep}</div>
+                <div className="font-semibold text-base">{t('contact.sermon')} {contact.currentStep}</div>
                 <div className="text-base text-muted-foreground">{contact.currentSubject}</div>
               </div>
             ) : (

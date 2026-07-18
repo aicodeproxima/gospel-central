@@ -333,7 +333,7 @@ export default function DashboardPage() {
                           {c.currentSubject && (
                             <>
                               <span>•</span>
-                              <span>Step {c.currentStep}: {c.currentSubject}</span>
+                              <span>{t('contact.sermon')} {c.currentStep}: {c.currentSubject}</span>
                             </>
                           )}
                         </div>

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n';
 
 /**
  * Shared "N contacts" drill-down popup — opened from a clicked pipeline bar
@@ -38,6 +39,7 @@ export function ContactListPopup({
   users,
   onContactSelect,
 }: ContactListPopupProps) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -60,7 +62,7 @@ export function ContactListPopup({
                 ? users.find((u) => u.id === c.assignedTeacherId)
                 : undefined;
               const studiesInfo = c.currentlyStudying
-                ? `Step ${c.currentStep ?? 1}`
+                ? `${t('contact.sermon')} ${c.currentStep ?? 1}`
                 : `${c.totalSessions} ${c.totalSessions === 1 ? 'study' : 'studies'}`;
 
               return (

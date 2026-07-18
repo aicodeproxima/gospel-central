@@ -129,6 +129,10 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.bookRooms': 'Book rooms & view schedule',
     'dash.manageContacts': 'Manage your contacts',
     'dash.viewOrgTree': 'View org tree',
+    // REV3 #14: the curriculum-progress label on contacts ("Sermon 17/35").
+    // The wizard PROGRESS counters ("Step 1 of 4") are a different concept
+    // and deliberately keep "Step".
+    'contact.sermon': 'Sermon',
     'dash.profilePrefs': 'Your profile & preferences',
     'dash.viewLogs': 'View logs & export data',
     'dash.noUpcoming': 'No upcoming bookings',
@@ -563,6 +567,7 @@ export const translations: Record<string, Record<string, string>> = {
     'dash.bookRooms': 'Reservar salas y ver horarios',
     'dash.manageContacts': 'Administrar tus contactos',
     'dash.viewOrgTree': 'Ver árbol org.',
+    'contact.sermon': 'Sermón',
     'dash.profilePrefs': 'Tu perfil y preferencias',
     'dash.viewLogs': 'Ver registros y exportar datos',
     'dash.noUpcoming': 'No hay reservas próximas',

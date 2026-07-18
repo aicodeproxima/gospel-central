@@ -366,7 +366,7 @@ function ContactLeaf3DInner({
   compact,
   cardDistanceFactor,
 }: ContactLeaf3DProps) {
-  const { tStage } = useTranslation();
+  const { t, tStage } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
   // STATIC status color — never animate emissive, so the disc stays idle
   // under frameloop="demand" (no per-frame invalidation).
@@ -424,7 +424,7 @@ function ContactLeaf3DInner({
               {contact.currentSubject && (
                 <>
                   <span>•</span>
-                  <span className="truncate">Step {contact.currentStep}</span>
+                  <span className="truncate">{t('contact.sermon')} {contact.currentStep}</span>
                 </>
               )}
             </div>

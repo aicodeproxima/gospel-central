@@ -111,7 +111,7 @@ function ContactsTableInner({
           {contacts.map((c) => {
             const stage = PIPELINE_STAGE_CONFIG[c.pipelineStage];
             const teacher = getAssignedTeacher(users, c);
-            const step = stepLabel(c);
+            const step = stepLabel(c, t('contact.sermon'));
             const editable = canEdit(c);
             const handleRow = () => (selectMode ? onToggleSelect(c.id) : onRowClick(c.id));
             return (

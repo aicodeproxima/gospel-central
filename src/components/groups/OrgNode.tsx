@@ -325,6 +325,7 @@ function IconButton({
  * Double click: navigates to /contacts?edit={id}.
  */
 function ContactLeaf({ contact, onEdit }: { contact: Contact; onEdit: () => void }) {
+  const { t } = useTranslation();
   const stage = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
   return (
     <div className="relative">
@@ -363,7 +364,7 @@ function ContactLeaf({ contact, onEdit }: { contact: Contact; onEdit: () => void
             {contact.currentSubject && (
               <>
                 <span>•</span>
-                <span className="truncate">Step {contact.currentStep}</span>
+                <span className="truncate">{t('contact.sermon')} {contact.currentStep}</span>
               </>
             )}
           </div>

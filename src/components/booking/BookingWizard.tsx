@@ -188,6 +188,17 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
   const customTeachers = entities.filter((e) => e.kind === 'teacher');
   const customContacts = entities.filter((e) => e.kind === 'contact');
 
+  // REV3 #7: the church a wizard-created contact lands in. The slot-click path
+  // used to drop it entirely (created contacts had NO groupName). Defaults to
+  // the selected ROOM's church — the room is authoritative even when the
+  // calendar is showing a different church — and the Confirm step surfaces it
+  // as an editable prefill so the user can override.
+  const [newContactChurch, setNewContactChurch] = useState<string | null>(null);
+  const roomChurchName = useMemo(
+    () => areas.find((a) => a.rooms.some((r) => r.id === roomId))?.name ?? null,
+    [areas, roomId],
+  );
+
   // Reset when modal opens
   useEffect(() => {
     if (isBookingModalOpen) {
@@ -397,7 +408,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
     const base = visible.map((c) => ({
       id: c.id,
       label: `${c.firstName} ${c.lastName}`,
-      sublabel: c.currentlyStudying ? `Step ${c.currentStep}` : c.pipelineStage,
+      sublabel: c.currentlyStudying ? `${t('contact.sermon')} ${c.currentStep}` : c.pipelineStage,
     }));
     const custom: ComboOption[] = customContacts.map((c) => ({
       id: c.id,
@@ -405,7 +416,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
       sublabel: 'Custom contact',
     }));
     return [...custom, ...base];
-  }, [contacts, customContacts, viewer, scope.userIds]);
+  }, [contacts, customContacts, viewer, scope.userIds, t]);
 
   // Time slots for selected room + date — now blocked-slot- and
   // teacher-conflict aware. (BLOCK-1, CAL-2.) Phase 4: when editing, the
@@ -549,6 +560,9 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
           status: ContactStatus.ACTIVE,
           pipelineStage: PipelineStage.FIRST_STUDY,
           assignedTeacherId: leaderId && isBackendManagedId(leaderId) ? leaderId : undefined,
+          // REV3 #7: land the new contact in a church — the Confirm-step
+          // override if set, else the booked room's church.
+          groupName: newContactChurch ?? roomChurchName ?? undefined,
           createdBy: viewer?.id || '',
           totalSessions: 0,
           timeline: [
@@ -754,6 +768,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   value={roomId}
                   onChange={setRoomId}
                   placeholder="Search rooms..."
+                  alwaysOpen
                   allowAddNew
                   onAddNew={(name) => {
                     const entity = addCustom('room', name);
@@ -774,6 +789,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   value={leaderId}
                   onChange={setLeaderId}
                   placeholder="Search leaders & teachers..."
+                  alwaysOpen
                   allowAddNew
                   onAddNew={(name) => {
                     const entity = addCustom('teacher', name);
@@ -796,6 +812,7 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                   value={contactId}
                   onChange={setContactId}
                   placeholder="Search contacts..."
+                  alwaysOpen
                   allowAddNew
                   onAddNew={(name) => {
                     const entity = addCustom('contact', name);
@@ -872,6 +889,26 @@ export function BookingWizard({ areas, bookings, users, contacts, blockedSlots =
                     <>
                       <Row label={t('wizard.mode')} value={mode === 'zoom' ? 'Zoom' : t('wizard.inPerson')} onClick={() => setStep('when')} />
                       <Row label={t('wizard.contact')} value={contactOptions.find((c) => c.id === contactId)?.label || '—'} onClick={() => setStep('contact')} />
+                      {/* REV3 #7: a brand-new (Add new) contact needs a church.
+                          Editable prefill — defaults to the booked room's church. */}
+                      {contactId && !isBackendManagedId(contactId) && (
+                        <div className="flex items-center justify-between gap-2 py-0.5">
+                          <span className="text-muted-foreground">Church (new contact)</span>
+                          <select
+                            value={newContactChurch ?? roomChurchName ?? ''}
+                            onChange={(e) => setNewContactChurch(e.target.value)}
+                            aria-label="Church for the new contact"
+                            className="h-8 min-h-[44px] touch-manipulation rounded-md border border-border bg-background px-2 text-sm sm:min-h-8"
+                          >
+                            {roomChurchName === null && <option value="">—</option>}
+                            {areas.map((a) => (
+                              <option key={a.id} value={a.name}>
+                                {a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <Row
                         label="Subjects"
                         value={

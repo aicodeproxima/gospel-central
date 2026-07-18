@@ -46,12 +46,15 @@ export function initialsOf(firstName?: string, lastName?: string): string {
   return `${a ? a[0]! : ''}${b ? b[0]! : ''}`.toUpperCase() || '•';
 }
 
-/** "Step 17/35" while studying, else null. currentStep = the contact's current
- *  study number in the 35-study curriculum (see src/lib/curriculum.ts). */
+/** "Sermon 17/35" while studying, else null. currentStep = the contact's
+ *  current study number in the 35-study curriculum (src/lib/curriculum.ts).
+ *  REV3 #14 renamed the curriculum label Step→Sermon; callers pass the
+ *  translated word (t('contact.sermon')) — the default keeps non-i18n
+ *  callers (exports, tests) working in English. */
 export const STUDY_STEP_COUNT = CURRICULUM_STUDY_COUNT;
-export function stepLabel(contact: Contact): string | null {
+export function stepLabel(contact: Contact, word: string = 'Sermon'): string | null {
   if (contact.currentStep && contact.currentStep > 0) {
-    return `Step ${Math.min(contact.currentStep, STUDY_STEP_COUNT)}/${STUDY_STEP_COUNT}`;
+    return `${word} ${Math.min(contact.currentStep, STUDY_STEP_COUNT)}/${STUDY_STEP_COUNT}`;
   }
   return null;
 }

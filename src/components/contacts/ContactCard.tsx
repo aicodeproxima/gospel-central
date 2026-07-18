@@ -40,7 +40,7 @@ function ContactCardInner({
   const stageConfig = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
 
   const teacher = getAssignedTeacher(users, contact);
-  const step = stepLabel(contact);
+  const step = stepLabel(contact, t('contact.sermon'));
   const fullName = `${contact.firstName} ${contact.lastName}`.trim();
 
   // Branches: the contact's preaching partners (up to 3). Main Branch =
