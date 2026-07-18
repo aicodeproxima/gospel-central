@@ -145,6 +145,12 @@ in this repo — keep it current.
   verified: their real journey on the deployed app, never a proxy that stands in for it.
 - **Only exception:** the defect is genuinely invisible to a user (build gate, type error, a race
   with no observable surface). If a user can see or feel it, an assertion is not proof.
+- **USER DIRECTIVE (2026-07-18): ALWAYS verify fixes with UI automation (Playwright / real-browser
+  MCP) as the source of truth, from the user's perspective — user experience is everything.
+  Headless-only verification is viable ONLY for changes genuinely invisible to the user.**
+  (Earned the same day it was given: item 3's gates were fully green, yet driving prod by hand
+  exposed tier-2 contacts rows highlighting the "B" in "Ben-Shedeur" instead of showing
+  "via Barnabas" — invisible to every test, obvious to any user.)
 - **A repro that cannot fail for the claimed reason disproves the diagnosis, not the bug.**
 - **Check the surfaces the user compares.** A fix that is "correct" on one page but inconsistent
   with the others is not fixed — consistency is part of the experience.
@@ -170,11 +176,12 @@ in this repo — keep it current.
   cached cookie). Confirm iOS on a real device before declaring done.
 - Integration gate after multi-file changes: clean `npm run build` (`next build`) + ALL `npm run test`
   (`vitest run`) green. **The suite grows every audit loop — run it; never assert a fixed test count.**
-- Browser automation: **Chrome MCP / chrome-devtools MCP primary**; Playwright is the fallback only.
-  This is not a formality — Chrome MCP runs in the user's REAL Chrome, so they can watch and catch
-  what an assertion misses. A whole nav feature was "verified" via raw headless Playwright scripts
-  the user never saw, and shipped visibly broken (2026-07-17). Playwright suites remain the
-  regression gate; they are not the UX verification.
+- Browser automation: **chrome-devtools MCP primary** (runs in the user's REAL Chrome, so they
+  can watch and catch what an assertion misses), **Playwright MCP a full peer for UX verification
+  per the 2026-07-18 user directive** — drive it visibly and LOOK. The condemned pattern is raw
+  headless scripts nobody watches (a whole nav feature shipped visibly broken that way,
+  2026-07-17), not Playwright itself. Playwright suites remain the regression gate; they are
+  not the UX verification.
 
 ## NEVER / ALWAYS
 - **NEVER call anything fixed/done/passing until it is confirmed on the deployed app through the

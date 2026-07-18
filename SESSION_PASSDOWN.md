@@ -1,5 +1,66 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
+> **🔑🟡 LATEST — KIMI K3'S PASSDOWN (2026-07-18): REV3 item 3 SHIPPED + PROD-VERIFIED; the
+> tier-2 highlight follow-up fix is GATE-GREEN but UNCOMMITTED — user is holding the commit.**
+> Kimi K3 picked Plan B up after the prior session was rate-limited mid-item-3. State: `main`
+> local == origin at **`77d7b19`**; the working tree holds the UNCOMMITTED follow-up fix +
+> the CLAUDE.md verification directive (+ `src/lib/version.ts` build churn — exclude per
+> wave-1 convention). Remaining REV3: **#4, #19, #20** (user order: #4 before #20).
+>
+> - **Item 3 (tiered prefix search + yellow highlight) SHIPPED as `77d7b19`** (11 files incl.
+>   new `tree-search.test.ts`; version.ts excluded). Gates at ship: tsc clean, vitest 614/614,
+>   build clean, e2e 171+2 batch flakes (both passed in isolation).
+> - **PROD VERIFICATION via Playwright MCP on gospel-central.vercel.app (the mandated gospel
+>   journey):** Groups PASS — "Abidan" resolves the CONTACT with prefix mark + ancestor chain;
+>   "iel"/"Newport" → "No matches found"; "barn" → tier-1 Barnabas then tier-2 contacts with
+>   "• via Barnabas". Calendar PASS — "iel" → nothing, "gam" → Gamaliel with yellow "Gam" mark
+>   (screenshot `.playwright-mcp/rev3-item3-calendar-gam.png`), "member" → nothing.
+>   **Contacts FAILED BY EYE — a bug every gate missed:** default "B" search tier-2 rows
+>   (e.g. *Elizur Ben-Shedeur*, matched via partner Barnabas) highlighted the surname "B" in
+>   "Ben-Shedeur" and swallowed the "via \<partner\>" line — the `?? prefixMatch` fallback in
+>   ContactsTable.tsx/ContactCard.tsx. The tier-1/tier-2 filter + ordering itself was verified
+>   CORRECT against live seed data (partners confirmed via in-page `/api` fetch).
+> - **FOLLOW-UP FIX (UNCOMMITTED, green, awaiting user's go):** new
+>   `nameHighlightRanges`/`partnerHighlightRanges` in `src/lib/utils/text-match.ts` keep the
+>   highlight in lockstep with each searchField's filter semantics (default = full-prefix
+>   only; scoped contact/branches = word-start; other fields = none). ContactsTable +
+>   ContactCard take `searchField` from the page; the "via" line exists ONLY in the default
+>   tiered search. +4 unit pins (incl. the exact prod case). Gates: tsc clean,
+>   **vitest 618/618**, build clean, **e2e 170+3 webkit batch flakes** (booking B4 /
+>   reschedule / permissions B11 — all pass in isolation; same known flake class as waves
+>   2a/2b). Commit scope: the 5 fix files + CLAUDE.md; exclude version.ts. After committing:
+>   push, poll `/version.json`, re-drive the "B" journey (Table AND Grid) on prod.
+> - **CLAUDE.md updated (UNCOMMITTED, rides with the fix):** USER DIRECTIVE 2026-07-18 —
+>   always verify fixes with UI automation (Playwright / real-browser MCP) as the source of
+>   truth, from the user's perspective; headless only for genuinely invisible changes. The
+>   browser-automation bullet now names Playwright MCP a full peer (the condemned pattern is
+>   unwatched headless scripts, not Playwright itself).
+> - **chrome-devtools MCP CONFIGURED** in `~/.kimi-code/mcp.json` (timestamped backup kept;
+>   `chrome-devtools-mcp` v1.6.0 verified via npx; `--headless=false`). **Needs `/reload` or a
+>   new session to enter the toolset** — this session used Playwright MCP. Gotcha: MCP-relative
+>   screenshot paths (`./x.png`) resolve against the SESSION cwd (career-automation), NOT the
+>   repo — pass absolute paths into the repo's `.playwright-mcp/`.
+> - **Supabase keys now in `.env.local` (gitignored, verified):** `SB_SECRET` (Data-API secret,
+>   RLS-bypass — probed 200), `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+>   (anon JWT — probed 200; the real-backend env pair is COMPLETE locally; mock mode untouched
+>   while `NEXT_PUBLIC_MOCK_API=true`), `SB_PUBLISHABLE` (200), `SB_SERVICE_ROLE` (200).
+>   **Management API returns 401 with ALL of them** — item 20's RLS migration +
+>   `scripts/verify-schema.mjs` still need a **`sbp_...` PAT** (Supabase dashboard → avatar →
+>   Account Settings → Access Tokens → Generate). Ask the user when #20 starts.
+> - **Plan B remaining:** #4 (consolidate contact edit onto ContactDetailDialog; ContactForm
+>   create-only — also closes the #6 nuance), #19 (persistence matrix: booking-store persist
+>   view/areaId w/ partialize + docs matrix; NOT selectedDate), #20 (BL cross-branch — APPROVED
+>   policy reversal: permissions.ts `buildManageableScope` + PERMISSIONS.md + test pins +
+>   `viewerManageableUserIds` mock gates (NOT `viewerSubtreeUserIds`) + Supabase RLS migration
+>   verified by verify-schema.mjs FIRST + `crossBranch: true` audit flag; mock and RLS flip
+>   TOGETHER).
+> - **Session mechanics worth keeping:** wave commit style = `fix(rev3): wave N — items ...`
+>   with the full gate summary in the body. `docs/qa/propagation*` ride commits whenever the
+>   harness regenerates them (fingerprint anchors to HEAD). e2e batch flakes (calendar slot
+>   clicks / settings networkidle under parallel load) are a KNOWN class — re-run the red ones
+>   in isolation before believing them. Vercel deploys main in ~60s; poll `/version.json` for
+>   the new short SHA before any prod drive.
+
 > **🧹 LATEST — REPO/GIT/VERCEL/SUPABASE CLEANUP EXECUTED (2026-07-17, after REV3).** The
 > "local == online 1-for-1" invariant now HOLDS: branch topology is exactly **`main` +
 > `feat/supabase-cutover`** both sides (16 locals + 9 remotes retired behind 6 `archive/*` tags —

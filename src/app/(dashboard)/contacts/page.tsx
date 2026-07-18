@@ -998,6 +998,7 @@ export default function ContactsPage() {
           contacts={filtered}
           users={users}
           query={search}
+          searchField={searchField}
           sortKey={sortKey}
           onSort={(k) => setSortKey(k)}
           selectMode={selectMode}
@@ -1055,6 +1056,7 @@ export default function ContactsPage() {
                   selected={selectedIds.has(contact.id)}
                   onToggleSelect={() => toggleSelect(contact.id)}
                   query={search}
+                  searchField={searchField}
                 />
               </motion.div>
             ))}

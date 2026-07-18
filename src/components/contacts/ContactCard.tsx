@@ -9,7 +9,7 @@ import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { getAssignedTeacher, initialsOf, stepLabel, resolvePartnerSlots } from '@/lib/utils/contact-helpers';
-import { prefixMatch, fullPrefixRange } from '@/lib/utils/text-match';
+import { nameHighlightRanges, partnerHighlightRanges } from '@/lib/utils/text-match';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 
 interface ContactCardProps {
@@ -24,6 +24,9 @@ interface ContactCardProps {
   compact?: boolean;
   /** Search query to highlight within the contact's name (deep-link/search UX). */
   query?: string;
+  /** Which field the query ran against ('all' = the default tiered search) —
+   *  the highlight must match the filter's semantics (REV3 #3 follow-up). */
+  searchField?: string;
 }
 
 function ContactCardInner({
@@ -35,6 +38,7 @@ function ContactCardInner({
   onToggleSelect,
   compact,
   query,
+  searchField = 'all',
 }: ContactCardProps) {
   const { t, tStage } = useTranslation();
   const stageConfig = PIPELINE_STAGE_CONFIG[contact.pipelineStage];
@@ -48,9 +52,10 @@ function ContactCardInner({
   // the highlight (finding 102).
   const branches = resolvePartnerSlots(users, contact).slice(0, 3);
 
-  // REV3 #3: full-label prefix first (the default search semantic), falling
-  // back to word-start ranges so scoped-field searches keep their highlight.
-  const nameRanges = query ? (fullPrefixRange(fullName, query) ?? prefixMatch(fullName, query)) : null;
+  // REV3 #3: the default tiered search highlights the name on a full-label
+  // prefix ONLY (a surname word-start is a tier-2 partner match, never a
+  // name mark); scoped-field searches keep their word-start highlight.
+  const nameRanges = query ? nameHighlightRanges(fullName, query, searchField) : null;
 
   const handleClick = () => {
     if (selectMode && onToggleSelect) {
@@ -189,7 +194,7 @@ function ContactCardInner({
                   )}
                 >
                   {/* Partner names highlight too (REV3 #3 tier-2 matches). */}
-                  <HighlightedText text={p.name} ranges={query ? fullPrefixRange(p.name, query) : null} />
+                  <HighlightedText text={p.name} ranges={query ? partnerHighlightRanges(p.name, query, searchField) : null} />
                 </span>
               ))}
             </div>

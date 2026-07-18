@@ -30,7 +30,7 @@ import {
   resolvePartnerSlots,
   type ContactSortKey,
 } from '@/lib/utils/contact-helpers';
-import { fullPrefixRange, prefixMatch } from '@/lib/utils/text-match';
+import { fullPrefixRange, nameHighlightRanges } from '@/lib/utils/text-match';
 import { HighlightedText } from '@/components/shared/HighlightedText';
 
 interface ContactsTableProps {
@@ -48,6 +48,10 @@ interface ContactsTableProps {
   /** Active search query — highlights the matched name / partner (REV3 #3:
    *  the Table view previously rendered 0 <mark>s while Grid highlighted). */
   query?: string;
+  /** Which field the query ran against ('all' = the default tiered search) —
+   *  the highlight must match the filter's semantics (REV3 #3 follow-up:
+   *  surname word-starts must NOT highlight in the default search). */
+  searchField?: string;
 }
 
 function SortHeader({
@@ -90,6 +94,7 @@ function ContactsTableInner({
   onDelete,
   canEdit,
   query,
+  searchField = 'all',
 }: ContactsTableProps) {
   const { t, tStage } = useTranslation();
 
@@ -121,13 +126,15 @@ function ContactsTableInner({
             const step = stepLabel(c, t('contact.sermon'));
             const editable = canEdit(c);
             const handleRow = () => (selectMode ? onToggleSelect(c.id) : onRowClick(c.id));
-            // REV3 #3 highlights: name prefix (falling back to word-start for
-            // scoped searches); a tier-2 row (matched via a preaching partner)
-            // shows "via <partner>" so the match is never a mystery.
+            // REV3 #3 highlights: in the default tiered search the name gets
+            // a full-prefix mark ONLY — a surname word-start never highlights;
+            // a tier-2 row (matched via a preaching partner) shows
+            // "via <partner>" instead, so the match is never a mystery.
+            // Scoped-field searches keep their word-start highlight.
             const fullName = `${c.firstName} ${c.lastName}`.trim();
-            const nameRanges = query ? (fullPrefixRange(fullName, query) ?? prefixMatch(fullName, query)) : null;
+            const nameRanges = query ? nameHighlightRanges(fullName, query, searchField) : null;
             const viaPartner =
-              query && !nameRanges
+              query && searchField === 'all' && !nameRanges
                 ? resolvePartnerSlots(users, c).find((p) => fullPrefixRange(p.name, query))
                 : undefined;
             return (

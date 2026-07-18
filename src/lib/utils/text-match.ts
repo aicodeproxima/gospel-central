@@ -47,15 +47,6 @@ function findWordStarts(text: string): WordStart[] {
 }
 
 /**
- * Prefix matcher. Case-insensitive. A query token matches at the start of a
- * "word" (word = segment after whitespace, hyphen, or apostrophe — which
- * includes the very start of the string). Every whitespace-separated query
- * token must match some word; tokens claim the FIRST as-yet-unclaimed word
- * they prefix, scanning words in the order they appear in `text`. Returns
- * matched ranges sorted by start, non-overlapping, or null if any token
- * fails to match.
- */
-/**
  * REV3 #3 (user spec 2026-07-17): the DEFAULT search semantic is "prefix of
  * the full visible label" — typing "B" matches only names that START with B
  * ("Abidan Ben-Gideoni" does NOT match via its surname). Returns the single
@@ -67,6 +58,49 @@ export function fullPrefixRange(text: string, query: string): MatchRange[] | nul
   return text.toLowerCase().startsWith(q) ? [{ start: 0, end: q.length }] : null;
 }
 
+/**
+ * Which highlight (if any) a query earns on a contact's NAME — kept in
+ * lockstep with the filter semantics of each searchField (REV3 #3):
+ *  - 'all' (the default tiered search): full-label prefix ONLY. A surname
+ *    word-start ("B" in "Elizur Ben-Shedeur") must NOT highlight — that row
+ *    matched via a preaching partner and shows "via <partner>" instead.
+ *  - 'contact' (scoped name search): the word-start matcher it filters by.
+ *  - any other scoped field: the name was not the match basis — no highlight.
+ */
+export function nameHighlightRanges(
+  name: string,
+  query: string,
+  searchField: string = 'all',
+): MatchRange[] | null {
+  if (searchField === 'all') return fullPrefixRange(name, query);
+  if (searchField === 'contact') return prefixMatch(name, query);
+  return null;
+}
+
+/**
+ * Same lockstep for a preaching-PARTNER's name: the default search highlights
+ * a partner only on a full-label prefix (the tier-2 match); a scoped
+ * 'branches' search keeps the word-start matcher it filters by.
+ */
+export function partnerHighlightRanges(
+  partnerName: string,
+  query: string,
+  searchField: string = 'all',
+): MatchRange[] | null {
+  if (searchField === 'all') return fullPrefixRange(partnerName, query);
+  if (searchField === 'branches') return prefixMatch(partnerName, query);
+  return null;
+}
+
+/**
+ * Prefix matcher. Case-insensitive. A query token matches at the start of a
+ * "word" (word = segment after whitespace, hyphen, or apostrophe — which
+ * includes the very start of the string). Every whitespace-separated query
+ * token must match some word; tokens claim the FIRST as-yet-unclaimed word
+ * they prefix, scanning words in the order they appear in `text`. Returns
+ * matched ranges sorted by start, non-overlapping, or null if any token
+ * fails to match.
+ */
 export function prefixMatch(text: string, query: string): MatchRange[] | null {
   const trimmedQuery = query.trim();
   if (trimmedQuery === '') return null;
