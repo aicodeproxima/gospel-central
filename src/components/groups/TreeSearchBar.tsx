@@ -5,25 +5,30 @@ import { Search, X, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { buildSearchIndex, searchEntriesWithTotal, type SearchEntry } from '@/lib/utils/tree-search';
-import type { OrgNode } from '@/lib/types';
+import type { OrgNode, Contact } from '@/lib/types';
 
 interface TreeSearchBarProps {
   roots: OrgNode[];
+  /** Contacts render as leaves in the tree, so search resolves them too (REV3 #1). */
+  contacts?: Contact[];
   onSelect: (entry: SearchEntry) => void;
+  /** Focus the input on mount (used by the phone magnifier expansion, REV3 #2). */
+  autoFocus?: boolean;
 }
 
 /**
  * Search bar with predictive dropdown for the org tree.
  * Type any name, role, or group → press Enter or click a result
  * to focus the 3D camera on that node and auto-expand its ancestors.
+ * Contacts match by NAME and open their detail dialog under their teacher.
  */
-export function TreeSearchBar({ roots, onSelect }: TreeSearchBarProps) {
+export function TreeSearchBar({ roots, contacts, onSelect, autoFocus }: TreeSearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const index = useMemo(() => buildSearchIndex(roots), [roots]);
+  const index = useMemo(() => buildSearchIndex(roots, contacts ?? []), [roots, contacts]);
   const { entries: results, total } = useMemo(
     () => searchEntriesWithTotal(index, query, 10),
     [index, query],
@@ -79,7 +84,8 @@ export function TreeSearchBar({ roots, onSelect }: TreeSearchBarProps) {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search users, groups, teams..."
+          placeholder="Search users, contacts, teams..."
+          autoFocus={autoFocus}
           className="pl-9 pr-9"
           aria-autocomplete="list"
           aria-expanded={open}

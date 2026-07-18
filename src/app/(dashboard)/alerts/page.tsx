@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
@@ -9,7 +9,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useTranslation } from '@/lib/i18n';
 import { usePreferencesStore } from '@/lib/stores/preferences-store';
 import { useAlerts } from '@/lib/hooks/use-alerts';
-import { alertCategory, isAlertEnabled, type AlertToggleKey } from '@/lib/utils/alerts';
+import { alertCategory, isAlertEnabled, resolveAlertTarget, type AlertToggleKey } from '@/lib/utils/alerts';
+import { usersApi } from '@/lib/api/users';
+import { contactsApi } from '@/lib/api/contacts';
 import type { AuditLogEntry } from '@/lib/types';
 
 /**
@@ -39,6 +41,29 @@ export default function AlertsPage() {
   const { t } = useTranslation();
   const notifications = usePreferencesStore((s) => s.notifications);
   const { entries, loading, markSeen } = useAlerts();
+
+  // REV3 #16: name lookups for "who the action was on". Degrade to empty maps
+  // on failure — rows then fall back to raw ids rather than hiding the line.
+  const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
+  const [contactNames, setContactNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    usersApi
+      .getAll()
+      .then((us) => {
+        if (!cancelled) setUserNames(new Map(us.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim() || u.username])));
+      })
+      .catch(() => {});
+    contactsApi
+      .getContacts()
+      .then((cs) => {
+        if (!cancelled) setContactNames(new Map(cs.map((c) => [c.id, `${c.firstName} ${c.lastName}`.trim()])));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Mark seen once entries have actually loaded — avoids marking-seen against
   // an empty pre-fetch array on first paint.
@@ -112,6 +137,7 @@ export default function AlertsPage() {
                   {dayEntries.map((e) => {
                     const category = alertCategory(e);
                     const Icon = CATEGORY_ICON[category];
+                    const target = resolveAlertTarget(e, userNames, contactNames);
                     return (
                       <div
                         key={e.id}
@@ -122,6 +148,23 @@ export default function AlertsPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm break-words">{e.details}</p>
+                          {(target.targetNames.length > 0 || target.reason) && (
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px]">
+                              {target.entityLabel && (
+                                <span className="rounded bg-muted/60 px-1 py-0.5 text-muted-foreground">
+                                  {target.entityLabel}
+                                </span>
+                              )}
+                              {target.targetNames.length > 0 && (
+                                <span className="font-medium text-foreground/90">
+                                  {target.targetNames.join(', ')}
+                                </span>
+                              )}
+                              {target.reason && (
+                                <span className="text-muted-foreground">— “{target.reason}”</span>
+                              )}
+                            </div>
+                          )}
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                             <span>{e.userName}</span>
                             <span aria-hidden="true">·</span>

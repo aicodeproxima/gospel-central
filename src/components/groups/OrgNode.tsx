@@ -341,7 +341,12 @@ function ContactLeaf({ contact, onEdit }: { contact: Contact; onEdit: () => void
         onClick={(e) => e.stopPropagation()}
         title="Double-click to edit"
         className={cn(
-          'w-full flex items-center gap-2.5 rounded-md border border-dashed border-border/60 bg-card/40 p-2 text-left',
+          // bg-card/90 (was /40): marble's --card is already translucent white
+          // (0.75 alpha), so 40% of it composited to ~30% over the /groups
+          // near-black backdrop — measured ~2.5:1 text contrast (REV3 #11,
+          // AA needs 4.5). At /90 the leaf carries the same ink/surface pairing
+          // as the user rows above it in every theme.
+          'w-full flex items-center gap-2.5 rounded-md border border-dashed border-border/80 bg-card/90 p-2 text-left',
           // Status rail (list-view port) — same border-left treatment as the
           // role rail on user rows, colored by pipeline stage.
           'border-l-[3px]',

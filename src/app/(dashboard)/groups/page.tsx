@@ -39,7 +39,7 @@ import { groupsApi } from '@/lib/api/groups';
 import { contactsApi } from '@/lib/api/contacts';
 import type { OrgNode } from '@/lib/types';
 import type { TeacherMetrics } from '@/lib/types/user';
-import { ChevronsDownUp, ChevronsUpDown, Box, List, Maximize2, Crosshair, UserPlus, MoreHorizontal } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Box, List, Maximize2, Crosshair, UserPlus, MoreHorizontal, Search, X } from 'lucide-react';
 import { CreateUserWizard } from '@/components/users/CreateUserWizard';
 import { canCreateUsers } from '@/lib/utils/permissions';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -93,6 +93,10 @@ export default function GroupsPage() {
   const [resetSignal, setResetSignal] = useState(0);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  // REV3 #2: on phones (<sm) the search collapses to a magnifier; tapping it
+  // expands the bar to the full row (the toggle cluster wraps below) instead
+  // of squeezing a ~57px input beside the view toggles.
+  const [phoneSearchOpen, setPhoneSearchOpen] = useState(false);
   const currentUser = useAuthStore((s) => s.user);
   const showAddUser = !!currentUser && canCreateUsers(currentUser.role);
   const groupsDefaultView = usePreferencesStore((s) => s.groupsDefaultView);
@@ -326,6 +330,16 @@ export default function GroupsPage() {
   };
 
   const handleSearchSelect = (entry: SearchEntry) => {
+    // Contact result (REV3 #1): expand down TO the teacher (the leaf renders
+    // under it), center the teacher, and open the contact's detail dialog —
+    // the same surface a click on the leaf opens.
+    if (entry.kind === 'contact' && entry.teacherId) {
+      setExpandedIds(expandPath(entry.ancestorIds, entry.teacherId));
+      setFilters(new Map());
+      requestFocus({ kind: 'node', id: entry.teacherId });
+      openContactById(entry.id);
+      return;
+    }
     // Expand the target's ancestor path AND the target itself — Search now
     // matches Jump: ancestors + target expanded, other branches cleared.
     setExpandedIds(expandPath(entry.ancestorIds, entry.id));
@@ -403,7 +417,7 @@ export default function GroupsPage() {
             />
           </div>
         ) : (
-          <div className="h-full w-full overflow-auto px-4 pb-6 pt-28 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none sm:px-8 sm:pt-24 md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px]">
+          <div className={`h-full w-full overflow-auto px-4 pb-6 pt-28 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none sm:px-8 sm:pt-24 md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px] ${phoneSearchOpen ? 'max-sm:pt-40' : ''}`}>
             <div className="mx-auto max-w-5xl space-y-3">
               {orgTree.map((node) => (
                 <OrgNodeComponent
@@ -433,7 +447,7 @@ export default function GroupsPage() {
           mid-width steps here (page-side only; toolbar classes untouched)
           gives the wrapped toolbar room without affecting >=xl (pt-24) or
           the <sm phone layout (pt-28, single column, dropdown menu). */}
-      <TabsContent value="metrics" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 md:pt-32 lg:pt-28 xl:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px]">
+      <TabsContent value="metrics" className={`absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 md:pt-32 lg:pt-28 xl:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px] ${phoneSearchOpen ? 'max-sm:pt-40' : ''}`}>
         <div className="mx-auto max-w-6xl">
           <TeacherMetricsCards
             metrics={metrics}
@@ -445,7 +459,7 @@ export default function GroupsPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="pipeline" className="absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px]">
+      <TabsContent value="pipeline" className={`absolute inset-0 m-0 overflow-auto px-4 pb-6 pt-28 sm:px-8 sm:pt-24 transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:pl-20 md:[[data-dock-open=true]_&]:pl-[284px] ${phoneSearchOpen ? 'max-sm:pt-40' : ''}`}>
         <div className="mx-auto max-w-6xl">
           <StudentPipeline contacts={contacts} users={users} onContactSelect={openContactById} />
         </div>
@@ -475,9 +489,47 @@ export default function GroupsPage() {
             <h1 className="text-sm font-semibold">{t('page.groups.title')}</h1>
             <InfoButton {...groupsHelp} />
           </div>
-          <div className="min-w-0 flex-1 max-w-md sm:min-w-[220px]">
-            <TreeSearchBar roots={orgTree} onSelect={handleSearchSelect} />
+          {/* Desktop/tablet (>=sm): the search bar is always inline. */}
+          <div className="hidden min-w-0 flex-1 max-w-md sm:block sm:min-w-[220px]">
+            <TreeSearchBar roots={orgTree} contacts={contacts} onSelect={handleSearchSelect} />
           </div>
+          {/* Phone (<sm): magnifier by default; expanded bar takes the full
+              row and the toggle cluster wraps below (flex reflow, no overlay). */}
+          {!phoneSearchOpen && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPhoneSearchOpen(true)}
+              aria-label="Search the tree"
+              className="h-11 w-11 shrink-0 rounded-full border border-white/15 bg-card/75 p-0 shadow-lg backdrop-blur-md sm:hidden"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          )}
+          {phoneSearchOpen && (
+            <div className="order-first flex w-full basis-full items-center gap-1 sm:hidden">
+              <div className="min-w-0 flex-1">
+                <TreeSearchBar
+                  roots={orgTree}
+                  contacts={contacts}
+                  onSelect={(entry) => {
+                    handleSearchSelect(entry);
+                    setPhoneSearchOpen(false);
+                  }}
+                  autoFocus
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPhoneSearchOpen(false)}
+                aria-label="Close search"
+                className="h-11 w-11 shrink-0 rounded-full p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/15 bg-card/75 p-1 shadow-lg backdrop-blur-md xl:rounded-full">
             <div className="flex items-center rounded-full p-0.5">
