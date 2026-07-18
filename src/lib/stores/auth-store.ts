@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '../types';
+import { clearFeedbackQueue } from './feedback-queue';
 
 /**
  * Auth store — mode-split since Phase C of the Supabase cutover.
@@ -100,6 +101,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Unsent feedback is plaintext and may name a person — it must not
+      // survive into whoever signs in next on a shared device.
+      clearFeedbackQueue();
     } catch {
       /* noop */
     }

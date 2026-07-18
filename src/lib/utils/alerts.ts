@@ -9,6 +9,42 @@ import type { NotificationPreferences } from '@/lib/stores/preferences-store';
 
 export type AlertToggleKey = 'bookingConfirmations' | 'bookingCancellations' | 'contactStageChanges';
 
+/**
+ * Category per entity type, for everything whose category doesn't depend on the
+ * action (booking does — see alertCategory).
+ *
+ * EXHAUSTIVE ON PURPOSE. This was a `return 'account'` catch-all, which meant any
+ * newly-added AuditEntityType silently became an ALWAYS-ON alert: 'account' is the
+ * one category isAlertEnabled returns true for unconditionally, so a new entity
+ * type would bypass every Settings > Alerts toggle and bump the unseen badge with
+ * nothing to turn it off. Nothing caught it either — ENTITY_LABELS below is a
+ * Partial<Record<>>, so a missing key still compiles and just renders no chip.
+ *
+ * Typed as a full Record, so adding a value to AuditEntityType now FAILS THE BUILD
+ * here until someone decides, deliberately, which toggle gates it.
+ */
+const CATEGORY_BY_ENTITY: Record<
+  Exclude<AuditLogEntry['entityType'], 'booking'>,
+  AlertToggleKey | 'account'
+> = {
+  contact: 'contactStageChanges',
+  // Events about the user themselves — always shown, no toggle to hide them.
+  user: 'account',
+  group: 'account',
+  role_change: 'account',
+  group_assignment: 'account',
+  password_reset: 'account',
+  username_change: 'account',
+  login_success: 'account',
+  login_failed: 'account',
+  permission: 'account',
+  tag: 'account',
+  area: 'account',
+  room: 'account',
+  blocked_slot: 'account',
+  report: 'account',
+};
+
 /** Map an audit event to the toggle that gates it, or 'account' for events
  *  about the user directly (role/reassign/password/tag/rename) which are always
  *  shown regardless of toggles. */
@@ -16,8 +52,7 @@ export function alertCategory(e: AuditLogEntry): AlertToggleKey | 'account' {
   if (e.entityType === 'booking') {
     return e.action === 'cancel' || e.action === 'delete' ? 'bookingCancellations' : 'bookingConfirmations';
   }
-  if (e.entityType === 'contact') return 'contactStageChanges';
-  return 'account';
+  return CATEGORY_BY_ENTITY[e.entityType] ?? 'account';
 }
 
 export function isAlertEnabled(e: AuditLogEntry, n: NotificationPreferences): boolean {

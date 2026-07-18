@@ -110,3 +110,39 @@ describe('newestTimestamp', () => {
     expect(newestTimestamp([])).toBeNull();
   });
 });
+
+/**
+ * Regression: alertCategory used to `return 'account'` as a catch-all, and
+ * isAlertEnabled returns true unconditionally for 'account'. So ANY newly-added
+ * AuditEntityType silently became an always-on alert that bypassed every
+ * Settings > Alerts toggle and bumped the unseen badge with no way to mute it.
+ * CATEGORY_BY_ENTITY is now a full Record, so adding a union member fails the
+ * BUILD until a category is chosen deliberately. This pins the runtime half.
+ */
+describe('alertCategory — no silent always-on fallback', () => {
+  const ALL_ENTITY_TYPES: AuditLogEntry['entityType'][] = [
+    'booking', 'contact', 'user', 'group', 'report', 'tag', 'permission',
+    'area', 'room', 'blocked_slot', 'password_reset', 'username_change',
+    'login_success', 'login_failed', 'role_change', 'group_assignment',
+  ];
+
+  it('maps every entity type in the union to a known category', () => {
+    for (const entityType of ALL_ENTITY_TYPES) {
+      const category = alertCategory(mk({ entityType, action: 'update' }));
+      expect(['bookingConfirmations', 'bookingCancellations', 'contactStageChanges', 'account'])
+        .toContain(category);
+    }
+  });
+
+  it('keeps contact + booking gated by their toggles (not forced to account)', () => {
+    const OFF: NotificationPreferences = {
+      bookingConfirmations: false,
+      bookingCancellations: false,
+      contactStageChanges: false,
+      weeklySummary: false,
+    };
+    expect(isAlertEnabled(mk({ entityType: 'contact', action: 'update' }), OFF)).toBe(false);
+    expect(isAlertEnabled(mk({ entityType: 'booking', action: 'create' }), OFF)).toBe(false);
+    expect(isAlertEnabled(mk({ entityType: 'booking', action: 'cancel' }), OFF)).toBe(false);
+  });
+});

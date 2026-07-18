@@ -20,6 +20,14 @@ import {
 } from '@/components/ui/select';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { usersApi } from '@/lib/api/users';
+import { feedbackApi } from '@/lib/api/feedback';
+import { isApiError, isAbortError } from '@/lib/api/client';
+import type { FeedbackCategory, FeedbackPayload } from '@/lib/utils/feedback';
+import {
+  enqueueFeedback,
+  dequeueFeedback,
+  listQueuedFeedback,
+} from '@/lib/stores/feedback-queue';
 import {
   usePreferencesStore,
   type ColorTheme,
@@ -133,10 +141,12 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
 
-  // Feedback (Phase 7 — no network call; Resend delivery deferred)
+  // Feedback — real delivery via POST /api/feedback (Phase 7 carry-forward
+  // closed). NOT an MSW route: see src/app/api/feedback/route.ts header.
   const [feedbackSubject, setFeedbackSubject] = useState('');
-  const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'idea' | 'question' | 'other'>('bug');
+  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackCategory>('bug');
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSending, setFeedbackSending] = useState(false);
 
   // Collapsible
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -204,15 +214,95 @@ export default function SettingsPage() {
     setConfirmPw('');
   };
 
-  const handleSendFeedback = () => {
-    if (!feedbackSubject.trim() || !feedbackMessage.trim()) return;
-    // No network call yet — Resend delivery is deferred. This just confirms
-    // receipt to the user and resets the form.
-    toast.success(t('settings.feedback.sent'));
-    setFeedbackSubject('');
-    setFeedbackCategory('bug');
-    setFeedbackMessage('');
+  /**
+   * Send feedback for real.
+   *
+   * The rule this replaces: the old handler fired a success toast with NO network
+   * call at all, so "your feedback was received" was false 100% of the time. Every
+   * branch below is written so the toast can only ever describe what actually
+   * happened — the form is cleared ONLY on a confirmed 2xx, and any failure keeps
+   * the user's text on screen AND in the outbox.
+   */
+  const handleSendFeedback = async () => {
+    if (!feedbackSubject.trim() || !feedbackMessage.trim() || feedbackSending) return;
+
+    const payload: FeedbackPayload = {
+      clientRequestId:
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `fb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      category: feedbackCategory,
+      subject: feedbackSubject.trim(),
+      message: feedbackMessage.trim(),
+      submitterId: user?.id,
+      submitterName: user ? `${user.firstName} ${user.lastName}`.trim() || user.username : undefined,
+      submitterRole: user?.role,
+      appVersion: APP_VERSION.shortCommit,
+      pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+    };
+
+    // Enqueue BEFORE firing: if the tab closes mid-flight the next mount replays.
+    // The clientRequestId makes that replay idempotent server-side.
+    enqueueFeedback(payload);
+    setFeedbackSending(true);
+    try {
+      const res = await feedbackApi.submitFeedback(payload);
+      dequeueFeedback(payload.clientRequestId);
+      // Distinguish "a human was emailed" from "it is only in the table" — the
+      // user deserves to know which one actually happened.
+      toast.success(res.emailed ? t('settings.feedback.sent') : t('settings.feedback.stored'));
+      setFeedbackSubject('');
+      setFeedbackCategory('bug');
+      setFeedbackMessage('');
+    } catch (err) {
+      // 401 uses skipAuthRedirect (see feedbackApi) so we land HERE instead of
+      // being hard-navigated to /login with the typed message destroyed.
+      if (isApiError(err) && err.status === 401) {
+        toast.error(t('settings.feedback.expired'));
+      } else if (isAbortError(err)) {
+        // 10s timeout elapsed. Without this branch a hung request settles
+        // never, and the user watches a pending button with no toast at all.
+        toast.error(t('settings.feedback.failed'));
+      } else {
+        const detail = isApiError(err) ? err.message : '';
+        toast.error(detail ? `${t('settings.feedback.failed')} (${detail})` : t('settings.feedback.failed'));
+      }
+      // Form deliberately NOT cleared — the text stays on screen and in the outbox.
+    } finally {
+      setFeedbackSending(false);
+    }
   };
+
+  /**
+   * Replay anything the outbox still holds (tab closed mid-flight, or a failure
+   * the user never retried). Idempotent server-side via clientRequestId, so a
+   * write that already landed conflicts into a no-op instead of duplicating.
+   * Silent on failure — it stays queued and the user is told nothing they can't
+   * act on; a success DOES announce itself, because the last thing they saw was
+   * "couldn't send".
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const queued = listQueuedFeedback();
+    if (queued.length === 0) return;
+    (async () => {
+      for (const entry of queued) {
+        try {
+          await feedbackApi.submitFeedback(entry.payload);
+          dequeueFeedback(entry.payload.clientRequestId);
+          if (!cancelled) toast.success(t('settings.feedback.replayed'));
+        } catch {
+          /* still unreachable — leave it queued for the next mount */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only: a replay loop that re-ran on every render would hammer the
+    // route. `t` is stable for a given language and intentionally not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -803,8 +893,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 6b. Feedback (Phase 7) — no network call yet; Resend delivery is
-          deferred. Confirms receipt locally via toast and clears the form. */}
+      {/* 6b. Feedback — POSTs to the real /api/feedback route (Supabase row +
+          Resend notification). The toast reports what actually happened; the
+          form only clears on a confirmed 2xx. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -855,11 +946,11 @@ export default function SettingsPage() {
           </div>
           <Button
             onClick={handleSendFeedback}
-            disabled={!feedbackSubject.trim() || !feedbackMessage.trim()}
+            disabled={!feedbackSubject.trim() || !feedbackMessage.trim() || feedbackSending}
             className="gap-2"
           >
             <MessageSquare className="h-4 w-4" />
-            {t('settings.feedback.send')}
+            {feedbackSending ? t('settings.feedback.sending') : t('settings.feedback.send')}
           </Button>
         </CardContent>
       </Card>

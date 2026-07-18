@@ -3,9 +3,22 @@ import toast from 'react-hot-toast';
 /**
  * Generate a CSV string from a header row and data rows.
  * Handles quoting fields that contain commas, quotes, or newlines.
+ *
+ * Also neutralizes CSV formula injection: Excel / Sheets / LibreOffice execute a
+ * cell beginning with = + - @ (or a leading tab/CR) as a formula, so exported
+ * user-controlled text like `=HYPERLINK(...)` or `=cmd|...` can run on the
+ * machine of whoever opens the export. Quoting alone does NOT prevent this — the
+ * spreadsheet strips the quotes first. Prefixing a single quote is the standard
+ * mitigation (OWASP): the cell renders as text and the payload stays inert.
  */
-function escapeCSV(value: string | number | undefined | null): string {
-  const s = String(value ?? '');
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+/** A plain negative number is data, not a payload — never quote-prefix it, or
+ *  every negative metric in an export turns into a text cell. */
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+
+export function escapeCSV(value: string | number | undefined | null): string {
+  let s = String(value ?? '');
+  if (FORMULA_TRIGGER.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
   if (s.includes(',') || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`;
   }
