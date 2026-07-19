@@ -34,6 +34,7 @@ import {
   canManageTags,
   canReassignUserToGroup,
   canResetPassword,
+  getRoleLevel,
   isAdminTier,
   resolveExportImportEnabled,
   EXPORT_IMPORT_FOR_NON_ADMINS,
@@ -2287,6 +2288,67 @@ export const handlers = [
         { status: 409 },
       );
     }
+
+    // PARENT INTEGRITY (audit 2026-07-19). The handler previously wrote
+    // body.parentId verbatim with no checks at all, and canCreateUser
+    // short-circuits for admin tier before any parent inspection — so a stale
+    // parentId left in the wizard (pick a parent, then raise the role: the
+    // <select> silently keeps the now-ineligible id) persisted an INVERTED org
+    // edge, e.g. a Group Leader reporting to a Team Leader. Every descendant
+    // consumer then inherits the corruption: viewerSubtreeUserIds,
+    // buildVisibilityScope, the GroupsTab tree, the /groups 3D layout.
+    // The wizard now reconciles on role change (root cause); this is the guard
+    // that makes the bad state unrepresentable regardless of client.
+    let parent: (typeof usersState)[number] | undefined;
+    if (targetParentId !== undefined) {
+      parent = usersState.find((u) => u.id === targetParentId);
+      if (!parent) {
+        return validationError(`Parent ${targetParentId} does not exist`);
+      }
+      if (parent.isActive === false) {
+        return validationError(`Parent @${parent.username} is deactivated`);
+      }
+      if (parent.role === UserRole.MEMBER) {
+        return validationError('A Member cannot be a parent');
+      }
+      // Rank: a parent must outrank (or match) the role being created.
+      if (getRoleLevel(parent.role as UserRole) < getRoleLevel(targetRole)) {
+        return validationError(
+          `A ${parent.role} cannot be the parent of a ${targetRole}`,
+        );
+      }
+    }
+
+    // HOME LOCATION (audit 2026-07-19). Creation never set locationId, so every
+    // wizard-created account had no church: dropped by the Users-tab location
+    // filter, excluded from getChurchUserIds, and rendered with no location on
+    // its org-tree node — the person appeared not to have been created at all.
+    // Mirror the seed's convention (scenario-church-week.ts:594-605): walk the
+    // parent chain to the nearest ancestor that HAS a location and inherit it.
+    // Inheriting beats re-deriving from the branch seeds because it also works
+    // for users created under previously-created users. Overseer/Dev span all
+    // locations and stay unset, exactly as the seed leaves them.
+    function inheritedLocationId(): string | undefined {
+      if (targetRole === UserRole.OVERSEER || targetRole === UserRole.DEV) return undefined;
+      const seen = new Set<string>(); // parentId cycle guard (audit #10)
+      let cur = parent;
+      while (cur && !seen.has(cur.id)) {
+        if (cur.locationId) return cur.locationId;
+        seen.add(cur.id);
+        cur = cur.parentId ? usersState.find((u) => u.id === cur!.parentId) : undefined;
+      }
+      return undefined;
+    }
+    const explicitLocationId =
+      typeof body.locationId === 'string' ? (body.locationId as string) : undefined;
+    if (
+      explicitLocationId &&
+      !areasState.some((a) => a.id === explicitLocationId && a.isActive !== false)
+    ) {
+      return validationError(`Unknown or inactive area ${explicitLocationId}`);
+    }
+    const locationId = explicitLocationId ?? inheritedLocationId();
+
     const now = new Date().toISOString();
     // USER-2: auto-assign sensible default tags so newly-created leaders
     // are immediately eligible to lead Bible Studies. Group + Team Leaders
@@ -2309,6 +2371,7 @@ export const handlers = [
       email,
       phone: typeof body.phone === 'string' ? body.phone : undefined,
       role: body.role,
+      locationId,
       groupId: typeof body.groupId === 'string' ? body.groupId : undefined,
       parentId: typeof body.parentId === 'string' ? body.parentId : undefined,
       avatarUrl: typeof body.avatarUrl === 'string' ? body.avatarUrl : undefined,

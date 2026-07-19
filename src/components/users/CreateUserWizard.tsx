@@ -135,6 +135,20 @@ export function CreateUserWizard({
     });
   }, [users, role]);
 
+  // Keep parentId consistent with the CURRENT role (audit 2026-07-19).
+  // Role and parent live on the same step and eligibleParents narrows as the
+  // role rises, but parentId was independent state that nothing reconciled:
+  // pick a parent for role=Member, then switch to Group Leader, and the picked
+  // Team Leader drops out of the list while parentId still points at them. The
+  // controlled <select> then renders BLANK (no matching <option>, no onChange),
+  // canAdvance passes on the non-empty string, Review prints the raw id, and
+  // submit posts an inverted org edge the server used to store unchecked.
+  // Falling back to the creator matches the initial default at line 95.
+  useEffect(() => {
+    if (eligibleParents.some((u) => u.id === parentId)) return;
+    setParentId(eligibleParents.some((u) => u.id === creator.id) ? creator.id : (eligibleParents[0]?.id ?? ''));
+  }, [eligibleParents, parentId, creator.id]);
+
   const usernameTaken = useMemo(
     () => username.length > 0 && users.some((u) => u.username.toLowerCase() === username.trim().toLowerCase()),
     [username, users]
