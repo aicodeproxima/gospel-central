@@ -21,7 +21,7 @@
 // success the UI would turn into "your feedback was received".
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   validateFeedbackPayload,
   formatFeedbackEmail,
@@ -64,19 +64,27 @@ function fail(status: number, code: string, message: string, details?: unknown) 
  * A duplicate clientRequestId is a SUCCESS, not an error: the outbox replays, and
  * replaying a write that already landed must be a no-op rather than a second row.
  */
-async function store(
-  p: FeedbackPayload,
-  emailed: boolean,
-): Promise<{ id: string; createdAt: string } | null> {
-  // Server-only SUPABASE_URL first, falling back to the public one used by the
-  // real-mode client. Prefer the server-only name so a mock-mode prod deploy can
-  // reach the database WITHOUT adding a NEXT_PUBLIC_ var — those are inlined into
-  // the client bundle, and this route has no business changing what ships there.
+/**
+ * Service-role client, or null when this deploy has no Supabase configured.
+ *
+ * Server-only SUPABASE_URL first, falling back to the public one used by the
+ * real-mode client. Prefer the server-only name so a mock-mode prod deploy can
+ * reach the database WITHOUT adding a NEXT_PUBLIC_ var — those are inlined into
+ * the client bundle, and this route has no business changing what ships there.
+ */
+function serviceClient(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}
 
-  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+async function store(
+  p: FeedbackPayload,
+): Promise<{ id: string; createdAt: string; isNew: boolean; emailed: boolean } | null> {
+  const db = serviceClient();
+  if (!db) return null;
+
   const { data, error } = await db
     .from('feedback')
     .insert({
@@ -93,24 +101,50 @@ async function store(
       app_version: p.appVersion ?? null,
       page_url: p.pageUrl ?? null,
       user_agent: null,
-      delivered_email: emailed,
+      // Inserted false and flipped by markEmailed() only once Resend has
+      // actually accepted the message — never optimistically.
+      delivered_email: false,
     })
     .select('id, created_at')
     .single();
 
   if (error) {
     if (error.code === PG_UNIQUE_VIOLATION) {
+      // This exact submission already landed (an outbox replay). Return the
+      // ORIGINAL row and its real delivered_email so the caller can skip
+      // re-notifying — idempotency has to cover the email too, or a retried
+      // queue entry pages the devs twice for one complaint.
       const { data: existing } = await db
         .from('feedback')
-        .select('id, created_at')
+        .select('id, created_at, delivered_email')
         .eq('client_request_id', p.clientRequestId)
         .single();
-      if (existing) return { id: existing.id, createdAt: existing.created_at };
-      return { id: p.clientRequestId, createdAt: new Date().toISOString() };
+      if (existing) {
+        return {
+          id: existing.id,
+          createdAt: existing.created_at,
+          isNew: false,
+          emailed: existing.delivered_email,
+        };
+      }
+      return {
+        id: p.clientRequestId,
+        createdAt: new Date().toISOString(),
+        isNew: false,
+        emailed: false,
+      };
     }
     throw new Error(`feedback insert failed: ${error.message}`);
   }
-  return { id: data.id, createdAt: data.created_at };
+  return { id: data.id, createdAt: data.created_at, isNew: true, emailed: false };
+}
+
+/** Flip delivered_email once Resend has accepted the message. Best-effort: the
+ *  submission is already safe, so a failed flag update must not fail the request. */
+async function markEmailed(id: string): Promise<void> {
+  const db = serviceClient();
+  if (!db) return;
+  await db.from('feedback').update({ delivered_email: true }).eq('id', id);
 }
 
 /**
@@ -156,17 +190,28 @@ export async function POST(request: NextRequest) {
   }
   const payload = parsed.value;
 
-  // Email first so the stored row can record whether a human was actually
-  // notified; the two sinks are independent on purpose, because prod currently
-  // has no Supabase env rows and email is the only live path there.
-  const emailed = await notify(payload, false);
-
-  let saved: { id: string; createdAt: string } | null = null;
+  // STORE FIRST, THEN EMAIL. The original order (email first, passing a
+  // hardcoded stored=false) made every notification claim "this email is the
+  // only copy" even when the row had just been written — the same lying-status
+  // bug this whole route exists to remove, reintroduced one layer down. Storing
+  // first lets the email state what is actually true.
+  let saved: { id: string; createdAt: string; isNew: boolean; emailed: boolean } | null = null;
   let storeError: string | null = null;
   try {
-    saved = await store(payload, emailed);
+    saved = await store(payload);
   } catch (err) {
     storeError = err instanceof Error ? err.message : 'unknown store failure';
+  }
+
+  // Skip the notification for a replay of a submission that already landed.
+  // When Supabase is unconfigured (saved === null) there is nothing to dedupe
+  // against, so we notify and accept that a replay may email twice.
+  let emailed: boolean;
+  if (saved && !saved.isNew) {
+    emailed = saved.emailed;
+  } else {
+    emailed = await notify(payload, Boolean(saved));
+    if (saved && emailed) await markEmailed(saved.id);
   }
 
   if (!saved && !emailed) {
