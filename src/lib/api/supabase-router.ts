@@ -59,15 +59,27 @@ interface Route { method: string; re: RegExp; h: Handler }
 /* ---- routes (ordered: concrete before param before collection) ---- */
 const R: Route[] = [
   // ---------- AUTH (Phase C: server-side httpOnly cookie sessions) ----------
-  // username -> email convention (seed uses <username>@diamond.org). signInWithPassword
-  // on the SERVER client writes the HttpOnly sb-* session cookies onto the response and
-  // establishes the session that authenticates every subsequent router read. The access
-  // token is deliberately NOT returned in the body — the browser never holds it (C-2).
-  // Both outcomes mirror into public.audit_log via anon-executable log_login_attempt
-  // (migration 0008) — fire-and-forget so a missing/old backend can never break login.
+  // username -> auth email resolution (0017): create_user stores the ADMIN-ENTERED
+  // email as the auth identity, so the old `${username}@diamond.org` concat locked out
+  // every account with a real email. Resolve via the security-definer RPC (a fresh
+  // login has no session and users_select is authenticated-only); the convention is
+  // kept only as the fallback for convention-seeded accounts + un-migrated backends.
+  // signInWithPassword on the SERVER client writes the HttpOnly sb-* session cookies
+  // onto the response and establishes the session that authenticates every subsequent
+  // router read. The access token is deliberately NOT returned in the body — the
+  // browser never holds it (C-2). Both outcomes mirror into public.audit_log via
+  // anon-executable log_login_attempt (migration 0008) — fire-and-forget so a
+  // missing/old backend can never break login.
   { method: 'POST', re: /^\/login$/, h: async ({ db, body }) => {
-    const username = String(body.username || '');
-    const email = username.includes('@') ? username : `${username}@diamond.org`;
+    // Trim + lowercase before resolution: seeded usernames are [a-z0-9_.-] and
+    // GoTrue lowercases emails, so any case/whitespace the keyboard injected
+    // can only come from the device, never from the stored identity.
+    const username = String(body.username || '').trim().toLowerCase();
+    let email = username;
+    if (!username.includes('@')) {
+      const resolved = await rpc<string | null>(db, 'login_email_for_username', { uname: username }).catch(() => null);
+      email = resolved || `${username}@diamond.org`;
+    }
     const { data, error } = await db.auth.signInWithPassword({ email, password: String(body.password || '') });
     if (error || !data.session) {
       void db.rpc('log_login_attempt', { uname: username.slice(0, 64), success: false }).then(() => {}, () => {});

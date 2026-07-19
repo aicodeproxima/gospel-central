@@ -48,3 +48,71 @@ describe('supabaseRouter POST /contacts — created_by hygiene', () => {
     expect(p).not.toHaveProperty('actor_id');
   });
 });
+
+/**
+ * POST /login email-resolution pins (flip-blocker, 2026-07-18).
+ * create_user stores the ADMIN-ENTERED email as the auth identity, so a plain
+ * username must be resolved through login_email_for_username (0017); the
+ * `${username}@diamond.org` convention is only the fallback for convention-seeded
+ * accounts and un-migrated backends.
+ */
+function fakeLoginDb(opts: { resolvedEmail?: string | null; resolverFails?: boolean }) {
+  const rpc = vi.fn((fn: string) => {
+    if (fn === 'login_email_for_username') {
+      return Promise.resolve(
+        opts.resolverFails
+          ? { data: null, error: { message: 'function not found' } }
+          : { data: opts.resolvedEmail ?? null, error: null },
+      );
+    }
+    return Promise.resolve({ data: true, error: null }); // log_login_attempt, can_export_import
+  });
+  const signInWithPassword = vi.fn(() =>
+    Promise.resolve({
+      data: { session: { access_token: 'tok' }, user: { id: 'u-1' } },
+      error: null,
+    }),
+  );
+  const from = vi.fn(() => ({
+    select: () => ({
+      eq: () => ({ single: () => Promise.resolve({ data: { id: 'u-1' }, error: null }) }),
+    }),
+  }));
+  return { rpc, signInWithPassword, db: { rpc, auth: { signInWithPassword }, from } as unknown as SupabaseClient };
+}
+const signInEmail = (signInWithPassword: ReturnType<typeof vi.fn>) =>
+  ((signInWithPassword.mock.calls[0] as unknown[])[0] as { email: string }).email;
+
+describe('supabaseRouter POST /login — username -> auth email resolution', () => {
+  it('signs in with the RPC-resolved email, not the @diamond.org convention', async () => {
+    const { signInWithPassword, db } = fakeLoginDb({ resolvedEmail: 'probe.logintest@example.com' });
+    await supabaseRouter(db, 'POST', '/login', { username: 'probe_login', password: 'Gc-x' });
+    expect(signInEmail(signInWithPassword)).toBe('probe.logintest@example.com');
+  });
+
+  it('falls back to the convention when the resolver finds no row', async () => {
+    const { signInWithPassword, db } = fakeLoginDb({ resolvedEmail: null });
+    await supabaseRouter(db, 'POST', '/login', { username: 'admin', password: 'admin' });
+    expect(signInEmail(signInWithPassword)).toBe('admin@diamond.org');
+  });
+
+  it('falls back to the convention when the resolver RPC is missing (un-migrated backend)', async () => {
+    const { signInWithPassword, db } = fakeLoginDb({ resolverFails: true });
+    await supabaseRouter(db, 'POST', '/login', { username: 'admin', password: 'admin' });
+    expect(signInEmail(signInWithPassword)).toBe('admin@diamond.org');
+  });
+
+  it('passes an email-typed username straight through without calling the resolver', async () => {
+    const { rpc, signInWithPassword, db } = fakeLoginDb({ resolvedEmail: 'ignored@example.com' });
+    await supabaseRouter(db, 'POST', '/login', { username: 'probe.logintest@example.com', password: 'Gc-x' });
+    expect(signInEmail(signInWithPassword)).toBe('probe.logintest@example.com');
+    expect(rpc).not.toHaveBeenCalledWith('login_email_for_username', expect.anything());
+  });
+
+  it('normalizes keyboard-mangled usernames (autocapitalize, stray spaces) before resolving', async () => {
+    const { rpc, signInWithPassword, db } = fakeLoginDb({ resolvedEmail: null });
+    await supabaseRouter(db, 'POST', '/login', { username: '  Admin ', password: 'admin' });
+    expect(signInEmail(signInWithPassword)).toBe('admin@diamond.org');
+    expect(rpc).toHaveBeenCalledWith('login_email_for_username', { uname: 'admin' });
+  });
+});

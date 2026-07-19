@@ -269,10 +269,10 @@ export function GroupsTab() {
           initialRole={createCtx.childRole}
           initialParentId={createCtx.parent.id}
           onClose={() => setCreateCtx(null)}
-          onCreated={() => {
-            setCreateCtx(null);
-            reload();
-          }}
+          // Do NOT setCreateCtx(null) here — that unmounts the wizard before its
+          // success step paints and destroys the one-time temp password (live-verified
+          // 2026-07-18). The wizard closes itself via onClose from the success step.
+          onCreated={() => reload()}
         />
       )}
 

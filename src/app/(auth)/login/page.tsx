@@ -106,6 +106,10 @@ export default function LoginPage() {
                 placeholder={t('login.usernamePlaceholder')}
                 required
                 autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
                 className="h-11"
               />
             </motion.div>
@@ -124,6 +128,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('login.passwordPlaceholder')}
                 required
+                autoComplete="current-password"
                 className="h-11"
               />
             </motion.div>

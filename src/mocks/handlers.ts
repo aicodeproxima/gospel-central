@@ -590,7 +590,15 @@ export const handlers = [
   http.post(`${API}/login`, async ({ request }) => {
     const body = (await request.json()) as Record<string, string>;
     const username = String(body.username || '');
-    const user = usersState.find((u) => u.username === username);
+    // Parity with the real login route: the username field also accepts the
+    // account's email (supabase-router passes any '@' value through verbatim).
+    // Phone keyboards autocapitalize/autocorrect plain text inputs and predictive
+    // text appends spaces — match case-insensitively and trim, or those devices
+    // get an indistinguishable "Invalid credentials" (live-verified 2026-07-18).
+    const uname = username.trim().toLowerCase();
+    const user = usersState.find(
+      (u) => u.username.toLowerCase() === uname || u.email.toLowerCase() === uname,
+    );
     const now = new Date().toISOString();
 
     const fail = (reason: string) => {
