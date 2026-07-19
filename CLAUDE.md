@@ -47,9 +47,28 @@ in this repo — keep it current.
   `components/shared/`, not `mocks/`) no longer SW-gates or reloads; it evicts ghost SWs and shows a
   dead-backend banner. `public/mockServiceWorker.js` is intentionally deleted.
 - Seed scenario `"church-week"` in `src/mocks/scenario-church-week.ts` (re-exported by `data.ts`, seeded into
-  in-memory module scope by `handlers.ts`). **In-memory, NO persistence** — every page reload RESETS to seed.
-  Prod and every preview share identical data; nothing to "copy" between them; edits vanish on refresh.
-- **Default login: `admin` / `admin`** (Michael = Dev). All seeded users use password `admin`. Sample logins:
+  in-memory module scope by `handlers.ts`). **PER-DEVICE PERSISTENT since `422ced5` (2026-07-19):** mutable
+  mock state snapshots to localStorage **`gc-mock-v1`** (~265KB) after every mocked response + on tab-hide
+  and rehydrates at startup — **reload and logout NO LONGER reset to seed** (the old wipe-on-logout is gone;
+  `resetMockState()` remains as a manual reseed and deletes the snapshot). Persistence is per-browser only —
+  cross-device sync needs the real backend. Tests still see fresh seed (persistence arms only from the
+  browser entrypoint; e2e contexts start with empty localStorage).
+- **Resetting a device to seed — "clear `gc-mock-v1` and reload" DOES NOT WORK** (proven on prod
+  2026-07-19; the old instruction here was wrong and silently carried state forward). The snapshot
+  writes on **tab-hide**, and `location.reload()` fires pagehide, so the live in-memory state is
+  written straight back over the delete during unload — you reload into exactly the state you tried
+  to discard, believing you reseeded. Block the unload write, then reload:
+  ```js
+  localStorage.removeItem('gc-mock-v1');
+  const orig = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (k, v) { if (k === 'gc-mock-v1') return; return orig.call(this, k, v); };
+  setTimeout(() => location.reload(), 50);   // stub dies with the page
+  ```
+  Verify the reseed took (`/api/users` length back to the seed count) — do not assume it did.
+- **Default login: `admin` / `admin`** (Michael = Dev). Seeded users default to password `admin`, but
+  **passwords are REAL since `422ced5`**: wizard/convert-created accounts require their issued temp password
+  (the "any non-empty password" bypass is dead), admin reset-password and self change-password take effect
+  immediately, and change-password is gated self-only. Sample logins:
   `stephen` (Dev), `overseer1`, `branch1` (BL Newport News) + `branch5` (BL Virginia Beach) — `branch2`–`branch4`
   are ex-Branch-Leaders now seeded as Team Leaders (2026-07 Phase 1 consolidation; ids/logins kept) —
   `group1`–`group10`, `team1`–`team15`, `member1`–`member99`. Seed is 132 biblically-named users / 6 roles /

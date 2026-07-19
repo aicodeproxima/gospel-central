@@ -1,6 +1,80 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **🔑🟡 LATEST — KIMI K3'S PASSDOWN (2026-07-18): REV3 item 3 SHIPPED + PROD-VERIFIED; the
+> **🔑🟢 LATEST — OPUS 4.8 PASSDOWN (2026-07-19): the Phase-7 feedback carry-forward is CLOSED
+> and DELIVERING FOR REAL. `main` == `origin` == prod == `7910a06`; tree clean of my work.**
+> Five commits, all Co-Authored-By Claude Opus 4.8. Everything below was driven and confirmed on
+> deployed prod in a browser, not from gates alone.
+>
+> - **`27ab8db` feat(feedback): real delivery.** The Settings card had been toast-only since Phase 7 —
+>   `handleSendFeedback` fired "Thanks — your feedback was received." with **zero network calls** and
+>   cleared the form. Proven on prod by patching `window.fetch`/XHR/`sendBeacon` and clicking Send:
+>   `probeCalls: []`. Every submission since Phase 7 was silently discarded.
+>   Fix = `src/app/api/feedback/route.ts`, a Next route **deliberately ABSENT from `src/mocks/handlers.ts`**
+>   (see the NON-OBVIOUS ARCHITECTURE note below) + migration `0016_feedback.sql` + a localStorage outbox
+>   (enqueue-before-fire, idempotent via `clientRequestId`, 24h expiry, cleared on logout) + toasts that
+>   report what ACTUALLY happened. Form now clears ONLY on a confirmed 2xx.
+>   Adjacent fixes the design review surfaced: `csv.ts` CSV-formula-injection guard (plain negative
+>   numbers exempt so metrics don't become text cells) and `alerts.ts` — `alertCategory`'s
+>   `return 'account'` catch-all silently made ANY new `AuditEntityType` an always-on alert bypassing
+>   every toggle; now an exhaustive `Record` that **fails the build** until a category is chosen.
+> - **`2504e54` + `7207572` test(feedback): the regression gate.** 8 e2e specs pinning each branch of
+>   "the toast must describe what actually happened" — the part that regressed and that **no** existing
+>   gate could see. Every request is intercepted, so the suite NEVER writes to the real table (load-bearing:
+>   the route is real, an un-intercepted run would file a production row per execution). Bonus guard:
+>   `page.route()` sits AFTER the in-page MSW patch, so an interception firing at all proves MSW didn't
+>   shadow the route — add a `/feedback` handler to the mock and these tests stop seeing requests.
+>   De-flake: `loginAs` resolves before Next commits the client-side nav, so `goto` raced it
+>   (`ERR_ABORTED / frame was detached`); settle + 3 attempts, `--repeat-each=3` → 24/24. No assertion touched.
+> - **`e4b4d76` fix(users): POST /users was an enumeration oracle.** Uniqueness probes ran BEFORE
+>   `resolveViewer`, so **anonymous** callers could enumerate the whole 132-user directory by status code:
+>   `{username:'admin'}` → 409 "Username already taken" vs `{username:'zzz_nobody_here'}` → 401. Live-verified
+>   on prod with no credentials at BOTH `27ab8db` and `2504e54`. Reordered to authenticate → authorize →
+>   validate → conflict, so only a caller permitted to create users can learn a name is taken. **Parity fix,
+>   not a new rule** — the real backend was never vulnerable (`create_user` in `0003_admin_rpcs.sql` raises
+>   PERMISSION_DENIED before the insert). Guard `src/mocks/create-user-enumeration.itest.ts` pins the ORDER
+>   (each cell sends a payload that WOULD 409 and asserts an earlier gate refuses it); verified to FAIL 6/8
+>   against the pre-fix handler before being accepted.
+> - **`7910a06` fix(feedback): the notification email was lying about storage.** Caught by READING a
+>   delivered email instead of trusting the 201: every notification said "Stored: NO — this email is the
+>   only copy" while the row existed with `delivered_email=true`. `notify()` ran before `store()` with a
+>   hardcoded `stored=false` — the same lying-status bug this route exists to remove, reintroduced one layer
+>   down in my own code. Now store → notify with the real value → flip `delivered_email` only once Resend
+>   accepts. Idempotency now covers the EMAIL too (`store()` reports `isNew` + the existing row's
+>   `delivered_email`), so a replayed outbox entry can't page the devs twice for one complaint.
+>
+> **NON-OBVIOUS ARCHITECTURE (the thing that makes this work — don't undo it):** prod runs the in-bundle
+> MSW mock, so an MSW handler or a Supabase migration alone reaches NOBODY. `src/mocks/browser.ts` passes
+> unmatched requests THROUGH to the network, and `src/app/api/[...path]/route.ts` hard-404s under `IS_MOCK`
+> — so a **specific** route segment is the only path that reaches a server, and it works in BOTH modes and
+> survives the flip untouched. Adding `/feedback` to `handlers.ts` would silently break real delivery.
+> Identity is **self-asserted** in mock mode (browser holds `mock-jwt-token-*`, not a Supabase session):
+> recorded as `submitter_verified=false` and labelled that way in the email — never an authenticated claim.
+> Feedback text is deliberately kept OUT of the audit log (BL+ readable, searchable, CSV-exportable, feeds
+> `/alerts`); its own table has an overseer/dev-only select policy and NO insert policy.
+>
+> **PROD ENV NOW SET (Production rows, previously none):** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+> (Sensitive), `RESEND_API_KEY` (Sensitive), `FEEDBACK_TO_EMAIL` = nntechdev1@gmail.com,
+> `FEEDBACK_FROM_EMAIL` = `Gospel Central <feedback@accessoryseezin.com>` (the Resend account's only
+> VERIFIED domain — `onboarding@resend.dev` can only deliver to the account owner). Migration `0016`
+> applied to `imjsdsepmhgazracegog`. **Env changes need a REDEPLOY** (`vercel redeploy <url>`, never
+> `vercel --prod` from this checkout — a concurrent session's WIP is usually uncommitted here).
+>
+> **FULL-CHAIN PROOF as a real non-admin user (UI only, 2026-07-19):** signed in as `member42`
+> (Tychicus, Member — nav correctly hid Reports/Admin) → Settings → typed a bug report → picked a
+> category → Send. Row landed as `Tychicus / member`, `submitter_verified=false`, `delivered_email=true`;
+> Resend `last_event: delivered`; email body reads `Stored: yes — public.feedback`. User confirmed they
+> saw the toast and that its short duration is intended — **do NOT "fix" the toast timing.**
+>
+> **OPEN / ON THE USER:**
+> - **Rotate the `re_...` Resend key** — it was pasted into a chat transcript in plaintext.
+> - **Test rows in `public.feedback`** (mine + Tychicus's realistic sample). Delete the synthetic ones when done:
+>   `delete from public.feedback where subject in ('Verification after the fix','Offline failure test','Idempotency proof','Success toast capture','Email path probe');`
+> - **`xlsx-export` flake** — pre-existing 5s timeout on the exceljs dynamic import under parallel load
+>   (3/3 green in isolation, imports nothing the feedback work touches). Spun off as `task_2bfca52a`.
+>   It is the ONLY red in `npm run test`; treat 667/668 as green-with-known-flake until that task lands.
+>
+> **🔑🟡 PREVIOUS — KIMI K3'S PASSDOWN (2026-07-18)** [its "UNCOMMITTED follow-up fix" shipped as
+> `5632bdd`; REV3 #4/#19/#20 remain]: **REV3 item 3 SHIPPED + PROD-VERIFIED; the
 > tier-2 highlight follow-up fix is GATE-GREEN but UNCOMMITTED — user is holding the commit.**
 > Kimi K3 picked Plan B up after the prior session was rate-limited mid-item-3. State: `main`
 > local == origin at **`77d7b19`**; the working tree holds the UNCOMMITTED follow-up fix +
@@ -443,8 +517,9 @@
 >    Real delivery via `src/app/api/feedback/route.ts`, a Next route deliberately ABSENT from the MSW
 >    handlers (prod runs the mock, so an MSW handler would answer in-page and reach nobody). Writes to
 >    `public.feedback` (migration 0016) + Resend REST. Works in BOTH mock and Supabase mode and survives
->    the flip untouched. Email is dark until `RESEND_API_KEY` + `FEEDBACK_TO_EMAIL` are set in Vercel;
->    `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (Sensitive) were added to Production.
+>    the flip untouched. ~~Email is dark until `RESEND_API_KEY` + `FEEDBACK_TO_EMAIL` are set in Vercel~~
+>    — **email is LIVE as of 2026-07-19** (all 5 Production env rows set; `last_event: delivered` confirmed
+>    end-to-end from a real Member account). Email-body honesty fixed in `7910a06`. See LATEST.
 > 3. ~~Backend-authz gaps (Mike's Go-backend job)~~ → **CLOSED.** The KO-3/4/5/6 gaps `docs/BACKEND_GAPS.md`
 >    documented (contacts CRUD ungated; `/contacts`,`/audit-log`,`/metrics/teachers` unscoped; `relatedTo`
 >    caller-honored) are now ENFORCED by Supabase RLS + RPCs (validated 11/11). `BACKEND_GAPS.md` /
