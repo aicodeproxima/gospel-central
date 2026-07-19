@@ -32,7 +32,20 @@ async function fillFeedback(page: Page, subject = 'e2e subject', message = 'e2e 
 
 async function gotoSettings(page: Page) {
   await loginAs(page, 'admin');
-  await page.goto('/settings');
+  // loginAs resolves as soon as the URL is /dashboard, but Next is still
+  // finishing that client-side navigation. Navigating into it races the
+  // in-flight commit and aborts the frame
+  // (net::ERR_ABORTED; maybe frame was detached?), so settle first and retry.
+  await page.waitForLoadState('domcontentloaded');
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+      break;
+    } catch (err) {
+      if (attempt >= 2) throw err;
+      await page.waitForTimeout(500);
+    }
+  }
   await expect(page.getByTestId('feedback-send')).toBeVisible();
   // Start every test from an empty outbox so a previous test's queued entry
   // can't replay into this one's assertions.
