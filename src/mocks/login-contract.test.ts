@@ -18,9 +18,15 @@
  *   - src/lib/types/user.ts AuthResponse ({ token, user })
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getResponse } from 'msw';
-import { handlers } from './handlers';
+import {
+  handlers,
+  initMockPersistence,
+  saveMockSnapshot,
+  loadMockSnapshot,
+  resetMockState,
+} from './handlers';
 import { API_BASE } from '../lib/api/client';
 import type { AuthResponse } from '../lib/types';
 
@@ -90,5 +96,116 @@ describe('getResponse → login contract (SW-free transport seam)', () => {
     // not from a default — pin the id round-trip.
     expect(`mock-jwt-token-${me.id}`).toBe(token);
     expect(me.username).toBe(user.username);
+  });
+});
+
+/**
+ * Password realism + per-device persistence (2026-07-18 hardening).
+ * Every account now has a REAL password: seeded users default to 'admin',
+ * created accounts require their issued temp password, reset/change take
+ * effect immediately — and state survives a save → reseed → load cycle.
+ */
+const authedPost = (url: string, token: string, body: unknown) =>
+  new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+
+describe('mock password realism (2026-07-18 hardening)', () => {
+  it('a wizard-created account requires its issued temp password (any-password bypass is gone)', async () => {
+    const { token: adminToken } = (await (await login('admin', 'admin'))!.json()) as AuthResponse;
+    const created = await getResponse(
+      handlers,
+      authedPost(`${API}/users`, adminToken, {
+        firstName: 'Contract', lastName: 'Probe', username: 'contract_probe',
+        email: 'contract.probe@example.com', role: 'member',
+      }),
+    );
+    expect(created!.status).toBe(201);
+    const { tempPassword } = (await created!.json()) as { tempPassword: string };
+
+    expect((await login('contract_probe', tempPassword))!.status).toBe(200);
+    // The old demo bypass — any non-empty password — must NOT work anymore.
+    expect((await login('contract_probe', 'admin'))!.status).toBe(401);
+    expect((await login('contract_probe', 'whatever'))!.status).toBe(401);
+  });
+
+  it('admin reset-password takes effect: new temp works, previous password dies', async () => {
+    const { token: adminToken } = (await (await login('admin', 'admin'))!.json()) as AuthResponse;
+    const loginAs = async (pw: string) => (await login('contract_probe', pw))!.status;
+
+    // Current password is the issued temp password from the previous test.
+    const createdList = await getResponse(handlers, new Request(`${API}/users`));
+    const probe = ((await createdList!.json()) as { id: string; username: string }[])
+      .find((u) => u.username === 'contract_probe')!;
+
+    const reset = await getResponse(
+      handlers,
+      authedPost(`${API}/users/${probe.id}/reset-password`, adminToken, {}),
+    );
+    expect(reset!.status).toBe(200);
+    const { tempPassword: newTemp } = (await reset!.json()) as { tempPassword: string };
+
+    expect(await loginAs(newTemp)).toBe(200);
+    expect(await loginAs('admin')).toBe(401);
+
+    // Self change-password takes effect too.
+    const { token: probeToken } = (await (await login('contract_probe', newTemp))!.json()) as AuthResponse;
+    const change = await getResponse(
+      handlers,
+      authedPost(`${API}/users/${probe.id}/change-password`, probeToken, { newPassword: 'MyOwn2026!' }),
+    );
+    expect(change!.status).toBe(200);
+    expect(await loginAs('MyOwn2026!')).toBe(200);
+    expect(await loginAs(newTemp)).toBe(401);
+  });
+
+  it('change-password is self-only: anonymous 401, other user 403', async () => {
+    const createdList = await getResponse(handlers, new Request(`${API}/users`));
+    const probe = ((await createdList!.json()) as { id: string; username: string }[])
+      .find((u) => u.username === 'contract_probe')!;
+
+    const anon = await getResponse(
+      handlers,
+      post(`${API}/users/${probe.id}/change-password`, { newPassword: 'hijack1' }),
+    );
+    expect(anon!.status).toBe(401);
+
+    const { token: memberToken } = (await (await login('member3', 'admin'))!.json()) as AuthResponse;
+    const other = await getResponse(
+      handlers,
+      authedPost(`${API}/users/${probe.id}/change-password`, memberToken, { newPassword: 'hijack1' }),
+    );
+    expect(other!.status).toBe(403);
+    // And the password is provably untouched.
+    expect((await login('contract_probe', 'MyOwn2026!'))!.status).toBe(200);
+  });
+
+  it('snapshot round-trip: created account + its password survive save → reseed → load', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    try {
+      initMockPersistence(); // arms persistence against the stubbed storage
+      saveMockSnapshot(); // captures the state incl. contract_probe (from earlier tests)
+      const saved = store.get('gc-mock-v1');
+      expect(saved).toBeDefined();
+      expect(saved).toContain('contract_probe');
+
+      // Simulate a fresh page load: state reseeds…
+      resetMockState();
+      expect((await login('contract_probe', 'MyOwn2026!'))!.status).toBe(401);
+      // …but the snapshot is intact and restores it — password map included.
+      store.set('gc-mock-v1', saved!);
+      loadMockSnapshot();
+      expect((await login('contract_probe', 'MyOwn2026!'))!.status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+      resetMockState(); // leave the seed clean for any later tests in this file
+    }
   });
 });

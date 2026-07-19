@@ -26,7 +26,7 @@ import { BatchInterceptor } from '@mswjs/interceptors';
 import { FetchInterceptor } from '@mswjs/interceptors/fetch';
 import { XMLHttpRequestInterceptor } from '@mswjs/interceptors/XMLHttpRequest';
 import { getResponse } from 'msw';
-import { handlers } from './handlers';
+import { handlers, initMockPersistence, scheduleMockSnapshot } from './handlers';
 
 const interceptor = new BatchInterceptor({
   name: 'gospel-central-mock-network',
@@ -46,6 +46,9 @@ export function startMockNetwork(): void {
   if (started) return;
   started = true;
 
+  // Rehydrate per-device state BEFORE the first request is served — created
+  // accounts and edits survive reload + logout on this device (2026-07-18).
+  initMockPersistence();
   interceptor.apply();
   interceptor.on('request', async ({ request, controller }) => {
     try {
@@ -54,6 +57,8 @@ export function startMockNetwork(): void {
       const response = await getResponse(handlers, request.clone());
       if (response) {
         controller.respondWith(response);
+        // Persist whatever the handler just mutated (debounced inside).
+        scheduleMockSnapshot();
       }
       // No match → don't respond; the request passes through to the real
       // network (mirrors the previous `onUnhandledRequest: 'bypass'`).

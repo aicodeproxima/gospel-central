@@ -109,14 +109,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     clearSessionCookie();
     if (typeof window !== 'undefined') {
-      if (IS_MOCK) {
-        // Reset in-memory MSW mock state (audit L-6) AND drop user-created
-        // custom entities (audit H-7) so a second login as a different demo
-        // user starts clean.
-        import('@/mocks/handlers')
-          .then((m) => m.resetMockState?.())
-          .catch(() => {});
-      } else {
+      // Per-device mock persistence (2026-07-18 product decision): in mock
+      // mode, mock data SURVIVES logout on this device — created accounts and
+      // edits carry across demo-user sessions, superseding L-6's clean-slate
+      // wipe (resetMockState stays available as the manual test/dev reseed).
+      if (!IS_MOCK) {
         // Revoke the real session server-side (clears the HttpOnly sb-* cookies)
         // via POST /api/logout → supabase-router → auth.signOut(). Fire-and-
         // forget: local state is already cleared below either way.

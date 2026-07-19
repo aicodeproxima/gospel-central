@@ -7,12 +7,17 @@ renders `{children}` ONCE — most surfaces are a single shared mount, so defaul
 for genuinely viewport-divergent surfaces); **STATIC** = seed-only by design (do not flag).
 
 ## Isolation mechanics (verified)
-- Mock is in-page `@mswjs/interceptors` (`src/mocks/browser.ts`), module-level state; a FULL document reload
-  re-imports `handlers.ts` → re-seeds. `resetMockState` (handlers.ts:118) is called by `auth-store.logout()`.
-- **Each propagation cell = one Playwright test() = a FRESH context** → fresh in-page mock seed + EMPTY
-  localStorage. This sidesteps the persisted-pref leak (R1): `diamond-preferences` / `diamond-custom-entities`
-  / `contacts.view` / `diamond-tree-view` survive a bare reload and logout deliberately keeps theme/lang/
-  timeFormat (auth-store.ts:81-85), but a fresh context starts them empty.
+- Mock is in-page `@mswjs/interceptors` (`src/mocks/browser.ts`), module-level state. Per-device persistence
+  (2026-07-18, product decision): state snapshots to localStorage (`gc-mock-v1`) after every mocked response
+  and rehydrates on load — a FULL document reload now RESTORES the last state instead of re-seeding, and
+  `auth-store.logout()` no longer wipes (resetMockState stays as the manual test/dev reseed; it deletes the
+  snapshot). Mock passwords are real: seeded default 'admin'; created/converted accounts require their temp
+  password; reset/change-password overwrite it (`mockPasswords` map, never leaves the server side).
+- **Each propagation cell = one Playwright test() = a FRESH context** → EMPTY localStorage → fresh mock seed
+  (the `gc-mock-v1` snapshot does not leak across contexts). This sidesteps the persisted-pref leak (R1):
+  `diamond-preferences` / `diamond-custom-entities` / `contacts.view` / `diamond-tree-view` survive a bare
+  reload and logout deliberately keeps theme/lang/timeFormat (auth-store.ts:81-85), but a fresh context
+  starts them empty.
 
 ## settings/preferences (LEAK-PRONE — batch 1)  [store: preferences-store.ts:109, persist `diamond-preferences` v3]
 - `profilePhotoBase64` → **Sidebar avatar** `Sidebar.tsx:42,47` (img alt="" object-cover) [instance both: Sidebar(desktop) vs MobileNav] + **settings preview** `settings/page.tsx:302` (img alt="Profile"). PASS=DOM img src null→data: . blast: persistent. ✔ S1 PASS.

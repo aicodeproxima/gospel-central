@@ -56,14 +56,19 @@ const API = API_BASE;
 
 /**
  * Mutable in-memory copies so PUT/DELETE/POST actually mutate and subsequent
- * GETs reflect the change. This keeps everything client-side and ephemeral —
- * a refresh resets everything back to the scenario.
+ * GETs reflect the change.
  *
- * Call `resetMockState()` from auth-store.logout() so a second demo-user
- * session starts with a clean slate instead of carrying over the previous
- * user's mutations (audit L-6).
+ * PERSISTENCE (2026-07-18, product decision): in the browser, state is
+ * snapshotted to localStorage after every mocked response and rehydrated on
+ * load — created accounts and edits survive reload AND logout on the same
+ * device. (Cross-device is impossible for an in-page mock; the real backend
+ * is the multi-device answer.) Persistence is armed ONLY by
+ * initMockPersistence() from src/mocks/browser.ts — in vitest the save/load
+ * paths stay inert, so tests always see the seed. resetMockState() remains as
+ * the manual reseed escape hatch (test cell-isolation) and deletes the
+ * snapshot so a reset stays reset.
  *
- * NOTE: `resetMockState` truncates the audit log on logout. This is a
+ * NOTE: `resetMockState` truncates the audit log to the seed. This is a
  * MOCK-ONLY behavior — the real backend's audit log is append-only per
  * docs/PERMISSIONS.md and must NEVER expose anything analogous. Do not
  * generalize this pattern. (AUDIT-6.)
@@ -129,6 +134,19 @@ interface ErrorLogEntry {
 const errorLogState: ErrorLogEntry[] = [];
 const ERROR_LOG_CAP = 200;
 
+/**
+ * Per-user password store (userId → password), kept OUT of the User record so
+ * it can never leak into an API response. Seeded users absent here fall back
+ * to 'admin'. Wizard/convert temp passwords, admin resets, and self
+ * change-password all write REAL entries (2026-07-18 hardening): the old
+ * "any non-empty password logs in a non-seeded user" demo bypass is gone, so
+ * a credential behaves like the real backend's — a reset password actually
+ * takes effect, and a temp password is required for the account it was
+ * issued to.
+ */
+const mockPasswords: Record<string, string> = {};
+const passwordFor = (userId: string): string => mockPasswords[userId] ?? 'admin';
+
 export function resetMockState() {
   contactsState.splice(0, contactsState.length, ...mockContacts);
   bookingsState.splice(0, bookingsState.length, ...mockBookings);
@@ -145,6 +163,100 @@ export function resetMockState() {
   }
   // Clear the error-log buffer so a fresh demo session starts clean.
   errorLogState.splice(0, errorLogState.length);
+  // Passwords fall back to 'admin' for every account again.
+  for (const k of Object.keys(mockPasswords)) delete mockPasswords[k];
+  // A manual reset deletes the snapshot so the reseed survives the next load.
+  clearMockSnapshot();
+}
+
+/* ---- per-device persistence (browser only; armed by initMockPersistence) ---- */
+const SNAPSHOT_KEY = 'gc-mock-v1';
+let persistenceArmed = false;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Delete the persisted snapshot (no-op until armed / outside a browser). */
+export function clearMockSnapshot() {
+  if (!persistenceArmed || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(SNAPSHOT_KEY);
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+}
+
+/** Write the full mutable state to localStorage (no-op until armed). */
+export function saveMockSnapshot() {
+  if (!persistenceArmed || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(
+      SNAPSHOT_KEY,
+      JSON.stringify({
+        v: 1,
+        users: usersState,
+        contacts: contactsState,
+        bookings: bookingsState,
+        blockedSlots: blockedSlotsState,
+        areas: areasState,
+        auditLog: mockAuditLog,
+        errorLog: errorLogState,
+        overrides: orgExportImportOverrides,
+        passwords: mockPasswords,
+      }),
+    );
+  } catch {
+    /* quota / private mode — stay in-memory for this session */
+  }
+}
+
+/** Debounced save fired by browser.ts after every mocked response. */
+export function scheduleMockSnapshot() {
+  if (!persistenceArmed || saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveMockSnapshot();
+  }, 400);
+}
+
+/**
+ * Rehydrate mutable state from the last snapshot (exported for tests;
+ * browser startup goes through initMockPersistence). A version or shape
+ * mismatch leaves the seed standing.
+ */
+export function loadMockSnapshot() {
+  if (!persistenceArmed || typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s?.v !== 1 || !Array.isArray(s.users) || !Array.isArray(s.contacts) || !Array.isArray(s.bookings)) return;
+    usersState.splice(0, usersState.length, ...s.users);
+    contactsState.splice(0, contactsState.length, ...s.contacts);
+    bookingsState.splice(0, bookingsState.length, ...s.bookings);
+    if (Array.isArray(s.blockedSlots)) blockedSlotsState.splice(0, blockedSlotsState.length, ...s.blockedSlots);
+    if (Array.isArray(s.areas)) areasState.splice(0, areasState.length, ...s.areas);
+    if (Array.isArray(s.auditLog)) mockAuditLog.splice(0, mockAuditLog.length, ...s.auditLog);
+    if (Array.isArray(s.errorLog)) errorLogState.splice(0, errorLogState.length, ...s.errorLog);
+    if (s.overrides && typeof s.overrides === 'object') Object.assign(orgExportImportOverrides, s.overrides);
+    if (s.passwords && typeof s.passwords === 'object') Object.assign(mockPasswords, s.passwords);
+  } catch {
+    /* corrupt snapshot — the seed stands */
+  }
+}
+
+/**
+ * Arm persistence and rehydrate — called ONCE from startMockNetwork (browser
+ * only). Also flushes on tab-hide so a session's final mutation isn't lost
+ * to the debounce window. Never armed in vitest: tests always see the seed.
+ */
+export function initMockPersistence() {
+  if (persistenceArmed || typeof localStorage === 'undefined') return;
+  persistenceArmed = true;
+  loadMockSnapshot();
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveMockSnapshot();
+    });
+  }
 }
 
 /**
@@ -620,12 +732,10 @@ export const handlers = [
     };
 
     if (!user) return fail('unknown user');
-    // Seeded users use 'admin'; users created via the registry wizard
-    // accept any non-empty password (prototype — Mike's backend will own
-    // real password storage).
-    const isSeeded = mockUsers.some((u) => u.id === user.id);
-    if (isSeeded && body.password !== 'admin') return fail('bad password');
-    if (!isSeeded && !body.password) return fail('empty password');
+    // Every account has a REAL password (2026-07-18 hardening): seeded users
+    // default to 'admin' until changed; created/converted accounts require the
+    // temp password they were issued; reset/change-password overwrite it.
+    if (body.password !== passwordFor(user.id)) return fail('bad password');
 
     // AUDIT-2: emit login_success
     pushAudit({
@@ -1966,8 +2076,10 @@ export const handlers = [
     });
 
     // Parity with the Supabase router: return the temp password so the admin
-    // can hand the converted user their initial credential (mock is demo-cosmetic).
+    // can hand the converted user their initial credential. Stored for real —
+    // login demands it from this account (2026-07-18 hardening).
     const tempPassword = 'Gc-' + Math.random().toString(36).slice(2, 10) + 'X9';
+    mockPasswords[newUser.id] = tempPassword;
     return HttpResponse.json({ user: newUser, contact: updatedContact, tempPassword }, { status: 201 });
   }),
 
@@ -2204,9 +2316,10 @@ export const handlers = [
 
     // Return the temp password alongside the user (parity with the Supabase
     // router) so the wizard shows the ACTUAL initial credential, not a
-    // locally-generated string. Mock login accepts any seeded pw ('admin') and
-    // resets on reload, so this is demo-cosmetic here — but the shape must match.
+    // locally-generated string. Stored for real — login demands it from this
+    // account (2026-07-18 hardening).
     const tempPassword = 'Gc-' + Math.random().toString(36).slice(2, 10) + 'X9';
+    mockPasswords[newUser.id] = tempPassword;
     return HttpResponse.json({ user: newUser, tempPassword }, { status: 201 });
   }),
 
@@ -2543,6 +2656,9 @@ export const handlers = [
       adj[Math.floor(Math.random() * adj.length)] +
       noun[Math.floor(Math.random() * noun.length)] +
       (Math.floor(Math.random() * 90) + 10);
+    // The reset actually takes effect (2026-07-18 hardening) — the old
+    // password stops working the moment this lands.
+    mockPasswords[usersState[idx].id] = tempPassword;
     usersState[idx] = {
       ...usersState[idx],
       mustChangePassword: true,
@@ -2567,11 +2683,17 @@ export const handlers = [
   }),
 
   // POST /users/:id/change-password — Phase 6 self password change.
-  // Clears mustChangePassword. Real backend will hash + persist; the mock
-  // doesn't actually store passwords (login accepts any value for non-
-  // seeded users) so we just acknowledge.
+  // Clears mustChangePassword AND stores the new password for real
+  // (2026-07-18 hardening) — subsequent logins require it. Self-only, gated
+  // via the JWT-resolved viewer (parity with the real route's auth.updateUser,
+  // which only ever touches the SESSION user's password; closes the ungated
+  // anyone-can-clear-mustChangePassword hole). Auth before 404 so the route
+  // can't probe user ids.
   http.post(`${API}/users/:id/change-password`, async ({ request, params }) => {
     const body = (await request.json().catch(() => ({}))) as { newPassword?: string };
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized('Authentication required');
+    if (viewer.id !== params.id) return permissionDenied('You can only change your own password');
     const idx = usersState.findIndex((u) => u.id === params.id);
     if (idx === -1) return HttpResponse.json({ message: 'Not found' }, { status: 404 });
     if (!body.newPassword || body.newPassword.length < 6) {
@@ -2580,6 +2702,7 @@ export const handlers = [
         { status: 400 },
       );
     }
+    mockPasswords[usersState[idx].id] = body.newPassword;
     usersState[idx] = {
       ...usersState[idx],
       mustChangePassword: false,
