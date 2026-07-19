@@ -1,6 +1,48 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **🔑🟢 LATEST — OPUS 4.8 PASSDOWN (2026-07-19, session 3): the `xlsx-export` flake is CLOSED —
+> **🏁🟢 LATEST — FABLE 5 PASSDOWN (2026-07-19): REV3 item 4 SHIPPED + PROD-VERIFIED as
+> `d4559ed` — 18/20 REV3 items now closed; only #19 and #20 remain.** This block supersedes
+> everything below on Plan-B state; it also reconciles the three Kimi K3 commits
+> (`27ab8db` feedback delivery + migration 0016 · `37d226e` wizard-login fix + migration 0017 ·
+> `422ced5` mock per-device persistence + real passwords) into the standing docs.
+>
+> - **Item 4 (one canonical edit surface):** `ContactDetailDialog` gains `initialMode`; the
+>   Contacts page's single `openDetail(id, mode)` opener states the mode at every entry point
+>   (pencil + gated `?edit=` → straight to edit; row/card/kanban click → view; a prior edit can
+>   never leak into a plain view). `ContactForm` is CREATE-only. #6 nuance closed: partner
+>   suggestions now list ANY active user. Decision-10 security posture unchanged (member `?edit=`
+>   still falls back read-only — e2e-pinned). PROD-VERIFIED journeys (admin, real Chrome):
+>   `?edit=` → "Edit Contact" prefilled · row-action Edit → phone save round-trip API-confirmed
+>   then REVERTED (the mock persists per-device now — leave devices net-zero!) · post-edit row
+>   click → "Contact Details" view · Add Contact → "New Contact"/"Create Contact" · "Cleme" →
+>   Clement suggested as partner. e2e: the sibling session's "REV3 #4" describe in
+>   `contacts.spec.ts` rides the same commit — assertions verified against this implementation.
+> - **Gates at ship:** tsc clean · vitest 660/660 (xlsx flake since de-flaked upstream by
+>   `bf4e8a8`) · chromium 90/90 · webkit 74 + 3 isolation-green (known load-flake class) ·
+>   mobile-pixel5 + s24 + tablet-touch 21/21. One environment collapse mid-matrix ("Could not
+>   determine Node.js install directory", webkit exit 127) resolved on its own — machine
+>   contention with concurrent sessions; re-run clean.
+> - **verify-schema.mjs EXTENDED with 0016+0017 markers and run: 84/84 OK** against live
+>   (12 tables / 43 functions / 25 policies / auth==public 132) — mechanical proof both new
+>   migrations are APPLIED. The `sbp_` PAT Kimi couldn't find IS in Claude project memory
+>   (`reference_supabase_gospel_central`) and works — item 20's RLS migration is unblocked.
+> - **CLAUDE.md truthed up (rode `d4559ed`):** mock is PER-DEVICE PERSISTENT (`gc-mock-v1`
+>   snapshot; reload/logout no longer reseed) + passwords are REAL (seeded default `admin`;
+>   wizard/convert accounts need their issued temp password) + the PROVEN reseed recipe
+>   (naive clear+reload gets overwritten by the pagehide snapshot — stub setItem first).
+> - **REMAINING Plan B:** **#19** (persistence matrix: booking-store `persist` w/ `partialize`
+>   for view/areaId — NOT selectedDate; fold `dashboardYourGroupOpen`-style keys into the
+>   preferences store; write the page×what-persists matrix into docs/) and **#20 LAST**
+>   (BL cross-branch — APPROVED reversal: permissions.ts `buildManageableScope` + PERMISSIONS.md
+>   dated note + test-pin flips + `viewerManageableUserIds` mock gates (NOT
+>   `viewerSubtreeUserIds`) + RLS migration 0018 added to verify-schema.mjs BEFORE apply +
+>   `crossBranch: true` audit flag; mock and RLS flip TOGETHER; PAT in memory).
+> - **Known cosmetic debt spotted in passing:** Settings `THEME_OPTIONS` lists `marble` twice →
+>   React duplicate-key warning in test logs (pre-existing; one-line fix when convenient).
+> - Commit-subject flub on `5632bdd` (subject says "#13 rename fallout", body has the real
+>   item-3-follow-up description) — content correct, not worth a force-push.
+
+> **🔑🟢 LATEST-1 — OPUS 4.8 PASSDOWN (2026-07-19, session 3): the `xlsx-export` flake is CLOSED —
 > `npm run test` is fully green again for the first time since Phase 8.** Scope was exactly one
 > test file; no product code touched. Landed as **`bf4e8a8`** (+ a merge of `origin/main`).
 >
