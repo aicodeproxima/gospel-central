@@ -907,6 +907,7 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label>{t('settings.feedback.subject')}</Label>
             <Input
+              data-testid="feedback-subject"
               value={feedbackSubject}
               onChange={(e) => setFeedbackSubject(e.target.value)}
             />
@@ -939,12 +940,14 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label>{t('settings.feedback.message')}</Label>
             <Textarea
+              data-testid="feedback-message"
               value={feedbackMessage}
               onChange={(e) => setFeedbackMessage(e.target.value)}
               className="min-h-24"
             />
           </div>
           <Button
+            data-testid="feedback-send"
             onClick={handleSendFeedback}
             disabled={!feedbackSubject.trim() || !feedbackMessage.trim() || feedbackSending}
             className="gap-2"

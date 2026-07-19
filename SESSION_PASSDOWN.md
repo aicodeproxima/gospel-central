@@ -439,7 +439,12 @@
 > 1. `dc549c7` (the `u-michael` booking-audit-actor fix, `task_fd3f9baa`, on its own worktree branch, not
 >    on main) is a **mock** fix — only relevant if polishing the mock. The Supabase audit trigger already
 >    attributes every row to `auth.uid()` correctly, so this is moot for the real backend.
-> 2. **Feedback form** is toast-only (Resend delivery deferred) — applies to both mock and Supabase.
+> 2. ~~**Feedback form** is toast-only (Resend delivery deferred)~~ — **CLOSED 2026-07-18 (`27ab8db`).**
+>    Real delivery via `src/app/api/feedback/route.ts`, a Next route deliberately ABSENT from the MSW
+>    handlers (prod runs the mock, so an MSW handler would answer in-page and reach nobody). Writes to
+>    `public.feedback` (migration 0016) + Resend REST. Works in BOTH mock and Supabase mode and survives
+>    the flip untouched. Email is dark until `RESEND_API_KEY` + `FEEDBACK_TO_EMAIL` are set in Vercel;
+>    `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (Sensitive) were added to Production.
 > 3. ~~Backend-authz gaps (Mike's Go-backend job)~~ → **CLOSED.** The KO-3/4/5/6 gaps `docs/BACKEND_GAPS.md`
 >    documented (contacts CRUD ungated; `/contacts`,`/audit-log`,`/metrics/teachers` unscoped; `relatedTo`
 >    caller-honored) are now ENFORCED by Supabase RLS + RPCs (validated 11/11). `BACKEND_GAPS.md` /
