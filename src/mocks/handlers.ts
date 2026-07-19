@@ -2225,24 +2225,23 @@ export const handlers = [
 
   http.post(`${API}/users`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
-    const username = String(body.username || '').trim().toLowerCase();
-    if (!username) return validationError('Username required');
-    // §7 SHIM (C-05): apply the same regex as PUT /users/:id/username.
-    // Pre-shim, only PUT validated; POST accepted spaces, uppercase, etc.
-    if (!/^[a-z0-9_.-]{3,32}$/.test(username)) {
-      return validationError('Use 3-32 chars: a-z, 0-9, dot, dash, underscore');
-    }
-    if (usersState.some((u) => u.username.toLowerCase() === username)) {
-      return HttpResponse.json({ message: 'Username already taken' }, { status: 409 });
-    }
-    const email = String(body.email || '').trim().toLowerCase();
-    if (email && usersState.some((u) => u.email.toLowerCase() === email)) {
-      return HttpResponse.json({ message: 'Email already in use' }, { status: 409 });
-    }
+
+    // ORDER IS SECURITY-CRITICAL: authenticate -> authorize -> validate -> conflict.
+    // The uniqueness probes below are an ORACLE: 409 means "this username/email
+    // exists", anything else means it doesn't. Running them before the auth and
+    // permission gates let an ANONYMOUS caller enumerate the whole user directory
+    // (live-verified on prod 2026-07-18: POST {username:'admin'} with no
+    // Authorization header returned 409 "Username already taken", while an unused
+    // name returned 401). Auth and authz now run FIRST so only a caller who is
+    // actually permitted to create users can learn that a name is taken — which is
+    // inherent to the feature and unavoidable. Do not reorder these blocks.
+    // Mirrors the real backend, where create_user (0003_admin_rpcs.sql) raises
+    // PERMISSION_DENIED before it ever reaches the unique constraints.
+    //
     // §7 SHIM (C-01): re-run canCreateUser with the resolved viewer.
     // Pre-shim, a Member calling POST /users with role='overseer' got 201.
-    // The FE creator's id arrives as `createdById`; we accept either that
-    // or `actorId` for symmetry with the rest of the API.
+    // resolveViewer reads the JWT ONLY — the second arg is inert (kept for
+    // signature compatibility); body.createdById can never confer authority.
     const viewer = resolveViewer(request, {
       actorId:
         typeof body.actorId === 'string'
@@ -2265,6 +2264,27 @@ export const handlers = [
     ) {
       return permissionDenied(
         `You cannot create a ${targetRole} account in this scope`,
+      );
+    }
+
+    const username = String(body.username || '').trim().toLowerCase();
+    if (!username) return validationError('Username required');
+    // §7 SHIM (C-05): apply the same regex as PUT /users/:id/username.
+    // Pre-shim, only PUT validated; POST accepted spaces, uppercase, etc.
+    if (!/^[a-z0-9_.-]{3,32}$/.test(username)) {
+      return validationError('Use 3-32 chars: a-z, 0-9, dot, dash, underscore');
+    }
+    if (usersState.some((u) => u.username.toLowerCase() === username)) {
+      return HttpResponse.json(
+        { message: 'Username already taken', code: 'USERNAME_TAKEN' },
+        { status: 409 },
+      );
+    }
+    const email = String(body.email || '').trim().toLowerCase();
+    if (email && usersState.some((u) => u.email.toLowerCase() === email)) {
+      return HttpResponse.json(
+        { message: 'Email already in use', code: 'EMAIL_TAKEN' },
+        { status: 409 },
       );
     }
     const now = new Date().toISOString();
