@@ -23,45 +23,36 @@ import { useCustomEntitiesStore } from '@/lib/stores/custom-entities-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { BookingType, ContactStatus, PipelineStage, PIPELINE_STAGE_CONFIG } from '@/lib/types';
 import type { Contact, User } from '@/lib/types';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Loader2, Plus } from 'lucide-react';
 
 interface ContactFormProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: Partial<Contact>) => Promise<void>;
-  onDelete?: (id: string) => Promise<void>;
-  contact?: Contact | null;
   /** All users (for preaching partner autocomplete) */
   users: User[];
   /** All contacts (to derive known groups and suggestion lists) */
   allContacts: Contact[];
   /**
-   * Decision 10 defensive guard: when false, the form is read-only — Save
-   * and Delete are disabled/hidden so an unauthorized opener (e.g. a crafted
-   * ?edit= deep-link) can never trigger a write. Defaults to true for the
-   * create path and back-compat. The opener is expected to gate too (belt +
-   * suspenders — found by the Phase-5 permission refuters).
-   */
-  canEdit?: boolean;
-  /**
    * Decision 10: user ids (buildManageableScope ∪ self) the viewer may assign
    * a contact to. When provided, the assigned-teacher predictive field is
-   * constrained to these (plus the current owner). Absent → unconstrained
-   * (back-compat).
+   * constrained to these. Absent → unconstrained (back-compat).
    */
   assignableTeacherIds?: string[];
 }
 
+/**
+ * CREATE-only contact form (REV3 #4). Editing lives in ContactDetailDialog,
+ * the single canonical detail/edit surface shared by Groups, Contacts, and
+ * Admin — the old edit/duplicate path here (prefill, Save Changes, Delete,
+ * the ?edit= read-only guard) is retired.
+ */
 export function ContactForm({
   open,
   onClose,
   onSubmit,
-  onDelete,
-  contact,
   users,
   allContacts,
-  canEdit = true,
   assignableTeacherIds,
 }: ContactFormProps) {
   const { entities, add: addCustom } = useCustomEntitiesStore();
@@ -82,42 +73,16 @@ export function ContactForm({
   const [newGroupMode, setNewGroupMode] = useState(false);
   const [newGroupValue, setNewGroupValue] = useState('');
 
-  // ---------- Prefill ----------
-  // We need partnerOptions first for ID→name resolution during prefill
-  const resolvePartnerName = (idOrName: string | null | undefined): string => {
-    if (!idOrName) return '';
-    const user = users.find((u) => u.id === idOrName);
-    if (user) return `${user.firstName} ${user.lastName}`.trim();
-    const custom = entities.find((e) => e.id === idOrName && e.kind === 'teacher');
-    if (custom) return custom.name;
-    return idOrName; // fall back to free text
-  };
-
+  // ---------- Reset on open ----------
   useEffect(() => {
     if (open) {
-      if (contact) {
-        setName(`${contact.firstName} ${contact.lastName}`.trim());
-        setPhone(contact.phone || '');
-        setGroupName(contact.groupName || '');
-        setStatus(contact.pipelineStage);
-        setPartners([
-          resolvePartnerName(contact.preachingPartnerIds?.[0]),
-          resolvePartnerName(contact.preachingPartnerIds?.[1]),
-          resolvePartnerName(contact.preachingPartnerIds?.[2]),
-        ]);
-        setSubjectsStudied(contact.subjectsStudied || []);
-        setNotes(contact.notes || '');
-        setAssignedTeacherId(contact.assignedTeacherId ?? null);
-      } else {
-        setName(''); setPhone(''); setGroupName(''); setStatus(PipelineStage.FIRST_STUDY);
-        setPartners(['', '', '']); setSubjectsStudied([]); setNotes('');
-        setAssignedTeacherId(null);
-      }
+      setName(''); setPhone(''); setGroupName(''); setStatus(PipelineStage.FIRST_STUDY);
+      setPartners(['', '', '']); setSubjectsStudied([]); setNotes('');
+      setAssignedTeacherId(null);
       setNewGroupMode(false);
       setNewGroupValue('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, contact, users, entities]);
+  }, [open]);
 
   // ---------- Suggestion sources ----------
   const nameSuggestions = useMemo(
@@ -133,12 +98,13 @@ export function ContactForm({
   }, [allContacts, users, entities]);
 
   const partnerOptions = useMemo(() => {
-    // Anyone with the 'teacher' tag plus all leader roles. (Teacher used to
-    // be a role; in v1 it became a tag — leaders are seeded with the tag,
-    // so the legacy filter is preserved.) Plus user-added "+ New" entries.
-    const leaderRoles = new Set(['team_leader', 'group_leader', 'branch_leader', 'overseer', 'dev']);
+    // REV3 #6 nuance (user decision): partners are selectable from ANY active
+    // user — plain members preach too. This aligns the create form's
+    // suggestions with ContactDetailDialog's all-users list (the old
+    // leaders-plus-'teacher'-tag filter hid e.g. "Clement" from suggestions
+    // even though free text accepted him). Plus user-added "+ New" entries.
     const base = users
-      .filter((u) => leaderRoles.has(u.role) || (Array.isArray(u.tags) && u.tags.includes('teacher')))
+      .filter((u) => u.isActive !== false)
       .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
     const custom = entities
       .filter((e) => e.kind === 'teacher')
@@ -156,17 +122,14 @@ export function ContactForm({
   // include 'teacher' — same filter BookingWizard.tsx uses for its
   // teacherOptions Combobox — plus user-added custom teacher entities.
   const assignedTeacherOptions: ComboOption[] = useMemo(() => {
-    // Decision 10: an assignment/reassignment is bounded by the viewer's
-    // manageable scope — a member can't assign a contact to an arbitrary
-    // teacher, and a leader can't reassign org-wide. `assignableTeacherIds`
-    // (from the parent's buildManageableScope, plus self) constrains the
-    // real-user options; the currently-assigned teacher always stays visible
-    // so an in-scope edit never silently drops its owner. Custom (localStorage)
-    // teacher entities the viewer typed themselves stay available.
+    // Decision 10: an assignment is bounded by the viewer's manageable
+    // scope — a member can't assign a contact to an arbitrary teacher, and
+    // a leader can't assign org-wide. `assignableTeacherIds` (from the
+    // parent's buildManageableScope, plus self) constrains the real-user
+    // options. Custom (localStorage) teacher entities the viewer typed
+    // themselves stay available.
     const inScope = (id: string) =>
-      !assignableTeacherIds ||
-      assignableTeacherIds.includes(id) ||
-      id === contact?.assignedTeacherId;
+      !assignableTeacherIds || assignableTeacherIds.includes(id);
     const base = users
       .filter((u) => u.isActive !== false && Array.isArray(u.tags) && u.tags.includes('teacher') && inScope(u.id))
       .map((u) => ({ id: u.id, label: `${u.firstName} ${u.lastName}`.trim(), sublabel: u.role.replace('_', ' ') }));
@@ -174,7 +137,7 @@ export function ContactForm({
       .filter((e) => e.kind === 'teacher')
       .map((e) => ({ id: e.id, label: e.name, sublabel: 'Custom teacher' }));
     return [...base, ...custom];
-  }, [users, entities, assignableTeacherIds, contact?.assignedTeacherId]);
+  }, [users, entities, assignableTeacherIds]);
 
   const customSubjects = entities.filter((e) => e.kind === 'other').map((e) => e.name);
 
@@ -205,8 +168,6 @@ export function ContactForm({
       addCustom('group', newGroupValue.trim());
     }
 
-    // Decision 10 defensive guard: never issue a write from a read-only form.
-    if (!canEdit) return;
     setLoading(true);
     try {
       await onSubmit({
@@ -218,29 +179,16 @@ export function ContactForm({
         preachingPartnerIds: partnerIds,
         subjectsStudied,
         notes: notes || undefined,
-        // Preserve booking type + status if editing
-        type: contact?.type || BookingType.UNBAPTIZED_CONTACT,
-        status: contact?.status || ContactStatus.ACTIVE,
+        // Create-only (REV3 #4): every contact made here starts as an active
+        // unbaptized contact; edits live in ContactDetailDialog.
+        type: BookingType.UNBAPTIZED_CONTACT,
+        status: ContactStatus.ACTIVE,
         // CONT-3 + assigned-teacher field (packet): an explicit pick in the
-        // new predictive field wins. If left blank, fall back to the prior
-        // behavior — edit preserves the existing owner, create defaults to
-        // the viewer (self-owned).
-        assignedTeacherId: assignedTeacherId ?? contact?.assignedTeacherId ?? viewer?.id,
-        createdBy: contact?.createdBy ?? viewer?.id ?? 'unknown',
+        // predictive field wins; left blank, the contact defaults to the
+        // viewer (self-owned).
+        assignedTeacherId: assignedTeacherId ?? viewer?.id,
+        createdBy: viewer?.id ?? 'unknown',
       });
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!contact || !onDelete || !canEdit) return;
-    if (!confirm(`Delete contact "${contact.firstName} ${contact.lastName}"? This cannot be undone.`)) return;
-    setLoading(true);
-    try {
-      await onDelete(contact.id);
-      toast.success('Contact deleted');
       onClose();
     } finally {
       setLoading(false);
@@ -251,7 +199,7 @@ export function ContactForm({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{contact ? 'Edit Contact' : 'New Contact'}</DialogTitle>
+          <DialogTitle>New Contact</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5 min-w-0">
@@ -405,29 +353,10 @@ export function ContactForm({
               reachable while the form scrolls in the bottom sheet; pb-safe
               clears the home indicator. Desktop keeps the inline row. */}
           <div className="flex gap-3 pt-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:border-t max-md:border-border max-md:bg-popover max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:pt-3">
-            {canEdit ? (
-              <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black touch-manipulation">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {contact ? 'Save Changes' : 'Create Contact'}
-              </Button>
-            ) : (
-              /* Decision 10: read-only opener — no write affordances. */
-              <div className="flex-1 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-center text-sm text-muted-foreground">
-                You can view this contact but not edit it.
-              </div>
-            )}
-            {canEdit && contact && onDelete && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={loading}
-                className="h-11 gap-2 touch-manipulation"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            )}
+            <Button type="submit" disabled={loading} className="flex-1 h-11 text-base bg-amber-500 hover:bg-amber-600 text-black touch-manipulation">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create Contact
+            </Button>
           </div>
         </form>
       </DialogContent>

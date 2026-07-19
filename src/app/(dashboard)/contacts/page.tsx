@@ -269,7 +269,9 @@ export default function ContactsPage() {
 
   // Dialogs
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Contact | null>(null);
+  // REV3 #4: ContactDetailDialog is THE edit surface — the pencil / ?edit=
+  // open it straight in edit mode; ContactForm is create-only now.
+  const [detailMode, setDetailMode] = useState<'view' | 'edit'>('view');
   const [viewingContactId, setViewingContactId] = useState<string | null>(null);
 
   // Bulk selection
@@ -323,21 +325,25 @@ export default function ContactsPage() {
     if (view === 'grid' || view === 'kanban' || view === 'table') setViewMode(view);
     const id = sp.get('id');
     // Only honor ?id= for contacts the viewer may actually SEE.
-    if (id && visibleContacts.some((c) => c.id === id)) setViewingContactId(id);
+    if (id && visibleContacts.some((c) => c.id === id)) {
+      setDetailMode('view');
+      setViewingContactId(id);
+    }
     const editId = sp.get('edit');
     if (editId) {
       // SECURITY (Decision 10): the ?edit= deep-link must apply the SAME
       // write gate as every other edit opener — resolve against
       // visibleContacts and require canEditAny, else fall back to the
       // read-only detail dialog (or nothing). Without this a member could
-      // open the fully-editable ContactForm for ANY contact via a crafted
-      // URL ( contact ids are discoverable). Found by the Phase-5 permission
-      // refuters.
+      // open the editable surface for ANY contact via a crafted URL
+      // (contact ids are discoverable). Found by the Phase-5 permission
+      // refuters. REV3 #4: the editable surface is ContactDetailDialog now.
       const target = visibleContacts.find((c) => c.id === editId);
       if (target && canEditAny(target)) {
-        setEditing(target);
-        setFormOpen(true);
+        setDetailMode('edit');
+        setViewingContactId(target.id);
       } else if (target) {
+        setDetailMode('view');
         setViewingContactId(target.id); // view-only fallback
       }
     }
@@ -467,17 +473,20 @@ export default function ContactsPage() {
     setContacts(fresh);
   }, []);
 
+  // REV3 #4: ContactForm is CREATE-only — updates all flow through
+  // ContactDetailDialog's onSave (handleDetailSave below).
   const handleFormSubmit = async (data: Partial<Contact>) => {
-    if (editing) {
-      await contactsApi.updateContact(editing.id, data);
-      toast.success('Contact updated');
-    } else {
-      await contactsApi.createContact(data);
-      toast.success('Contact created');
-    }
+    await contactsApi.createContact(data);
+    toast.success('Contact created');
     await refetchContacts();
-    setEditing(null);
   };
+
+  /** Single opener for the detail dialog — every entry point states the mode
+   *  explicitly so a previous pencil-edit can never leak into a plain view. */
+  const openDetail = useCallback((id: string, mode: 'view' | 'edit' = 'view') => {
+    setDetailMode(mode);
+    setViewingContactId(id);
+  }, []);
 
   const handleFormDelete = async (id: string) => {
     await contactsApi.deleteContact(id);
@@ -745,10 +754,7 @@ export default function ContactsPage() {
 
           {/* Add Contact — always visible (primary action). */}
           <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
+            onClick={() => setFormOpen(true)}
             size="sm"
             className="gap-1.5"
           >
@@ -1004,11 +1010,8 @@ export default function ContactsPage() {
           selectMode={selectMode}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
-          onRowClick={setViewingContactId}
-          onEdit={(c) => {
-            setEditing(c);
-            setFormOpen(true);
-          }}
+          onRowClick={(id) => openDetail(id)}
+          onEdit={(c) => openDetail(c.id, 'edit')}
           onDelete={(id) => {
             if (window.confirm('Delete this contact?')) handleFormDelete(id);
           }}
@@ -1021,7 +1024,7 @@ export default function ContactsPage() {
           selectMode={selectMode}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
-          onCardClick={setViewingContactId}
+          onCardClick={(id) => openDetail(id)}
           onStageChange={async (id, stage) => {
             // Decision 10: kanban drag is a WRITE — same per-row gate as
             // edit/delete (a member could otherwise re-stage anyone's
@@ -1051,7 +1054,7 @@ export default function ContactsPage() {
                 <ContactCard
                   contact={contact}
                   users={users}
-                  onClick={() => setViewingContactId(contact.id)}
+                  onClick={() => openDetail(contact.id)}
                   selectMode={selectMode}
                   selected={selectedIds.has(contact.id)}
                   onToggleSelect={() => toggleSelect(contact.id)}
@@ -1064,10 +1067,12 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Contact detail popup (view-first, then edit, then optional convert) */}
+      {/* Contact detail popup — THE canonical view/edit surface (REV3 #4).
+          The pencil and ?edit= open it straight in edit mode. */}
       <ContactDetailDialog
         open={!!viewingContact}
         onClose={() => setViewingContactId(null)}
+        initialMode={detailMode}
         contact={viewingContact}
         users={users}
         allContacts={contacts}
@@ -1078,19 +1083,16 @@ export default function ContactsPage() {
         onConvert={handleDetailConvert}
       />
 
-      {/* Create/Edit form dialog */}
+      {/* CREATE-only form dialog (REV3 #4: edits go through the detail
+          dialog above; this form's edit path is retired). */}
       <ContactForm
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditing(null); }}
+        onClose={() => setFormOpen(false)}
         onSubmit={handleFormSubmit}
-        onDelete={handleFormDelete}
-        contact={editing}
         users={users}
         allContacts={contacts}
-        // Decision 10: creating is always allowed (owner = self); editing an
-        // existing contact requires write rights on it. Assignment is bounded
-        // to the viewer's manageable scope ∪ self.
-        canEdit={!editing || canEditAny(editing)}
+        // Decision 10: creating is always allowed (owner = self). Assignment
+        // is bounded to the viewer's manageable scope ∪ self.
         assignableTeacherIds={!viewer ? undefined : manageScope.kind === 'all' ? undefined : [...manageScope.userIds, viewer.id]}
       />
 

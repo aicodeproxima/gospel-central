@@ -114,3 +114,67 @@ test.describe('List B — contacts permission boundary (Decision 10)', () => {
     await expect(page.getByRole('button', { name: /^delete$/i })).toHaveCount(0);
   });
 });
+
+/**
+ * REV3 #4 (2026-07-18): ContactDetailDialog is THE canonical edit surface —
+ * the Contacts page row Edit action and the ?edit= deep-link open it straight
+ * in edit mode. ContactForm is create-only now ("New Contact" / "Create
+ * Contact"); its old edit path (the ungated ?edit= target) is retired.
+ */
+test.describe('REV3 #4 — detail dialog is the single edit surface', () => {
+  test('?edit= deep-link opens the detail dialog straight in edit mode', async ({ page }) => {
+    await loginAs(page, 'admin');
+    await page.goto('/contacts');
+    await page.waitForLoadState('networkidle');
+    const target = await page.evaluate(async () => {
+      const res = await fetch('/api/contacts', {
+        headers: (() => {
+          for (const k of Object.keys(localStorage)) {
+            try { const v = JSON.parse(localStorage.getItem(k) || 'null'); if (v?.state?.token) return { authorization: `Bearer ${v.state.token}` }; } catch { /* */ }
+          }
+          return {} as Record<string, string>;
+        })(),
+      });
+      const all = await res.json();
+      const c = all[0];
+      return c ? { id: c.id as string, name: `${c.firstName} ${c.lastName}`.trim() } : null;
+    });
+    if (!target) throw new Error('seed has at least one contact');
+
+    await page.goto(`/contacts?edit=${target.id}`);
+    await page.waitForLoadState('networkidle');
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    // ContactDetailDialog's edit mode — prefilled with the EXISTING contact…
+    await expect(dialog.getByRole('heading', { name: 'Edit Contact' })).toBeVisible();
+    await expect(dialog.locator('input').first()).toHaveValue(target.name);
+    await expect(dialog.getByRole('button', { name: /save changes/i })).toBeVisible();
+    // …and NOT the create-only form.
+    await expect(page.getByRole('button', { name: /create contact/i })).toHaveCount(0);
+  });
+
+  test('row Edit action opens the detail dialog in edit mode and a save round-trips', async ({ page }) => {
+    await loginAs(page, 'admin');
+    await page.goto('/contacts');
+    await page.waitForLoadState('networkidle');
+
+    // Default desktop view is the table; first row's actions → Edit.
+    await page.getByRole('button', { name: 'Row actions' }).first().click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Edit Contact' })).toBeVisible();
+
+    // Name is the first field, prefilled from the contact — change it, save.
+    const nameInput = dialog.locator('input').first();
+    const before = await nameInput.inputValue();
+    expect(before.trim().length).toBeGreaterThan(0);
+    await nameInput.fill(`${before.trim()} Jr`);
+    await dialog.getByRole('button', { name: /save changes/i }).click();
+
+    await expect(page.getByText(/contact updated/i).first()).toBeVisible();
+    // Saved → dialog returns to view mode.
+    await expect(dialog.getByRole('heading', { name: 'Contact Details' })).toBeVisible();
+  });
+});

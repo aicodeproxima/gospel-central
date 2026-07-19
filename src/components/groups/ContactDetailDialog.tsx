@@ -106,6 +106,10 @@ interface ContactDetailDialogProps {
   /** CONT-5: convert callback. Caller wires to contactsApi.convertToUser
    *  + refetch contacts/users. If absent, the button is hidden. */
   onConvert?: (contactId: string, payload: ConvertContactPayload) => Promise<void>;
+  /** REV3 #4: open straight into edit mode (the Contacts page's pencil /
+   *  ?edit= deep-link). This dialog is THE canonical edit surface — the old
+   *  ContactForm edit path is retired; ContactForm is create-only now. */
+  initialMode?: 'view' | 'edit';
 }
 
 export function ContactDetailDialog({
@@ -119,6 +123,7 @@ export function ContactDetailDialog({
   viewer,
   subtreeUserIds = [],
   onConvert,
+  initialMode = 'view',
 }: ContactDetailDialogProps) {
   const [mode, setMode] = useState<'view' | 'edit' | 'convert'>('view');
   // Focus anchor pinned to the TOP of the scroll container. base-ui moves
@@ -128,10 +133,11 @@ export function ContactDetailDialog({
   // initialFocus here keeps the dialog scrolled to the top on open.
   const topRef = useRef<HTMLDivElement>(null);
 
-  // Reset to view mode whenever a different contact is opened
+  // Reset whenever a different contact is opened — to view mode normally, or
+  // straight to edit when the opener asked for it (REV3 #4: pencil / ?edit=).
   useEffect(() => {
-    if (open) setMode('view');
-  }, [open, contact?.id]);
+    if (open) setMode(initialMode);
+  }, [open, contact?.id, initialMode]);
 
   if (!contact) return null;
 

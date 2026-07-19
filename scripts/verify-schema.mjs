@@ -155,17 +155,25 @@ A('0014', 'retired 0012 admin-tier target gate ABSENT', fnLacks('set_contact_tea
 A('0015', 'fn set_contact_active', funcs.has('set_contact_active')); // 0015:13
 A('0015', 'audit_row contact restore edge', fnHas('audit_row', "(to_jsonb(old)->>'status') = 'inactive' and (to_jsonb(new)->>'status') is distinct from 'inactive'")); // 0015:65
 
+// 0016_feedback.sql (2026-07-18, feedback real-delivery)
+A('0016', 'table feedback', tables.includes('feedback')); // 0016:24
+A('0016', 'policy feedback_select', pols.has('feedback_select@feedback')); // 0016:56
+
+// 0017_login_email_resolver.sql (2026-07-18, wizard-account login fix)
+A('0017', 'fn login_email_for_username', funcs.has('login_email_for_username')); // 0017:20
+A('0017', 'resolver is exact-match on lower(username)', fnHas('login_email_for_username', 'lower(u.username) = lower(left(trim(coalesce(uname')); // 0017:24
+
 // ---------- shape baseline (derived from the files, not from survey prose) ----------
-// tables: 10 (0001) + error_log (0008) = 11
-A('shape', `tables == 11 (live ${tables.length})`, tables.length === 11);
-// functions: 12(0001)+12(0002)+2(0003)+5(0004)+4(0005)+4(0007)+1(0008)+1(0010)+1(0015) = 42
-A('shape', `functions == 42 (live ${funcs.size})`, funcs.size === 42);
+// tables: 10 (0001) + error_log (0008) + feedback (0016) = 12
+A('shape', `tables == 12 (live ${tables.length})`, tables.length === 12);
+// functions: 12(0001)+12(0002)+2(0003)+5(0004)+4(0005)+4(0007)+1(0008)+1(0010)+1(0015)+1(0017) = 43
+A('shape', `functions == 43 (live ${funcs.size})`, funcs.size === 43);
 // public non-internal triggers: 3(0001)+10(0002)+1(0010) = 14 (+ on_auth_user_created in auth).
 // NOTE: the 2026-07-14 survey prose said "19 triggers" — that number is not derivable from
 // the migration files (G7), so the FILE-derived 14 is asserted here.
 A('shape', `public triggers == 14 (live ${trigs.size})`, trigs.size === 14);
-// policies: 19 (0001) - 3 dropped (0005) + 6 (0005) + 2 (0008) = 24
-A('shape', `policies == 24 (live ${pols.size})`, pols.size === 24);
+// policies: 19 (0001) - 3 dropped (0005) + 6 (0005) + 2 (0008) + 1 (0016) = 25
+A('shape', `policies == 25 (live ${pols.size})`, pols.size === 25);
 A('shape', `auth.users == public.users (${userParity.au} vs ${userParity.pu})`, userParity.au === userParity.pu);
 
 // ---------- report ----------
