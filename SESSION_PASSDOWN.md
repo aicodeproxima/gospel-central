@@ -1,7 +1,57 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **🔑🟢 LATEST — OPUS 4.8 PASSDOWN (2026-07-19): the Phase-7 feedback carry-forward is CLOSED
-> and DELIVERING FOR REAL. `main` == `origin` == prod == `7910a06`; tree clean of my work.**
+> **🔑🟢 LATEST — OPUS 4.8 PASSDOWN (2026-07-19, session 3): the `xlsx-export` flake is CLOSED —
+> `npm run test` is fully green again for the first time since Phase 8.** Scope was exactly one
+> test file; no product code touched. Landed as **`bf4e8a8`** (+ a merge of `origin/main`).
+>
+> **⚠️ GROUND-TRUTH CORRECTION — the block below is STALE.** It claims `main == origin == prod ==
+> 7910a06`. When I started, `origin/main` was already **`df7367b`**, two commits ahead:
+> `c03eefd` (the passdown block below) and **`df7367b` fix(users): created accounts get a home
+> location and a valid parent** — a real fix from the 2026-07-19 account-creation audit that is
+> **NOT described anywhere in this passdown**. If you need its detail, read `git show df7367b`;
+> it added `src/mocks/create-user-integrity.itest.ts` (+229). Re-derive tips live before trusting
+> any SHA in this file — this checkout is shared and moves under you.
+>
+> - **The bug:** `buildReportWorkbook` dynamically imports exceljs — **deliberately**, to keep it out
+>   of the main bundle (`9a8c992`). Whichever test runs FIRST pays the whole one-time import+transform
+>   of a large library; the other 15 hit the module cache. Measured first-test vs rest: **612ms vs
+>   ~1ms** idle · **21.3s vs ~1-115ms** full-suite-under-load · **>34s** at 24 procs on 20 cores.
+>   The cost is contention-scaled with **no natural ceiling**, so under a loaded run it blew the 5000ms
+>   default as `Test timed out in 5000ms` while every assertion was still perfectly fine.
+> - **The fix:** a suite-level timeout — `describe('buildReportWorkbook', { timeout: 60_000 }, …)`.
+>   **Set on the `describe`, NOT on the first `it`, on purpose:** which test pays the import is an
+>   artifact of execution order, so a per-test timeout silently stops protecting the suite the moment
+>   someone reorders or prepends a test. 60s (not the 30s first tried) is deliberate over-provisioning
+>   — I measured a >34s case that blew 30s. This suite has no legitimate hang mode (no I/O, no network),
+>   so a generous ceiling costs nothing and a tight one just reintroduces the flake.
+> - **DO NOT "optimize" this later:** making the exceljs import static would fix the timing and silently
+>   regress bundle size — the dynamic import is the point. No assertion was weakened.
+> - **How it was verified (worth copying):** rather than waiting for load to maybe reproduce, a
+>   control/treatment pair with a temporary 6s probe — **without** the option the suite fails with the
+>   reported string verbatim (`Test timed out in 5000ms`), **with** it the same test passes at 7088ms.
+>   That proves the mechanism instead of hoping. Then re-run under 24-way CPU saturation: passed at
+>   11896ms where the 30s version had failed at 34267ms.
+> - **Gates at ship (post-merge with `df7367b`):** `npm run test` **678/678 across 43 files**, green
+>   both idle AND under saturation; `tsc --noEmit` and `eslint` exit 0 (run UNPIPED — piped exit codes
+>   lie, per repo memory). Note the count moved 668 → 678 because `df7367b` added tests: **never assert
+>   a fixed test count**, and beware that a `| head -N` on a vitest run SIGPIPEs it into reporting a
+>   TRUNCATED pass count as if complete (it reported "35 files/619" mid-run — nearly quoted as a gate).
+>
+> **WHERE TO PICK UP (in order):**
+> 1. **Land `bf4e8a8`** if it hasn't been merged — it is test-only and `xlsx-export.test.ts` is
+>    untouched on main, so it merges clean.
+> 2. **REV3 remaining: #4, #19, #20** (user order: **#4 before #20**) — full scope in Kimi K3's block below.
+> 3. **⚠️ #4 MAY ALREADY BE IN FLIGHT.** At the time of writing, the shared checkout
+>    `C:\Users\aicod\Projects\_src\diamond-live` had **UNCOMMITTED** work matching #4's exact scope:
+>    `ContactForm.tsx` (-151 lines), `ContactDetailDialog.tsx`, `contacts/page.tsx`, `e2e/contacts.spec.ts`,
+>    plus `scripts/verify-schema.mjs` and `docs/qa/propagation*`. **Do not start #4 by rebuilding it** —
+>    check `git status` in that checkout and ask the user whose work it is first. This is the
+>    concurrent-session hazard this file keeps warning about, live.
+> 4. **Still on the user** (unchanged): rotate the `re_...` Resend key, and delete the synthetic
+>    `public.feedback` test rows (query in the block below).
+>
+> **🔑🟢 PREVIOUS — OPUS 4.8 PASSDOWN (2026-07-19, session 2): the Phase-7 feedback carry-forward is CLOSED
+> and DELIVERING FOR REAL. [SHA claim below is stale — see the correction above.]**
 > Five commits, all Co-Authored-By Claude Opus 4.8. Everything below was driven and confirmed on
 > deployed prod in a browser, not from gates alone.
 >
@@ -69,9 +119,8 @@
 > - **Rotate the `re_...` Resend key** — it was pasted into a chat transcript in plaintext.
 > - **Test rows in `public.feedback`** (mine + Tychicus's realistic sample). Delete the synthetic ones when done:
 >   `delete from public.feedback where subject in ('Verification after the fix','Offline failure test','Idempotency proof','Success toast capture','Email path probe');`
-> - **`xlsx-export` flake** — pre-existing 5s timeout on the exceljs dynamic import under parallel load
->   (3/3 green in isolation, imports nothing the feedback work touches). Spun off as `task_2bfca52a`.
->   It is the ONLY red in `npm run test`; treat 667/668 as green-with-known-flake until that task lands.
+> - ~~**`xlsx-export` flake**~~ — **CLOSED, see LATEST above (`bf4e8a8`).** `task_2bfca52a` is done;
+>   the "treat 667/668 as green-with-known-flake" caveat is RETIRED — `npm run test` is now fully green.
 >
 > **🔑🟡 PREVIOUS — KIMI K3'S PASSDOWN (2026-07-18)** [its "UNCOMMITTED follow-up fix" shipped as
 > `5632bdd`; REV3 #4/#19/#20 remain]: **REV3 item 3 SHIPPED + PROD-VERIFIED; the
