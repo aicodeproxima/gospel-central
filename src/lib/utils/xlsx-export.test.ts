@@ -161,7 +161,29 @@ const fixtures: WorkbookData = { bookings, contacts, users, areas, auditEntries 
 
 // ---------------------------------------------------------------------------
 
-describe('buildReportWorkbook', () => {
+/**
+ * Suite-level timeout (vitest default is 5000ms).
+ *
+ * `buildReportWorkbook` dynamically imports exceljs — deliberately, so the library
+ * stays out of the main bundle (see 9a8c992). Whichever test runs first therefore
+ * pays the entire one-time cost of importing + transforming a large library, while
+ * the rest hit the module cache. Measured first-test vs rest:
+ *
+ *   idle machine .................  612ms  vs ~1ms
+ *   full suite under CPU load ....   21.3s vs ~1-115ms
+ *   saturated (24 procs/20 cores)  >34s    (blew a 30s timeout)
+ *
+ * So the cost scales with contention and has no natural ceiling; the 5s default was
+ * failing with "Test timed out in 5000ms" while every assertion was perfectly fine.
+ * 60s is deliberate over-provisioning — this suite has no legitimate hang mode (no
+ * I/O, no network, just an await on an in-process build), so a generous ceiling costs
+ * nothing and a tight one reintroduces the flake.
+ *
+ * This is set on the `describe` rather than on the first `it` on purpose: which test
+ * pays the import is an artifact of execution order, so a per-test timeout would
+ * silently stop protecting the suite as soon as a test is reordered or prepended.
+ */
+describe('buildReportWorkbook', { timeout: 60_000 }, () => {
   it('creates exactly the 4 expected worksheets, in order, by exact name', async () => {
     const workbook = await buildReportWorkbook(fixtures);
     const names = workbook.worksheets.map((ws) => ws.name);
