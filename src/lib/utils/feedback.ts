@@ -25,6 +25,7 @@ export interface FeedbackPayload {
   /** Self-asserted; the server records these as unverified in mock mode. */
   submitterId?: string;
   submitterName?: string;
+  submitterUsername?: string;
   submitterRole?: string;
   appVersion?: string;
   pageUrl?: string;
@@ -93,6 +94,7 @@ export function validateFeedbackPayload(input: unknown): FeedbackValidation {
       message,
       submitterId: optional(body.submitterId, 100),
       submitterName: optional(body.submitterName, 200),
+      submitterUsername: optional(body.submitterUsername, 100),
       submitterRole: optional(body.submitterRole, 50),
       appVersion: optional(body.appVersion, 100),
       pageUrl: optional(body.pageUrl, 500),
@@ -100,26 +102,54 @@ export function validateFeedbackPayload(input: unknown): FeedbackValidation {
   };
 }
 
+/** Display labels for the category — capitalized for the subject line + body. */
+export const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
+  bug: 'Bug',
+  idea: 'Idea',
+  question: 'Question',
+  other: 'Other',
+};
+
+/** First token of the submitter's name, for the subject line. Falls back to the
+ *  username, then 'Unknown' — the subject must never render as "GS Feedback:  - Bug". */
+function firstNameOf(p: FeedbackPayload): string {
+  const first = (p.submitterName ?? '').trim().split(/\s+/)[0];
+  return first || p.submitterUsername || 'Unknown';
+}
+
+/**
+ * Email subject: `GS Feedback: <first name> - <Category>`.
+ * Scannable in an inbox list without opening anything — who, and what kind.
+ */
+export function formatFeedbackSubject(p: FeedbackPayload): string {
+  return `GS Feedback: ${firstNameOf(p)} - ${CATEGORY_LABELS[p.category]}`;
+}
+
 /**
  * Plain-text email body for the dev notification. Deliberately text/plain, not
  * HTML: the subject and message are user-controlled, and text/plain has no
  * injection surface to get wrong.
+ *
+ * Five fields, then the message. Diagnostics (build, page, ref) are dropped from
+ * the body — they live on the stored row, which is where you'd look when actually
+ * triaging. The footer carries only what a READER of the email could be misled
+ * without: identity here is self-asserted (mock mode has no Supabase session to
+ * verify against), and a storage failure means this email is the only copy.
  */
 export function formatFeedbackEmail(p: FeedbackPayload, stored: boolean): string {
-  const identity = p.submitterName
-    ? `${p.submitterName}${p.submitterRole ? ` (${p.submitterRole})` : ''}`
-    : 'unknown';
-  return [
-    `Category: ${p.category}`,
-    `From:     ${identity}  [SELF-ASSERTED — not an authenticated identity]`,
-    `User id:  ${p.submitterId ?? 'unknown'}`,
-    `Build:    ${p.appVersion ?? 'unknown'}`,
-    `Page:     ${p.pageUrl ?? 'unknown'}`,
-    `Stored:   ${stored ? 'yes — public.feedback' : 'NO — this email is the only copy'}`,
-    `Ref:      ${p.clientRequestId}`,
-    '',
-    '---',
+  const lines = [
+    `Name:     ${p.submitterName || 'Unknown'}`,
+    `Username: ${p.submitterUsername || 'unknown'}`,
+    `Subject:  ${p.subject}`,
+    `Category: ${CATEGORY_LABELS[p.category]}`,
     '',
     p.message,
-  ].join('\n');
+    '',
+    '—',
+    'Sender identity is self-asserted, not authenticated.',
+  ];
+  if (!stored) {
+    lines.push(`NOT STORED — this email is the only copy. Ref ${p.clientRequestId}`);
+  }
+  return lines.join('\n');
 }

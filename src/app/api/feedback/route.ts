@@ -25,6 +25,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   validateFeedbackPayload,
   formatFeedbackEmail,
+  formatFeedbackSubject,
   type FeedbackPayload,
 } from '@/lib/utils/feedback';
 
@@ -94,6 +95,7 @@ async function store(
       message: p.message,
       submitter_id: p.submitterId ?? null,
       submitter_name: p.submitterName ?? null,
+      submitter_username: p.submitterUsername ?? null,
       submitter_role: p.submitterRole ?? null,
       // Always false today: no deploy authenticates the submitter against
       // Supabase. Flip this only when a verified session actually backs it.
@@ -166,7 +168,7 @@ async function notify(p: FeedbackPayload, stored: boolean): Promise<boolean> {
       body: JSON.stringify({
         from,
         to: [to],
-        subject: `[Gospel Central: ${p.category}] ${p.subject}`,
+        subject: formatFeedbackSubject(p),
         // text/plain, never html — subject and message are user-controlled.
         text: formatFeedbackEmail(p, stored),
       }),

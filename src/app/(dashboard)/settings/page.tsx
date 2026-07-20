@@ -236,6 +236,7 @@ export default function SettingsPage() {
       message: feedbackMessage.trim(),
       submitterId: user?.id,
       submitterName: user ? `${user.firstName} ${user.lastName}`.trim() || user.username : undefined,
+      submitterUsername: user?.username,
       submitterRole: user?.role,
       appVersion: APP_VERSION.shortCommit,
       pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,

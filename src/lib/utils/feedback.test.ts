@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateFeedbackPayload,
   formatFeedbackEmail,
+  formatFeedbackSubject,
   SUBJECT_MAX,
   MESSAGE_MAX,
   type FeedbackPayload,
@@ -80,21 +81,82 @@ describe('formatFeedbackEmail', () => {
   const payload: FeedbackPayload = {
     ...valid,
     category: 'bug',
-    submitterName: 'Michael',
+    subject: 'Something broke',
+    message: 'Here is what happened.',
+    submitterName: 'Stephen Phillips',
+    submitterUsername: 'stephen',
     submitterRole: 'dev',
-    submitterId: 'u-michael',
+    submitterId: 'u-stephen',
   };
 
-  it('labels the identity as self-asserted so a reader never treats it as authenticated', () => {
-    expect(formatFeedbackEmail(payload, true)).toContain('SELF-ASSERTED');
+  it('renders the five fields in order, then the message', () => {
+    const body = formatFeedbackEmail(payload, true);
+    const order = ['Name:', 'Username:', 'Subject:', 'Category:'].map((k) => body.indexOf(k));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(body).toContain('Stephen Phillips');
+    expect(body).toContain('stephen');
+    expect(body).toContain('Something broke');
+    expect(body).toContain('Bug');
+    expect(body.indexOf('Here is what happened.')).toBeGreaterThan(body.indexOf('Category:'));
   });
 
-  it('states plainly when the email is the only copy', () => {
-    expect(formatFeedbackEmail(payload, false)).toContain('only copy');
-    expect(formatFeedbackEmail(payload, true)).toContain('public.feedback');
+  it('still tells the reader the identity is not authenticated', () => {
+    // Dropped from the field list, kept in the footer: someone acting on a
+    // complaint must not read the name as a verified claim.
+    expect(formatFeedbackEmail(payload, true)).toContain('self-asserted');
   });
 
-  it('carries the idempotency ref so a duplicate email is identifiable', () => {
-    expect(formatFeedbackEmail(payload, true)).toContain('req-1');
+  it('warns ONLY when the row failed to store — silence is the normal case', () => {
+    expect(formatFeedbackEmail(payload, false)).toContain('NOT STORED');
+    expect(formatFeedbackEmail(payload, false)).toContain('req-1');
+    expect(formatFeedbackEmail(payload, true)).not.toContain('NOT STORED');
+  });
+
+  it('falls back to the username, then Unknown, when the name is missing', () => {
+    expect(formatFeedbackEmail({ ...payload, submitterName: undefined }, true)).toContain('Unknown');
+    const anon = formatFeedbackEmail(
+      { ...payload, submitterName: undefined, submitterUsername: undefined },
+      true,
+    );
+    expect(anon).toContain('Name:     Unknown');
+    expect(anon).toContain('Username: unknown');
+  });
+});
+
+describe('formatFeedbackSubject', () => {
+  const base: FeedbackPayload = {
+    ...valid,
+    category: 'bug',
+    submitterName: 'Stephen Phillips',
+    submitterUsername: 'stephen',
+  };
+
+  it('is "GS Feedback: <first name> - <Category>"', () => {
+    expect(formatFeedbackSubject(base)).toBe('GS Feedback: Stephen - Bug');
+  });
+
+  it.each([
+    ['idea', 'GS Feedback: Stephen - Idea'],
+    ['question', 'GS Feedback: Stephen - Question'],
+    ['other', 'GS Feedback: Stephen - Other'],
+  ] as const)('capitalizes category %s', (category, expected) => {
+    expect(formatFeedbackSubject({ ...base, category })).toBe(expected);
+  });
+
+  it('uses only the FIRST name, not the full name', () => {
+    expect(formatFeedbackSubject({ ...base, submitterName: 'Mary Jane Watson' })).toBe(
+      'GS Feedback: Mary - Bug',
+    );
+  });
+
+  it('never renders an empty name slot', () => {
+    // A blank/absent name previously would have produced "GS Feedback:  - Bug".
+    expect(formatFeedbackSubject({ ...base, submitterName: '   ' })).toBe(
+      'GS Feedback: stephen - Bug',
+    );
+    expect(
+      formatFeedbackSubject({ ...base, submitterName: undefined, submitterUsername: undefined }),
+    ).toBe('GS Feedback: Unknown - Bug');
   });
 });
