@@ -61,12 +61,24 @@ export default function CalendarPage() {
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Apply preferred default view from settings on first mount
+  // Apply the preferred view on first mount. REV3 #19: the explicit view
+  // toggle now PERSISTS the choice into calendarDefaultView (same pattern as
+  // groupsDefaultView on /groups), so "switched to Week, reloaded, came back
+  // Day" is dead — this mount effect restores the last explicit choice.
   const prefView = usePreferencesStore((s) => s.calendarDefaultView);
+  const setCalendarDefaultView = usePreferencesStore((s) => s.setCalendarDefaultView);
   useEffect(() => {
     setView(prefView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Explicit view switch (the Day/Week/Month toggle): applies AND persists.
+   *  Programmatic jumps (e.g. month → clicking a day opens Day view) keep
+   *  using setView directly — a navigation side-effect is not a preference. */
+  const switchView = (v: 'day' | 'week' | 'month') => {
+    setView(v);
+    setCalendarDefaultView(v);
+  };
 
   // Load areas, users, contacts, blocked slots ONCE on mount. (Previously this
   // had `selectedAreaId` in its deps, so it re-ran — re-fetching all four lists —
@@ -79,7 +91,12 @@ export default function CalendarPage() {
         setAreas(safe);
         // Pick an initial area only if none is selected yet (read the live store
         // value, not a stale closure, since this effect runs once on mount).
-        if (safe.length > 0 && !useBookingStore.getState().selectedAreaId) setAreaId(safe[0].id);
+        // REV3 #19: selectedAreaId PERSISTS across reloads now — validate the
+        // rehydrated id still names a real area (it may have been deleted /
+        // renamed on another era's seed) and fall back to the first area.
+        const current = useBookingStore.getState().selectedAreaId;
+        const stillValid = current && safe.some((a) => a.id === current);
+        if (safe.length > 0 && !stillValid) setAreaId(safe[0].id);
         // Empty-state: nothing for the bookings effect to load — flip the
         // page out of "loading" so we render the empty CTA instead of an
         // infinite spinner. (Bug observed against an empty real backend.)
@@ -488,7 +505,7 @@ export default function CalendarPage() {
             />
           )}
 
-          <Tabs value={view} onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
+          <Tabs value={view} onValueChange={(v) => v && switchView(v as 'day' | 'week' | 'month')}>
             <TabsList>
               <TabsTrigger value="day">Day</TabsTrigger>
               <TabsTrigger value="week">Week</TabsTrigger>
@@ -543,7 +560,7 @@ export default function CalendarPage() {
           {/* Segmented view switcher — single letters on the tightest screens. */}
           <Tabs
             value={view}
-            onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}
+            onValueChange={(v) => v && switchView(v as 'day' | 'week' | 'month')}
             className="shrink-0"
           >
             <TabsList>

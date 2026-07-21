@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Booking } from '../types';
 import { now as mockNow } from '../../mocks/mock-clock';
 
@@ -20,22 +21,38 @@ interface BookingState {
   closeBookingModal: () => void;
 }
 
-export const useBookingStore = create<BookingState>((set) => ({
-  // mockNow() is the real clock in prod (no override) — identical behavior — but the
-  // PINNED date under test (NEXT_PUBLIC_MOCK_DATE / window.__MOCK_DATE__), so the
-  // calendar's default day aligns with the deterministic seed week instead of drifting
-  // with the real clock (fixes the lifecycle-E2E real-clock dependency; was R3).
-  selectedDate: mockNow(),
-  view: 'day',
-  selectedAreaId: null,
-  selectedBooking: null,
-  isBookingModalOpen: false,
-  bookingSlot: null,
+export const useBookingStore = create<BookingState>()(
+  persist(
+    (set) => ({
+      // mockNow() is the real clock in prod (no override) — identical behavior — but the
+      // PINNED date under test (NEXT_PUBLIC_MOCK_DATE / window.__MOCK_DATE__), so the
+      // calendar's default day aligns with the deterministic seed week instead of drifting
+      // with the real clock (fixes the lifecycle-E2E real-clock dependency; was R3).
+      selectedDate: mockNow(),
+      view: 'day',
+      selectedAreaId: null,
+      selectedBooking: null,
+      isBookingModalOpen: false,
+      bookingSlot: null,
 
-  setDate: (date) => set({ selectedDate: date }),
-  setView: (view) => set({ view }),
-  setAreaId: (id) => set({ selectedAreaId: id }),
-  openBookingModal: (slot) => set({ isBookingModalOpen: true, bookingSlot: slot || null, selectedBooking: null }),
-  openEditModal: (booking) => set({ isBookingModalOpen: true, selectedBooking: booking, bookingSlot: null }),
-  closeBookingModal: () => set({ isBookingModalOpen: false, selectedBooking: null, bookingSlot: null }),
-}));
+      setDate: (date) => set({ selectedDate: date }),
+      setView: (view) => set({ view }),
+      setAreaId: (id) => set({ selectedAreaId: id }),
+      openBookingModal: (slot) => set({ isBookingModalOpen: true, bookingSlot: slot || null, selectedBooking: null }),
+      openEditModal: (booking) => set({ isBookingModalOpen: true, selectedBooking: booking, bookingSlot: null }),
+      closeBookingModal: () => set({ isBookingModalOpen: false, selectedBooking: null, bookingSlot: null }),
+    }),
+    {
+      name: 'gospel-central-booking',
+      version: 1,
+      // REV3 #19: ONLY the selected church survives a reload. The view's
+      // persistence rides `calendarDefaultView` in the preferences store (the
+      // explicit view toggle writes it — same pattern as groupsDefaultView).
+      // selectedDate is deliberately NOT persisted: yesterday's date restored
+      // tomorrow is wrong — the calendar must open on "today" (mockNow), per
+      // the matrix in docs/STATE-PERSISTENCE.md. Modal/slot state is
+      // ephemeral by definition.
+      partialize: (s) => ({ selectedAreaId: s.selectedAreaId }),
+    },
+  ),
+);
