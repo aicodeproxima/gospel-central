@@ -1,5 +1,27 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
+> **🏆🟢 LATEST — FABLE 5 (2026-07-21): REV3 item 20 SHIPPED as `2b10382` + RLS migration
+> 0018 APPLIED — THE REV3 BACKLOG IS CLOSED, 20/20 PROD-VERIFIED.** The user-approved BL
+> cross-branch reversal landed across all four sources of truth in one commit + one applied
+> migration: (1) `buildManageableScope` seeds from ALL Branch Leaders (kind stays 'branch' —
+> `kind==='all'` surfaces remain Overseer/Dev); (2) the 4 old-policy test pins (permissions
+> matrix ×2, critical-scenarios, per-user-smoke) flipped DELIBERATELY with dated notes;
+> (3) mock gates auto-widen via `viewerManageableUserIds`, five contact-write audit sites emit
+> `crossBranch`, /alerts renders the amber chip; (4) PERMISSIONS.md rows + the visibility≠edit
+> callout carry the dated reversal. **0018** adds `manageable_user_ids()` (BL = union of every
+> branch subtree), `audit_log.cross_branch`, an `audit_row()` that computes the flag, and moves
+> contacts_update + set_contact_teacher/inactive/active + reassign_contact + convert_contact
+> from `subtree_user_ids` to `manageable_user_ids`. **Proof chain:** verify-schema showed the
+> 12 new markers MISSING pre-apply -> applied via sbq/PAT -> **94/94**; REAL backend (RLS, REST
+> as branch1): the C5-baseline cross-branch PATCH returned the row + `cross_branch=true` audit
+> rows, reverted net-zero; PROD mock (user's Chrome, branch1): `?edit=` on VB "Aaron" opened
+> "Edit Contact", save -> "Contact updated", amber cross-branch chip on /alerts; probes
+> reverted, admin session restored. Gates: tsc, vitest 685/685, chromium 80+2 isolation-green,
+> webkit 82, mobile+tablet 21/21. **Plan B is COMPLETE — REV3 20/20.** Next candidates live in
+> the pre-flip runbook (`docs/FLIP-PRECONDITIONS.md`): username->email shim, mock-parity patch
+> (`Case Study/archive/wt-mock-parity-uncommitted-2026-07-17.patch`), CSP, real-iOS check.
+
+
 > **🏁🟢 LATEST — FABLE 5 (2026-07-21): REV3 item 19 SHIPPED + PROD-VERIFIED as `27e0d0f` —
 > 19/20 closed; #20 (BL cross-branch) is the ONLY remaining item.** The REV3 repro is dead:
 > Week + Virginia Beach survive a reload (verified live in the user's Chrome; date deliberately
