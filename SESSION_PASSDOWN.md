@@ -1,7 +1,29 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
-> **🔓🟢 LATEST — FABLE 5 (2026-07-21): the SALVAGED MOCK-PARITY PATCH LANDED as
-> `5de5d0e` — pre-flip checklist item "write-path parity gaps" is CLOSED.** The 93-line diff
+> **🏁🟢 LATEST — FABLE 5 (2026-07-21): REV3 IS CLOSED 20/20 and the mock-parity patch landed.
+> The remaining work is entirely the PROD FLIP (`docs/FLIP-PRECONDITIONS.md`).** Head is
+> `main == origin == feat/supabase-cutover == 1817885` (cutover fast-forwarded). This block is
+> the current source of truth; everything below it is historical.
+>
+> - **REV3 backlog: 20/20 CLOSED, all prod-verified.** Final items landed while sessions ran in
+>   parallel: **#19** state persistence + the page×state matrix (`27e0d0f`), **#20** BL
+>   cross-branch approved reversal (`2b10382` — permissions.ts `buildManageableScope` grants a
+>   Branch Leader every branch subtree with `kind:'branch'` preserved, PERMISSIONS.md dated note,
+>   the two test pins flipped, `viewerManageableUserIds` mock gates, migration
+>   `0018_bl_cross_branch_scope.sql`, and a `crossBranch` audit flag — 5 sites in handlers.ts).
+>   My own #20 test-pin flip converged into `2b10382` (no lost work; the shared checkout moved
+>   under me — the standing concurrent-sessions hazard). Also shipped by siblings this window:
+>   the duplicate-Marble THEME_OPTIONS fix (`0a61008`, the side-task chip) and the feedback
+>   email cleanup (`4e0e32e`).
+> - **⚠️ MIGRATION-NUMBER COLLISION — needs a decision before the flip / any `supabase db push`.**
+>   TWO files are numbered 0018: **`0018_feedback_username.sql`** (feedback triage) and
+>   **`0018_bl_cross_branch_scope.sql`** (the #20 RLS reversal). Both were hand-applied via the
+>   Management API so the live DB has both, but an ORDERED replay (the local self-host goal, or
+>   `db push`) will collide/skip. Fix: renumber one to 0019 and re-run `verify-schema.mjs`.
+>   `verify-schema.mjs` currently asserts the `0018_bl_cross_branch` markers (manageable_user_ids
+>   fn, audit_log.cross_branch col, contacts_update on manageable scope) — extend/renumber to
+>   match whatever the rename decides.
+> - **Mock-parity patch (`5de5d0e`) — pre-flip "write-path parity gaps" item CLOSED.** The 93-line diff
 > rescued from the deleted wt-mock-parity worktree (2026-07-17 cleanup), re-derived against three
 > weeks of handler drift: GET /bookings gains areaId/roomId + [start,end) filters with
 > start_time-ascending order; GET /contacts requires auth + contacts_select-style scoping
