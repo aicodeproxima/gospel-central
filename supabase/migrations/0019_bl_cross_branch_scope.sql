@@ -1,4 +1,6 @@
--- 0018_bl_cross_branch_scope.sql
+-- 0019_bl_cross_branch_scope.sql
+-- (Renumbered 0018→0019 2026-07-21: collided with 0018_feedback_username.sql, which was
+--  created two days earlier and keeps the number. Content unchanged; live DB already carries it.)
 -- USER-APPROVED POLICY REVERSAL (decided 2026-07-17, recorded REV3 #20; shipped 2026-07-21):
 -- Branch Leaders alternate physically between branch locations, so a Branch Leader may now
 -- MANAGE (write) contacts across EVERY branch subtree — deliberately reversing the earlier

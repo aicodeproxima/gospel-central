@@ -152,10 +152,10 @@ A('0012', "set_contact_teacher emits 'reassign' audit row", fnHas('set_contact_t
 A('0013', 'audit_row lifts cancel_reason', fnHas('audit_row', 'cancel_reason')); // 0013:36 (survives 0015:56)
 
 // 0014_reassign_scope_tier.sql — the target gate is scope-bound, NOT admin-tier.
-// CHAIN NOTE: 0018 replaced 0014's own-subtree bound with manageable_user_ids
+// CHAIN NOTE: 0019 replaced 0014's own-subtree bound with manageable_user_ids
 // (the user-approved BL cross-branch reversal) — 0014's surviving marker is
 // that the raw 0012 admin-tier form stays gone; the scope-bound form now
-// reads manageable_user_ids (asserted under 0018).
+// reads manageable_user_ids (asserted under 0019).
 A('0014', 'retired 0012 admin-tier target gate ABSENT', fnLacks('set_contact_teacher', 'public.is_admin_tier() or teacher in')); // 0012:78 form must be gone
 
 // 0015_contact_restore.sql
@@ -170,26 +170,26 @@ A('0016', 'policy feedback_select', pols.has('feedback_select@feedback')); // 00
 A('0017', 'fn login_email_for_username', funcs.has('login_email_for_username')); // 0017:20
 A('0017', 'resolver is exact-match on lower(username)', fnHas('login_email_for_username', 'lower(u.username) = lower(left(trim(coalesce(uname')); // 0017:24
 
-// 0018_bl_cross_branch_scope.sql (2026-07-21, USER-APPROVED BL cross-branch reversal)
-A('0018', 'fn manageable_user_ids', funcs.has('manageable_user_ids')); // 0018:19
-A('0018', 'manageable_user_ids unions ALL branch subtrees for a BL', fnHas('manageable_user_ids', "where bl.role = 'branch_leader'")); // 0018:26
-A('0018', 'col audit_log.cross_branch', auditCols.includes('cross_branch')); // 0018:34
-A('0018', 'audit_row computes cross_branch for BL actors', fnHas('audit_row', 'v_cross')); // 0018:92-99
+// 0019_bl_cross_branch_scope.sql (2026-07-21, USER-APPROVED BL cross-branch reversal; renumbered from 0018 — collided with 0018_feedback_username)
+A('0019', 'fn manageable_user_ids', funcs.has('manageable_user_ids')); // 0019:19
+A('0019', 'manageable_user_ids unions ALL branch subtrees for a BL', fnHas('manageable_user_ids', "where bl.role = 'branch_leader'")); // 0019:26
+A('0019', 'col audit_log.cross_branch', auditCols.includes('cross_branch')); // 0019:34
+A('0019', 'audit_row computes cross_branch for BL actors', fnHas('audit_row', 'v_cross')); // 0019:92-99
 {
-  const p = pols.get('contacts_update@contacts'); // 0018: contacts_update on manageable scope
-  A('0018', 'contacts_update gates on manageable_user_ids', !!p && /manageable_user_ids/.test(p.q));
+  const p = pols.get('contacts_update@contacts'); // 0019: contacts_update on manageable scope
+  A('0019', 'contacts_update gates on manageable_user_ids', !!p && /manageable_user_ids/.test(p.q));
 }
-A('0018', 'set_contact_teacher edit+target gates on manageable_user_ids', fnHas('set_contact_teacher', 'teacher in (select public.manageable_user_ids(auth.uid()))')); // 0018:150
-A('0018', "set_contact_teacher 'reassign' row carries cross_branch", fnHas('set_contact_teacher', 'v_cross')); // 0018:158
-A('0018', 'set_contact_inactive gates on manageable_user_ids', fnHas('set_contact_inactive', 'manageable_user_ids')); // 0018:172
-A('0018', 'set_contact_active gates on manageable_user_ids', fnHas('set_contact_active', 'manageable_user_ids')); // 0018:188
-A('0018', 'reassign_contact gates on manageable_user_ids', fnHas('reassign_contact', 'manageable_user_ids')); // 0018:204
-A('0018', 'convert_contact gates on manageable_user_ids', fnHas('convert_contact', 'manageable_user_ids')); // 0018:226
+A('0019', 'set_contact_teacher edit+target gates on manageable_user_ids', fnHas('set_contact_teacher', 'teacher in (select public.manageable_user_ids(auth.uid()))')); // 0019:150
+A('0019', "set_contact_teacher 'reassign' row carries cross_branch", fnHas('set_contact_teacher', 'v_cross')); // 0019:158
+A('0019', 'set_contact_inactive gates on manageable_user_ids', fnHas('set_contact_inactive', 'manageable_user_ids')); // 0019:172
+A('0019', 'set_contact_active gates on manageable_user_ids', fnHas('set_contact_active', 'manageable_user_ids')); // 0019:188
+A('0019', 'reassign_contact gates on manageable_user_ids', fnHas('reassign_contact', 'manageable_user_ids')); // 0019:204
+A('0019', 'convert_contact gates on manageable_user_ids', fnHas('convert_contact', 'manageable_user_ids')); // 0019:226
 
 // ---------- shape baseline (derived from the files, not from survey prose) ----------
 // tables: 10 (0001) + error_log (0008) + feedback (0016) = 12
 A('shape', `tables == 12 (live ${tables.length})`, tables.length === 12);
-// functions: 12(0001)+12(0002)+2(0003)+5(0004)+4(0005)+4(0007)+1(0008)+1(0010)+1(0015)+1(0017)+1(0018) = 44
+// functions: 12(0001)+12(0002)+2(0003)+5(0004)+4(0005)+4(0007)+1(0008)+1(0010)+1(0015)+1(0017)+1(0019) = 44
 A('shape', `functions == 44 (live ${funcs.size})`, funcs.size === 44);
 // public non-internal triggers: 3(0001)+10(0002)+1(0010) = 14 (+ on_auth_user_created in auth).
 // NOTE: the 2026-07-14 survey prose said "19 triggers" — that number is not derivable from
