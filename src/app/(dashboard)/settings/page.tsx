@@ -102,7 +102,6 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: 'forest', label: 'Forest', color: 'bg-green-500' },
   { id: 'sunset', label: 'Sunset', color: 'bg-orange-500' },
   { id: 'rose', label: 'Rose', color: 'bg-rose-500' },
-  { id: 'marble', label: 'Marble', color: 'bg-gradient-to-br from-[#fdfaf2] via-[#e6c458] to-[#b8941f]' },
   { id: 'starfield', label: 'Starfield', color: 'bg-gradient-to-br from-[#1a0b3d] via-[#6d28d9] to-[#a855f7]' },
   { id: 'aurora', label: 'Aurora', color: 'bg-gradient-to-br from-[#0a2e1a] via-[#2dbd6e] to-[#8b5cf6]' },
   { id: 'galaxy', label: 'Galaxy', color: 'bg-gradient-to-br from-[#04021a] via-[#a855f7] to-[#fce7f3]' },
