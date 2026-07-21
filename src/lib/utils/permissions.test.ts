@@ -1065,9 +1065,16 @@ describe('buildManageableScope', () => {
     expect(buildManageableScope({ ...dev1, parentId: undefined }, all).kind).toBe('all');
   });
 
-  test('Branch Leader is NOT "all" — manages own branch subtree only', () => {
+  // REV3 #20 — USER-APPROVED POLICY REVERSAL (2026-07-17, shipped 2026-07-21):
+  // Branch Leaders alternate physically between branch locations, so a Branch
+  // Leader now manages EVERY branch subtree. These pins previously locked BLs
+  // to their own branch and were flipped DELIBERATELY with the policy change
+  // (they existed precisely to force this conversation). kind stays 'branch'
+  // so kind==='all' surfaces remain Overseer/Dev-only; peer-branch writes are
+  // audit-flagged crossBranch. RLS mirror: migration 0018.
+  test('Branch Leader is NOT "all" — but manages EVERY branch subtree (REV3 #20)', () => {
     const s = buildManageableScope(_branchA, all);
-    // The defining contrast with buildVisibilityScope (which returns 'all').
+    // The visibility contrast survives: read scope is 'all', manage kind is 'branch'.
     expect(buildVisibilityScope(_branchA, all).kind).toBe('all');
     expect(s.kind).toBe('branch');
     // Reaches own subtree, including own node.
@@ -1076,20 +1083,24 @@ describe('buildManageableScope', () => {
     expect(s.userIds).toContain(_teamA.id);
     expect(s.userIds).toContain(_memberA.id);
     expect(s.branchIds).toContain(_branchA.id);
-    // Does NOT reach the sibling branch.
-    expect(s.userIds).not.toContain(_branchB.id);
-    expect(s.userIds).not.toContain(_groupB.id);
-    expect(s.userIds).not.toContain(_teamB.id);
-    expect(s.userIds).not.toContain(_memberB.id);
+    // AND the sibling branch's whole subtree (the reversal).
+    expect(s.userIds).toContain(_branchB.id);
+    expect(s.userIds).toContain(_groupB.id);
+    expect(s.userIds).toContain(_teamB.id);
+    expect(s.userIds).toContain(_memberB.id);
+    expect(s.branchIds).toContain(_branchB.id);
+    // But NOT the overseer above the branches — branch scope, not 'all'.
+    expect(s.userIds).not.toContain(_overseer.id);
   });
 
-  test('canEdit convention gates a Branch Leader to their own branch', () => {
+  test('canEdit convention: a Branch Leader edits across branches, never above them', () => {
     const s = buildManageableScope(_branchA, all);
     const canEdit = (id: string) => s.kind === 'all' || s.userIds.includes(id);
     expect(canEdit(_branchA.id)).toBe(true);
     expect(canEdit(_groupA.id)).toBe(true);
-    expect(canEdit(_branchB.id)).toBe(false); // sibling branch → locked
-    expect(canEdit(_groupB.id)).toBe(false);
+    expect(canEdit(_branchB.id)).toBe(true); // sibling branch → OPEN (REV3 #20)
+    expect(canEdit(_groupB.id)).toBe(true);
+    expect(canEdit(_overseer.id)).toBe(false); // above the branches → still locked
   });
 
   test('Group Leader manages own group subtree only', () => {

@@ -403,13 +403,23 @@ function viewerSubtreeUserIds(viewer: User): string[] {
 }
 
 /** Helper for WRITE-scope permission checks — the subtree a viewer may
- *  *administer* (buildManageableScope). Unlike the visibility scope, a Branch
- *  Leader gets a POPULATED own-branch set here (never 'all'), which is exactly
- *  what the real backend's `subtree_user_ids(auth.uid())` returns inside the
- *  contacts_update RLS / set_contact_teacher / set_contact_inactive RPCs. Pass
- *  this to canEditContact / canDeleteContact / canConvertContact. */
+ *  *administer* (buildManageableScope). REV3 #20 (user-approved reversal): a
+ *  Branch Leader's set now spans EVERY branch subtree — exactly what the real
+ *  backend's `manageable_user_ids(auth.uid())` (migration 0018) returns inside
+ *  the contacts_update RLS / set_contact_teacher / set_contact_inactive RPCs.
+ *  Pass this to canEditContact / canDeleteContact / canConvertContact. */
 function viewerManageableUserIds(viewer: User): string[] {
   return buildManageableScope(viewer, usersState as User[]).userIds;
+}
+
+/** REV3 #20: a Branch Leader's peer-branch write is LEGAL now, but audit-
+ *  flagged — true when a BL acts on a contact owned outside their OWN branch
+ *  subtree. Mirrors audit_log.cross_branch (0018's audit_row computes the
+ *  same predicate server-side). */
+function isCrossBranchWrite(viewer: User, ownerId: string | undefined): boolean {
+  if (viewer.role !== UserRole.BRANCH_LEADER || !ownerId) return false;
+  if (ownerId === viewer.id) return false;
+  return !subtreeUserRecords(viewer.id).some((u) => u.id === ownerId);
 }
 
 /**
@@ -1839,6 +1849,7 @@ export const handlers = [
       before: { pipelineStage: before.pipelineStage, status: before.status },
       after: { pipelineStage: updated.pipelineStage, status: updated.status },
       relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId, updated.assignedTeacherId),
+      crossBranch: isCrossBranchWrite(viewer, before.createdBy) || undefined,
       timestamp: updated.updatedAt,
     });
     // F1: distinct `reassign` audit row when the owner (assignedTeacherId) changed,
@@ -1860,6 +1871,7 @@ export const handlers = [
         before: { assignedTeacherId: before.assignedTeacherId },
         after: { assignedTeacherId: updated.assignedTeacherId },
         relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId, updated.assignedTeacherId),
+        crossBranch: isCrossBranchWrite(viewer, before.createdBy) || undefined,
         timestamp: updated.updatedAt,
       });
     }
@@ -1902,6 +1914,7 @@ export const handlers = [
       before: { status: before.status },
       after: { status: 'inactive' },
       relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId),
+      crossBranch: isCrossBranchWrite(viewer, before.createdBy) || undefined,
       timestamp: updated.updatedAt,
     });
     return HttpResponse.json({ success: true, contact: updated });
@@ -1942,6 +1955,7 @@ export const handlers = [
       before: { status: before.status },
       after: { status: 'active' },
       relatedUserIds: relatedUsers(actor.id, before.assignedTeacherId),
+      crossBranch: isCrossBranchWrite(viewer, before.createdBy) || undefined,
       timestamp: updated.updatedAt,
     });
     return HttpResponse.json({ success: true, contact: updated });
@@ -2074,6 +2088,7 @@ export const handlers = [
       after: { status: 'converted', convertedToUserId: newUser.id },
       timestamp: now,
       relatedUserIds: relatedUsers(actor.id, newUser.id, contact.assignedTeacherId),
+      crossBranch: isCrossBranchWrite(viewer, contact.createdBy) || undefined,
     });
 
     // Parity with the Supabase router: return the temp password so the admin

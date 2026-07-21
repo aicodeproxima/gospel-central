@@ -98,5 +98,10 @@ export interface AuditLogEntry {
    *  per-user Alerts feed. Optional: absent on legacy entries (fall back to
    *  [userId]). Populated at every runtime push site + the seed generator. */
   relatedUserIds?: string[];
+  /** REV3 #20: true when a Branch Leader wrote a record whose owner sits
+   *  OUTSIDE their own branch — legal under the 2026-07-17 cross-branch
+   *  policy, but flagged for the audit trail (DB mirror:
+   *  audit_log.cross_branch, migration 0018). */
+  crossBranch?: boolean;
   timestamp: string;
 }

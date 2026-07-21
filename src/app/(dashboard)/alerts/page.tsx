@@ -163,6 +163,14 @@ export default function AlertsPage() {
                               {target.reason && (
                                 <span className="text-muted-foreground">— “{target.reason}”</span>
                               )}
+                              {e.crossBranch && (
+                                // REV3 #20: a Branch Leader acted outside their
+                                // own branch — legal under the 2026-07-17
+                                // policy, surfaced for the audit trail.
+                                <span className="rounded bg-amber-500/15 px-1 py-0.5 font-medium text-amber-600 dark:text-amber-400">
+                                  cross-branch
+                                </span>
+                              )}
                             </div>
                           )}
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">

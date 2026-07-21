@@ -914,9 +914,20 @@ export function buildManageableScope(
     return { kind: 'all', userIds: [], branchIds: [], groupIds: [], teamIds: [] };
   }
 
-  // Everyone else manages only their own reachable subtree. Branch Leaders
-  // land here too — that is the whole point: own branch only, never 'all'.
-  const reach = new Set<string>([viewer.id]);
+  // REV3 #20 — USER-APPROVED POLICY REVERSAL (2026-07-17): Branch Leaders
+  // alternate physically between branch locations, so a Branch Leader manages
+  // EVERY branch subtree — the reachability walk seeds from ALL Branch
+  // Leaders, not just the viewer. This deliberately reverses the earlier
+  // own-branch-only tightening (incl. the 0014 reassign-target scope) and is
+  // mirrored by RLS migration 0018 (manageable_user_ids) — mock and real flip
+  // together. `kind` stays 'branch' (NOT 'all') so kind==='all' surfaces
+  // remain Overseer/Dev-only, and peer-branch writes are audit-flagged
+  // crossBranch. Group/Team Leaders and Members: own subtree, unchanged.
+  const seeds =
+    viewer.role === UserRole.BRANCH_LEADER
+      ? [viewer, ...allUsers.filter((u) => u.role === UserRole.BRANCH_LEADER && u.id !== viewer.id)]
+      : [viewer];
+  const reach = new Set<string>(seeds.map((s) => s.id));
   const branchIds = new Set<string>();
   const groupIds = new Set<string>();
   const teamIds = new Set<string>();
@@ -926,9 +937,9 @@ export function buildManageableScope(
     else if (u.role === UserRole.GROUP_LEADER) groupIds.add(u.id);
     else if (u.role === UserRole.TEAM_LEADER) teamIds.add(u.id);
   };
-  // Seed the viewer's own node into the right bucket so a Branch Leader's
-  // own branch row counts as manageable.
-  bucket(viewer);
+  // Seed every starting node into the right bucket so each seeded branch's
+  // own row counts as manageable.
+  seeds.forEach(bucket);
 
   let added = true;
   while (added) {

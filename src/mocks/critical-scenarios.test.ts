@@ -250,10 +250,13 @@ describe('Critical #23 — Cross-branch matrix verification', () => {
     expect(canChangeRole(joseph, virginiaBeachMember, UserRole.DEV)).toBe(false);
   });
 
-  test('Joseph CANNOT edit a Virginia Beach-owned contact; Simon Peter CAN (Decision 10 manageable scope)', () => {
-    // 2026-07 overhaul Decision 10: contact WRITES for BLs are bounded by
-    // buildManageableScope (own branch), same split that fixed the BL
-    // cross-branch user-edit bug. Hard fixture (the old soft-skip on a
+  test('Joseph CAN edit a Virginia Beach-owned contact (REV3 #20 cross-branch reversal); Simon Peter CAN too', () => {
+    // REV3 #20 — USER-APPROVED POLICY REVERSAL (2026-07-17, shipped
+    // 2026-07-21): Branch Leaders alternate physically between branches, so
+    // a BL's manageable scope spans EVERY branch subtree. This pin previously
+    // asserted the Decision-10 own-branch bound and was flipped DELIBERATELY
+    // with the policy (RLS mirror: migration 0018; peer-branch writes are
+    // audit-flagged crossBranch). Hard fixture (the old soft-skip on a
     // seeded VB contact silently skipped for months).
     const vbContact = (virginiaBeachContact ?? {
       id: 'c-vb-fixture',
@@ -264,7 +267,7 @@ describe('Critical #23 — Cross-branch matrix verification', () => {
     }) as Contact;
     const josephScope = buildManageableScope(joseph, allUsers).userIds;
     const simonScope = buildManageableScope(simonPeter, allUsers).userIds;
-    expect(canEditContact(joseph, vbContact, josephScope)).toBe(false);
+    expect(canEditContact(joseph, vbContact, josephScope)).toBe(true);
     expect(canEditContact(simonPeter, vbContact, simonScope)).toBe(true);
   });
 

@@ -1,7 +1,7 @@
 {
   "phase": "START",
   "capturedAtNote": "wall-clock omitted (Date unavailable in mock-clock world); git+seed are the anchors",
-  "gitSha": "df7367b",
+  "gitSha": "f2173c9",
   "gitBranch": "main",
   "mockDate": "2026-06-22T12:00:00",
   "node": "v24.13.1",

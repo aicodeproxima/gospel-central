@@ -151,7 +151,7 @@ scope (`buildManageableScope`), not the visibility scope:
   updated by the booking-completion flow, not direct edits.
 - Team Leaders and above change any contact **in their manageable scope**
   (creator OR assigned teacher reachable in their own subtree). A Branch
-  Leader's manageable scope is their own branch — cross-branch contact
+  Leader's manageable scope spans every branch (REV3 #20 reversal) — contact
   writes are Overseer/Dev only.
 - Bulk-delete applies the same gate per selected row.
 
@@ -161,10 +161,10 @@ scope (`buildManageableScope`), not the visibility scope:
 | Create (owner = self) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Create (assign to other user) | ❌ | within team | within group | any branch | all | all |
 | Edit / Delete (own creations) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Edit / Delete (others') | ❌ | within team | within group | **own branch only** | all | all |
-| Bulk-delete | own rows only | rows in team | rows in group | rows in own branch | all | all |
-| Reassign owner | ❌ | within team | within group | own branch | all | all |
-| Convert contact → user account | ❌ | within team | within group | own branch | all | all |
+| Edit / Delete (others') | ❌ | within team | within group | **any branch** (audit-flagged cross-branch; REV3 #20) | all | all |
+| Bulk-delete | own rows only | rows in team | rows in group | rows in any branch (REV3 #20) | all | all |
+| Reassign owner | ❌ | within team | within group | any branch (REV3 #20) | all | all |
+| Convert contact → user account | ❌ | within team | within group | any branch (REV3 #20) | all | all |
 | CSV export (Decision 13) | ❌ | ❌ | ✓ | ✓ | ✓ | ✓ |
 
 ### Bookings (calendar)
@@ -296,15 +296,21 @@ canEditSystemConfig(viewer)
 
 scopeForRole(viewer)                   // returns { kind, branchIds, groupIds, teamIds, userIds }
 buildVisibilityScope(viewer, users)    // what a viewer can SEE — Branch L+ => kind 'all' (whole org)
-buildManageableScope(viewer, users)    // what a viewer can ADMINISTER/toggle — Branch L => OWN branch subtree (NOT 'all'); only Overseer/Dev => 'all'
+buildManageableScope(viewer, users)    // what a viewer can ADMINISTER/toggle — Branch L => EVERY branch subtree (kind 'branch', NOT 'all'; REV3 #20); only Overseer/Dev => 'all'
 ```
 
 > **Visibility ≠ edit authority.** A Branch Leader can *see* the whole org
-> (`buildVisibilityScope` → `'all'`) but may only *toggle* settings inside
-> their own branch (`buildManageableScope` → own subtree). Admin edit gates
-> (e.g. the Export / Import tab + its server endpoint) MUST use
-> `buildManageableScope`; using `buildVisibilityScope` would silently let a
-> Branch Leader edit every branch.
+> (`buildVisibilityScope` → `'all'`) and — **since the 2026-07-17 user
+> decision (REV3 #20, shipped 2026-07-21 + RLS migration 0018)** — may also
+> *manage* every BRANCH subtree (`buildManageableScope` seeds from all Branch
+> Leaders; `kind` stays `'branch'`, so `kind === 'all'` surfaces remain
+> Overseer/Dev-only and nothing ABOVE the branches is manageable). This
+> DELIBERATELY REVERSES the earlier own-branch-only tightening (incl. the
+> 0014 reassign-target scope): Branch Leaders alternate physically between
+> branch locations, so cross-branch management is a real operational need.
+> Peer-branch writes are legal but audit-flagged `crossBranch: true`
+> (DB: `audit_log.cross_branch`). Admin edit gates MUST still use
+> `buildManageableScope`, never `buildVisibilityScope`.
 
 Every helper is pure `(viewer, target?) => boolean` so it's testable without DOM, store, or network.
 

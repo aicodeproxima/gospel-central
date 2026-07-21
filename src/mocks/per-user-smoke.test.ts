@@ -245,17 +245,20 @@ describe('per-user smoke — cross-user invariants hold across the matrix', () =
       const subtree = buildManageableScope(viewer, allUsers).userIds;
       expect(canEditContact(viewer, arbitraryContact, subtree), `${vid}: canEditContact should pass`).toBe(true);
     }
-    // Decision 10 (2026-07): a Branch Leader's contact WRITES are bounded by
-    // their MANAGEABLE scope. u-team-15 is a Virginia Beach chain — the
-    // Newport News BL (Joseph) must be denied, the VB BL (Simon Peter)
-    // allowed via his own subtree.
+    // REV3 #20 — USER-APPROVED POLICY REVERSAL (2026-07-17, shipped
+    // 2026-07-21): a Branch Leader's manageable scope now spans EVERY branch
+    // subtree (BLs alternate physically between branches). u-team-15 is a
+    // Virginia Beach chain — BOTH the Newport News BL (Joseph) and the VB BL
+    // (Simon Peter) reach it now; peer-branch writes are audit-flagged
+    // crossBranch (RLS mirror: migration 0018). The old own-branch pins were
+    // flipped DELIBERATELY with the policy.
     const nnBl = allUsers.find((u) => u.id === 'u-branch-1')!;
     const vbBl = allUsers.find((u) => u.id === 'u-branch-5')!;
     const nnScope = buildManageableScope(nnBl, allUsers).userIds;
     const vbScope = buildManageableScope(vbBl, allUsers).userIds;
-    expect(nnScope.includes('u-team-15'), 'seed sanity: team15 not under NN BL').toBe(false);
+    expect(nnScope.includes('u-team-15'), 'REV3 #20: team15 IS in the NN BL scope now').toBe(true);
     expect(vbScope.includes('u-team-15'), 'seed sanity: team15 under VB BL').toBe(true);
-    expect(canEditContact(nnBl, arbitraryContact, nnScope), 'NN BL cross-branch edit denied').toBe(false);
+    expect(canEditContact(nnBl, arbitraryContact, nnScope), 'NN BL cross-branch edit ALLOWED (REV3 #20)').toBe(true);
     expect(canEditContact(vbBl, arbitraryContact, vbScope), 'VB BL in-branch edit allowed').toBe(true);
   });
 
