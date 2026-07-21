@@ -38,10 +38,11 @@ Flipping `MOCK_API=false` in Production today ships a prod build with no backend
 - [ ] **Username→email login shim.** Supabase Auth is email-based; all 132 seed users log in
       as `<login>@diamond.org` / `gospelseed1`. The app's username login must map
       username→email before the flip, or nobody can sign in.
-- [ ] **Write-path parity gaps** — the remaining mock↔real divergences (see
-      `Case Study/archive/wt-mock-parity-uncommitted-2026-07-17.patch` for the salvaged
-      unfinished parity work: GET /bookings roomId/start/end filtering, GET /contacts
-      RLS-parity visibility scoping).
+- [x] **Write-path parity gaps** — CLOSED 2026-07-21 (`5de5d0e`): the salvaged
+      wt-mock-parity patch landed — GET /bookings roomId/start/end filters + ascending
+      order, GET /contacts contacts_select-style scoping (auth required), GET /users
+      self-only for Members. Prod-verified: anonymous reads 401; member3 sees 1/1 vs
+      admin's 132/70; room filter exact + ordered.
 - [ ] **CSP pass** — still open.
 - [ ] **Real-iOS-Safari check** — plain preview link on a physical iPhone, no bypass query,
       no cached cookie (Chromium/emulator results do not count).

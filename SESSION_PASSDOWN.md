@@ -1,5 +1,22 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
+> **🔓🟢 LATEST — FABLE 5 (2026-07-21): the SALVAGED MOCK-PARITY PATCH LANDED as
+> `5de5d0e` — pre-flip checklist item "write-path parity gaps" is CLOSED.** The 93-line diff
+> rescued from the deleted wt-mock-parity worktree (2026-07-17 cleanup), re-derived against three
+> weeks of handler drift: GET /bookings gains areaId/roomId + [start,end) filters with
+> start_time-ascending order; GET /contacts requires auth + contacts_select-style scoping
+> (canViewContact; per-column search, %/, stripped, ?q accepted; includeInactive preserved);
+> GET /users requires auth + canViewUser (Member = self-only). Fallout fixed with it: 3
+> login-contract tests + 2 e2e token scrapers depended on the anonymous-read permissiveness this
+> kills — the scraper had NEVER worked (expects {state:{token}}, app stores raw 'token') and only
+> passed while /contacts was anonymous. PROD-VERIFIED (user's Chrome): anonymous /users +
+> /contacts -> 401; member3 -> 1 user (self) + 1 contact ("Samaritan", own) with the contacts page
+> rendering it; admin -> 132/70; ?roomId= filter exact + ascending. Gates: vitest 685/685,
+> contacts.spec 8/8 on BOTH engines; batch flakes rotated under sibling-session contention, each
+> isolation-green (standing disposition). FLIP-PRECONDITIONS.md checkbox ticked. Remaining
+> pre-flip: username->email shim, CSP pass, real-iOS check, cutover ff.
+
+
 > **🏆🟢 LATEST — FABLE 5 (2026-07-21): REV3 item 20 SHIPPED as `2b10382` + RLS migration
 > 0018 APPLIED — THE REV3 BACKLOG IS CLOSED, 20/20 PROD-VERIFIED.** The user-approved BL
 > cross-branch reversal landed across all four sources of truth in one commit + one applied
