@@ -1,5 +1,25 @@
 # Gospel Central (formerly "Diamond") — Session Passdown (cold-start for the next session)
 
+> **🏁🟢 LATEST — FABLE 5 (2026-07-21): REV3 item 19 SHIPPED + PROD-VERIFIED as `27e0d0f` —
+> 19/20 closed; #20 (BL cross-branch) is the ONLY remaining item.** The REV3 repro is dead:
+> Week + Virginia Beach survive a reload (verified live in the user's Chrome; date deliberately
+> snaps to today — Jul 20-26 week shown on Jul 21). Mechanics: the explicit Day/Week/Month
+> toggle now WRITES `calendarDefaultView` (the Groups groupsDefaultView pattern) and the mount
+> effect restores it; the church rides new `gospel-central-booking` (zustand persist v1,
+> partialize = selectedAreaId ONLY, rehydrated id validated against live areas w/ first-area
+> fallback); programmatic view jumps (month->day click) do NOT write the pref; selectedDate and
+> modal state never persist. **NEW `docs/STATE-PERSISTENCE.md`** = the page×state matrix + the
+> 5 rules future features must follow (view toggles persist via their *DefaultView pref; dates
+> never; validate rehydrated ids; query-ish filters stay in the URL; modal state ephemeral).
+> Gates: tsc clean, vitest 685/685, chromium 81+2 / webkit 81+1 isolation-green (known
+> load-flake class), mobile+tablet 21/21. e2e sees unchanged defaults (fresh localStorage).
+> The duplicate-marble chip landed upstream as `0a61008` (user-run side task). Device state
+> restored post-verification (Day + Newport News). **#20 next** — scope unchanged from the
+> 07-19 block below (permissions + PERMISSIONS.md dated note + test-pin flips +
+> viewerManageableUserIds mock gates + RLS 0018 through verify-schema BEFORE apply +
+> crossBranch audit flag; PAT in Claude project memory, proven working).
+
+
 > **🏁🟢 LATEST — FABLE 5 PASSDOWN (2026-07-19): REV3 item 4 SHIPPED + PROD-VERIFIED as
 > `d4559ed` — 18/20 REV3 items now closed; only #19 and #20 remain.** This block supersedes
 > everything below on Plan-B state; it also reconciles the three Kimi K3 commits
