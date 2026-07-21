@@ -19,6 +19,8 @@ import {
   canConvertContact,
   canEditContact,
   canDeleteContact,
+  canViewContact,
+  canViewUser,
   canReassignContact,
   canChangeUsername,
   canAccessReports,
@@ -1276,8 +1278,19 @@ export const handlers = [
   http.get(`${API}/bookings`, ({ request }) => {
     const url = new URL(request.url);
     const areaId = url.searchParams.get('areaId');
-    let filtered = bookingsState;
+    const roomId = url.searchParams.get('roomId');
+    const start = url.searchParams.get('start');
+    const end = url.searchParams.get('end');
+    // Parity with supabase-router GET /bookings (H-scan medium, salvaged
+    // wt-mock-parity patch): filter by areaId/roomId + the [start, end)
+    // window (start = gte start_time, end = lt start_time) and return in
+    // start_time ascending order.
+    let filtered = [...bookingsState];
     if (areaId) filtered = filtered.filter((b) => b.areaId === areaId);
+    if (roomId) filtered = filtered.filter((b) => b.roomId === roomId);
+    if (start) filtered = filtered.filter((b) => new Date(b.startTime).getTime() >= new Date(start).getTime());
+    if (end) filtered = filtered.filter((b) => new Date(b.startTime).getTime() < new Date(end).getTime());
+    filtered.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     return HttpResponse.json(filtered);
   }),
 
@@ -1663,7 +1676,16 @@ export const handlers = [
   // Contacts — supports search, type, stage, sort
   http.get(`${API}/contacts`, ({ request }) => {
     const url = new URL(request.url);
-    const search = url.searchParams.get('search')?.toLowerCase();
+    // Parity with the contacts_select RLS (salvaged wt-mock-parity patch, H3):
+    // admin-tier (BL+) see all; everyone else only contacts they created /
+    // are assigned / that sit in their subtree (canViewContact). Previously
+    // the mock returned ALL contacts to ANY authenticated caller.
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    // Per-column substring search (real does per-column ILIKE with %/, stripped;
+    // accepts ?search and ?q).
+    const rawSearch = url.searchParams.get('search') ?? url.searchParams.get('q') ?? '';
+    const search = rawSearch.replace(/[%,]/g, '').toLowerCase();
     const type = url.searchParams.get('type');
     const stage = url.searchParams.get('stage');
     const sort = url.searchParams.get('sort') || 'name';
@@ -1679,15 +1701,19 @@ export const handlers = [
     // collection is filtered; GET /contacts/:id returns a single contact regardless of status.
     // Admin surfaces pass includeInactive=1 to see soft-deleted rows (dimmed), same as areas.
     const includeInactive = url.searchParams.get('includeInactive');
+    const scope = viewerSubtreeUserIds(viewer);
     let filtered = contactsState
       .filter((c) => includeInactive ? true : c.status !== 'inactive')
+      .filter((c) => canViewContact(viewer, c as Contact, scope))
       .map((c) =>
         c.retainUntil && Date.parse(String(c.retainUntil)) < nowMs
           ? { ...c, retentionExpired: true }
           : c,
       );
     if (search) filtered = filtered.filter((c) =>
-      `${c.firstName} ${c.lastName} ${c.email || ''} ${c.phone || ''} ${c.groupName || ''}`.toLowerCase().includes(search),
+      [c.firstName, c.lastName, c.email, c.phone, c.groupName].some(
+        (f) => typeof f === 'string' && f.toLowerCase().includes(search),
+      ),
     );
     if (type && type !== 'all') filtered = filtered.filter((c) => c.type === type);
     if (stage && stage !== 'all') filtered = filtered.filter((c) => c.pipelineStage === stage);
@@ -2235,8 +2261,13 @@ export const handlers = [
   }),
 
   // Users
-  http.get(`${API}/users`, () => {
-    return HttpResponse.json(usersState);
+  http.get(`${API}/users`, ({ request }) => {
+    // Parity with users_select-style visibility (salvaged wt-mock-parity
+    // patch): a Member sees only their own record; leaders (Team Leader+)
+    // see everyone. Previously returned the full list to any caller.
+    const viewer = resolveViewer(request);
+    if (!viewer) return unauthorized();
+    return HttpResponse.json(usersState.filter((u) => canViewUser(viewer, u as User)));
   }),
 
   http.post(`${API}/users`, async ({ request }) => {

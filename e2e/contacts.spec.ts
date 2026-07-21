@@ -89,6 +89,12 @@ test.describe('List B — contacts permission boundary (Decision 10)', () => {
     const someId = await page.evaluate(async () => {
       const res = await fetch('/api/contacts', {
         headers: (() => {
+          // The app stores the token as a RAW string under 'token' (not a
+          // zustand {state:{token}} wrapper) — the old scraper never matched,
+          // which went unnoticed only while GET /contacts accepted anonymous
+          // calls (fixed by the RLS-parity patch: it 401s now).
+          const raw = localStorage.getItem('token');
+          if (raw && raw.startsWith('mock-jwt-token-')) return { authorization: `Bearer ${raw}` };
           for (const k of Object.keys(localStorage)) {
             try { const v = JSON.parse(localStorage.getItem(k) || 'null'); if (v?.state?.token) return { authorization: `Bearer ${v.state.token}` }; } catch { /* */ }
           }
@@ -129,6 +135,12 @@ test.describe('REV3 #4 — detail dialog is the single edit surface', () => {
     const target = await page.evaluate(async () => {
       const res = await fetch('/api/contacts', {
         headers: (() => {
+          // The app stores the token as a RAW string under 'token' (not a
+          // zustand {state:{token}} wrapper) — the old scraper never matched,
+          // which went unnoticed only while GET /contacts accepted anonymous
+          // calls (fixed by the RLS-parity patch: it 401s now).
+          const raw = localStorage.getItem('token');
+          if (raw && raw.startsWith('mock-jwt-token-')) return { authorization: `Bearer ${raw}` };
           for (const k of Object.keys(localStorage)) {
             try { const v = JSON.parse(localStorage.getItem(k) || 'null'); if (v?.state?.token) return { authorization: `Bearer ${v.state.token}` }; } catch { /* */ }
           }

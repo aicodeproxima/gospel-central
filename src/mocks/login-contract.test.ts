@@ -136,7 +136,11 @@ describe('mock password realism (2026-07-18 hardening)', () => {
     const loginAs = async (pw: string) => (await login('contract_probe', pw))!.status;
 
     // Current password is the issued temp password from the previous test.
-    const createdList = await getResponse(handlers, new Request(`${API}/users`));
+    // GET /users requires auth since the mock-parity patch (RLS-style scoping).
+    const createdList = await getResponse(
+      handlers,
+      new Request(`${API}/users`, { headers: { Authorization: `Bearer ${adminToken}` } }),
+    );
     const probe = ((await createdList!.json()) as { id: string; username: string }[])
       .find((u) => u.username === 'contract_probe')!;
 
@@ -162,7 +166,12 @@ describe('mock password realism (2026-07-18 hardening)', () => {
   });
 
   it('change-password is self-only: anonymous 401, other user 403', async () => {
-    const createdList = await getResponse(handlers, new Request(`${API}/users`));
+    // GET /users requires auth since the mock-parity patch (RLS-style scoping).
+    const { token: adminToken } = (await (await login('admin', 'admin'))!.json()) as AuthResponse;
+    const createdList = await getResponse(
+      handlers,
+      new Request(`${API}/users`, { headers: { Authorization: `Bearer ${adminToken}` } }),
+    );
     const probe = ((await createdList!.json()) as { id: string; username: string }[])
       .find((u) => u.username === 'contract_probe')!;
 
